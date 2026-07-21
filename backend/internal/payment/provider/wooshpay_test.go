@@ -2,11 +2,16 @@ package provider
 
 import (
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/payment"
 	"github.com/stretchr/testify/require"
@@ -170,6 +175,127 @@ func TestWooshPayQueryOrder(t *testing.T) {
 			require.Equal(t, "order-1", response.Metadata["merchant_order_id"])
 		})
 	}
+}
+
+func TestVerifyWooshPayWebhookSignature(t *testing.T) {
+	t.Parallel()
+	body := `{"type":"payment_intent.succeeded"}`
+	now := time.Unix(1_800_000_000, 0)
+	ts := strconv.FormatInt(now.Unix(), 10)
+	valid := signWooshPayEvent("whsec_test", ts, body)
+	require.NoError(t, verifyWooshPayWebhookSignature(body, "t="+ts+",v1=bad,v1="+valid, "whsec_test", now))
+
+	tests := []struct {
+		name      string
+		body      string
+		header    string
+		secret    string
+		checkTime time.Time
+	}{
+		{"altered body", body + " ", "t=" + ts + ",v1=" + valid, "whsec_test", now},
+		{"stale timestamp", body, "t=" + ts + ",v1=" + valid, "whsec_test", now.Add(5*time.Minute + time.Second)},
+		{"future timestamp", body, "t=" + strconv.FormatInt(now.Add(5*time.Minute+time.Second).Unix(), 10) + ",v1=" + valid, "whsec_test", now},
+		{"missing header", body, "", "whsec_test", now},
+		{"missing timestamp", body, "v1=" + valid, "whsec_test", now},
+		{"duplicate timestamp", body, "t=" + ts + ",t=" + ts + ",v1=" + valid, "whsec_test", now},
+		{"malformed timestamp", body, "t=abc,v1=" + valid, "whsec_test", now},
+		{"missing signature", body, "t=" + ts, "whsec_test", now},
+		{"bad hex", body, "t=" + ts + ",v1=not-hex", "whsec_test", now},
+		{"empty secret", body, "t=" + ts + ",v1=" + valid, "", now},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			require.Error(t, verifyWooshPayWebhookSignature(tc.body, tc.header, tc.secret, tc.checkTime))
+		})
+	}
+}
+
+func TestWooshPayNotification(t *testing.T) {
+	t.Parallel()
+	now := time.Now()
+	provider := &WooshPay{config: map[string]string{"webhookSecret": "whsec_test"}}
+
+	tests := []struct {
+		name            string
+		eventType       string
+		intentID        string
+		status          string
+		currency        string
+		amount          int64
+		merchantOrderID string
+		metadataOrderID string
+		wantNil         bool
+		wantErr         bool
+	}{
+		{"both matching identifiers", "payment_intent.succeeded", "pi_1", "succeeded", "CNY", 1234, "order-1", "order-1", false, false},
+		{"merchant identifier only", "payment_intent.succeeded", "pi_1", "succeeded", "cny", 1234, "order-1", "", false, false},
+		{"metadata identifier only", "payment_intent.succeeded", "pi_1", "succeeded", "CNY", 1234, "", "order-1", false, false},
+		{"irrelevant event", "payment_intent.processing", "pi_1", "processing", "CNY", 1234, "order-1", "order-1", true, false},
+		{"conflicting identifiers", "payment_intent.succeeded", "pi_1", "succeeded", "CNY", 1234, "order-1", "order-2", false, true},
+		{"missing identifiers", "payment_intent.succeeded", "pi_1", "succeeded", "CNY", 1234, "", "", false, true},
+		{"missing intent", "payment_intent.succeeded", "", "succeeded", "CNY", 1234, "order-1", "order-1", false, true},
+		{"wrong status", "payment_intent.succeeded", "pi_1", "processing", "CNY", 1234, "order-1", "order-1", false, true},
+		{"wrong currency", "payment_intent.succeeded", "pi_1", "succeeded", "USD", 1234, "order-1", "order-1", false, true},
+		{"zero amount", "payment_intent.succeeded", "pi_1", "succeeded", "CNY", 0, "order-1", "order-1", false, true},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			body := marshalWooshPayEvent(t, tc.eventType, tc.intentID, tc.status, tc.currency, tc.amount, tc.merchantOrderID, tc.metadataOrderID)
+			ts := strconv.FormatInt(now.Unix(), 10)
+			header := "t=" + ts + ",v1=" + signWooshPayEvent("whsec_test", ts, body)
+			notification, err := provider.VerifyNotification(context.Background(), body, map[string]string{"wooshpay-signature": header})
+			if tc.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			if tc.wantNil {
+				require.Nil(t, notification)
+				return
+			}
+			require.Equal(t, "pi_1", notification.TradeNo)
+			require.Equal(t, "order-1", notification.OrderID)
+			require.Equal(t, 12.34, notification.Amount)
+			require.Equal(t, payment.NotificationStatusSuccess, notification.Status)
+			require.Equal(t, "evt_1", notification.Metadata["event_id"])
+			require.Equal(t, "CNY", notification.Metadata["currency"])
+			require.Equal(t, "succeeded", notification.Metadata["status"])
+		})
+	}
+}
+
+func TestWooshPayNotificationRejectsBadSignatureAndJSON(t *testing.T) {
+	provider := &WooshPay{config: map[string]string{"webhookSecret": "whsec_test"}}
+	_, err := provider.VerifyNotification(context.Background(), `{}`, map[string]string{"wooshpay-signature": "t=1,v1=bad"})
+	require.Error(t, err)
+
+	now := time.Now()
+	ts := strconv.FormatInt(now.Unix(), 10)
+	body := `{`
+	header := "t=" + ts + ",v1=" + signWooshPayEvent("whsec_test", ts, body)
+	_, err = provider.VerifyNotification(context.Background(), body, map[string]string{"Wooshpay-Signature": header})
+	require.Error(t, err)
+}
+
+func signWooshPayEvent(secret, timestamp, body string) string {
+	mac := hmac.New(sha256.New, []byte(secret))
+	_, _ = mac.Write([]byte(timestamp + "." + body))
+	return hex.EncodeToString(mac.Sum(nil))
+}
+
+func marshalWooshPayEvent(t *testing.T, eventType, intentID, status, currency string, amount int64, merchantOrderID, metadataOrderID string) string {
+	t.Helper()
+	body, err := json.Marshal(map[string]any{
+		"id":   "evt_1",
+		"type": eventType,
+		"data": map[string]any{"object": map[string]any{
+			"id": intentID, "status": status, "currency": currency,
+			"amount_received": amount, "merchant_order_id": merchantOrderID,
+			"metadata": map[string]string{"order_id": metadataOrderID},
+		}},
+	})
+	require.NoError(t, err)
+	return string(body)
 }
 
 func newWooshPayTestProvider(server *httptest.Server, secretKey string) *WooshPay {

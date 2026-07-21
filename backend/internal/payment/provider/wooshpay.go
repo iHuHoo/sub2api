@@ -3,11 +3,15 @@ package provider
 import (
 	"bytes"
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -16,12 +20,13 @@ import (
 )
 
 const (
-	wooshPayTestAPIBase     = "https://apitest.wooshpay.com"
-	wooshPayLiveAPIBase     = "https://api.wooshpay.com"
-	wooshPayCurrency        = "CNY"
-	wooshPayHTTPTimeout     = 15 * time.Second
-	wooshPayMaxResponseSize = 1 << 20
-	wooshPayMaxErrorSummary = 512
+	wooshPayTestAPIBase      = "https://apitest.wooshpay.com"
+	wooshPayLiveAPIBase      = "https://api.wooshpay.com"
+	wooshPayCurrency         = "CNY"
+	wooshPayHTTPTimeout      = 15 * time.Second
+	wooshPayMaxResponseSize  = 1 << 20
+	wooshPayMaxErrorSummary  = 512
+	wooshPayWebhookTolerance = 5 * time.Minute
 )
 
 type WooshPay struct {
@@ -69,6 +74,14 @@ type wooshPayPaymentIntent struct {
 	Currency        string            `json:"currency"`
 	MerchantOrderID string            `json:"merchant_order_id"`
 	Metadata        map[string]string `json:"metadata"`
+}
+
+type wooshPayEvent struct {
+	ID   string `json:"id"`
+	Type string `json:"type"`
+	Data struct {
+		Object wooshPayPaymentIntent `json:"object"`
+	} `json:"data"`
 }
 
 func NewWooshPay(instanceID string, config map[string]string) (*WooshPay, error) {
@@ -200,8 +213,48 @@ func (w *WooshPay) QueryOrder(ctx context.Context, tradeNo string) (*payment.Que
 	}, nil
 }
 
-func (w *WooshPay) VerifyNotification(context.Context, string, map[string]string) (*payment.PaymentNotification, error) {
-	return nil, fmt.Errorf("wooshpay webhook verification is not implemented")
+func (w *WooshPay) VerifyNotification(_ context.Context, rawBody string, headers map[string]string) (*payment.PaymentNotification, error) {
+	signatureHeader := wooshPayHeaderValue(headers, "wooshpay-signature")
+	if err := verifyWooshPayWebhookSignature(rawBody, signatureHeader, w.config["webhookSecret"], time.Now()); err != nil {
+		return nil, err
+	}
+	var event wooshPayEvent
+	if err := json.Unmarshal([]byte(rawBody), &event); err != nil {
+		return nil, fmt.Errorf("wooshpay parse webhook: %w", err)
+	}
+	if event.Type != "payment_intent.succeeded" {
+		return nil, nil
+	}
+	intent := event.Data.Object
+	orderID, err := resolveWooshPayOrderID(intent.MerchantOrderID, intent.Metadata["order_id"])
+	if err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(intent.ID) == "" {
+		return nil, fmt.Errorf("wooshpay succeeded webhook missing payment intent id")
+	}
+	if strings.ToLower(strings.TrimSpace(intent.Status)) != "succeeded" {
+		return nil, fmt.Errorf("wooshpay succeeded webhook has non-succeeded status: %s", intent.Status)
+	}
+	if !strings.EqualFold(strings.TrimSpace(intent.Currency), wooshPayCurrency) {
+		return nil, fmt.Errorf("wooshpay succeeded webhook currency must be %s", wooshPayCurrency)
+	}
+	if intent.AmountReceived <= 0 {
+		return nil, fmt.Errorf("wooshpay succeeded webhook has invalid amount_received")
+	}
+	return &payment.PaymentNotification{
+		TradeNo: intent.ID,
+		OrderID: orderID,
+		Amount:  decimal.NewFromInt(intent.AmountReceived).Shift(-2).InexactFloat64(),
+		Status:  payment.NotificationStatusSuccess,
+		RawData: rawBody,
+		Metadata: map[string]string{
+			"event_id":          strings.TrimSpace(event.ID),
+			"currency":          wooshPayCurrency,
+			"status":            "succeeded",
+			"merchant_order_id": orderID,
+		},
+	}, nil
 }
 
 func (w *WooshPay) Refund(context.Context, payment.RefundRequest) (*payment.RefundResponse, error) {
@@ -283,4 +336,74 @@ func summarizeWooshPayResponse(body []byte) string {
 		return http.StatusText(http.StatusBadGateway)
 	}
 	return string(trimmed)
+}
+
+func verifyWooshPayWebhookSignature(rawBody, signatureHeader, secret string, now time.Time) error {
+	if strings.TrimSpace(secret) == "" {
+		return fmt.Errorf("wooshpay webhookSecret not configured")
+	}
+	var timestampRaw string
+	var signatures [][]byte
+	for _, part := range strings.Split(signatureHeader, ",") {
+		key, value, ok := strings.Cut(strings.TrimSpace(part), "=")
+		if !ok || strings.TrimSpace(value) == "" {
+			continue
+		}
+		switch strings.TrimSpace(key) {
+		case "t":
+			if timestampRaw != "" {
+				return fmt.Errorf("wooshpay signature has duplicate timestamp")
+			}
+			timestampRaw = strings.TrimSpace(value)
+		case "v1":
+			decoded, err := hex.DecodeString(strings.TrimSpace(value))
+			if err == nil && len(decoded) == sha256.Size {
+				signatures = append(signatures, decoded)
+			}
+		}
+	}
+	if timestampRaw == "" || len(signatures) == 0 {
+		return fmt.Errorf("wooshpay signature missing valid t or v1 value")
+	}
+	timestampUnix, err := strconv.ParseInt(timestampRaw, 10, 64)
+	if err != nil {
+		return fmt.Errorf("wooshpay signature timestamp is invalid")
+	}
+	age := now.Sub(time.Unix(timestampUnix, 0))
+	if age < -wooshPayWebhookTolerance || age > wooshPayWebhookTolerance {
+		return fmt.Errorf("wooshpay signature timestamp is outside tolerance")
+	}
+	mac := hmac.New(sha256.New, []byte(secret))
+	_, _ = mac.Write([]byte(timestampRaw + "." + rawBody))
+	expected := mac.Sum(nil)
+	for _, signature := range signatures {
+		if hmac.Equal(signature, expected) {
+			return nil
+		}
+	}
+	return fmt.Errorf("wooshpay signature mismatch")
+}
+
+func resolveWooshPayOrderID(merchantOrderID, metadataOrderID string) (string, error) {
+	merchantOrderID = strings.TrimSpace(merchantOrderID)
+	metadataOrderID = strings.TrimSpace(metadataOrderID)
+	if merchantOrderID == "" && metadataOrderID == "" {
+		return "", fmt.Errorf("wooshpay webhook missing merchant order id")
+	}
+	if merchantOrderID != "" && metadataOrderID != "" && merchantOrderID != metadataOrderID {
+		return "", fmt.Errorf("wooshpay webhook has conflicting merchant order ids")
+	}
+	if merchantOrderID != "" {
+		return merchantOrderID, nil
+	}
+	return metadataOrderID, nil
+}
+
+func wooshPayHeaderValue(headers map[string]string, name string) string {
+	for key, value := range headers {
+		if strings.EqualFold(strings.TrimSpace(key), name) {
+			return value
+		}
+	}
+	return ""
 }
