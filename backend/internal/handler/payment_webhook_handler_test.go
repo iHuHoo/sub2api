@@ -55,6 +55,13 @@ func TestWriteSuccessResponse(t *testing.T) {
 			wantBody:        "",
 		},
 		{
+			name:            "wooshpay returns empty 200",
+			providerKey:     payment.TypeWooshPay,
+			wantCode:        http.StatusOK,
+			wantContentType: "text/plain",
+			wantBody:        "",
+		},
+		{
 			name:            "easypay returns plain text success",
 			providerKey:     "easypay",
 			wantCode:        http.StatusOK,
@@ -177,6 +184,24 @@ func TestExtractOutTradeNo(t *testing.T) {
 			providerKey: payment.TypeAirwallex,
 			rawBody:     `{"name":"payment_intent.succeeded","data":{"object":{"merchant_order_id":"sub2_awx_123"}}}`,
 			want:        "sub2_awx_123",
+		},
+		{
+			name:        "wooshpay matching identifiers",
+			providerKey: payment.TypeWooshPay,
+			rawBody:     `{"data":{"object":{"merchant_order_id":"sub2_order_1","metadata":{"order_id":"sub2_order_1"}}}}`,
+			want:        "sub2_order_1",
+		},
+		{
+			name:        "wooshpay metadata identifier only",
+			providerKey: payment.TypeWooshPay,
+			rawBody:     `{"data":{"object":{"metadata":{"order_id":"sub2_order_2"}}}}`,
+			want:        "sub2_order_2",
+		},
+		{
+			name:        "wooshpay conflicting identifiers",
+			providerKey: payment.TypeWooshPay,
+			rawBody:     `{"data":{"object":{"merchant_order_id":"sub2_order_1","metadata":{"order_id":"sub2_order_2"}}}}`,
+			want:        "",
 		},
 	}
 
