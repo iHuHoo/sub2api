@@ -143,7 +143,7 @@ func TestWooshPayQueryOrder(t *testing.T) {
 		status string
 		want   string
 	}{
-		{"succeeded", payment.ProviderStatusSuccess},
+		{"succeeded", payment.ProviderStatusPaid},
 		{"requires_payment_method", payment.ProviderStatusPending},
 		{"processing", payment.ProviderStatusPending},
 		{"canceled", payment.ProviderStatusFailed},

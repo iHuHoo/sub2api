@@ -319,7 +319,7 @@ func wooshPayMinorUnits(raw string) (int64, error) {
 func wooshPayProviderStatus(status string) string {
 	switch strings.ToLower(strings.TrimSpace(status)) {
 	case "succeeded":
-		return payment.ProviderStatusSuccess
+		return payment.ProviderStatusPaid
 	case "canceled", "cancelled", "failed":
 		return payment.ProviderStatusFailed
 	default:
