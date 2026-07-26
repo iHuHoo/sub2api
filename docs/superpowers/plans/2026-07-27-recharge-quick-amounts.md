@@ -265,4 +265,3 @@ git status --short
 ```
 
 Expected: no whitespace errors; only the design/plan, four production/test areas named above, and the new focused test are changed; worktree is clean after commits.
-
