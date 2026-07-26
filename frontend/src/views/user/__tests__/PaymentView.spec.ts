@@ -238,6 +238,79 @@ async function mountSubscriptionConfirm(options: Parameters<typeof checkoutInfoW
   return wrapper
 }
 
+async function mountRecharge(options: {
+  checkout?: Partial<CheckoutInfoResponse>
+  method?: Partial<MethodLimit>
+} = {}) {
+  vi.useRealTimers()
+  deviceState.mobile = true
+  routeState.path = '/purchase'
+  routeState.query = {}
+  routerReplace.mockReset().mockResolvedValue(undefined)
+  routerPush.mockReset().mockResolvedValue(undefined)
+  routerResolve.mockClear()
+  createOrder.mockReset()
+  refreshUser.mockReset()
+  fetchActiveSubscriptions.mockReset().mockResolvedValue(undefined)
+  showError.mockReset()
+  showInfo.mockReset()
+  showWarning.mockReset()
+  const checkout = checkoutInfoFixture(options.checkout).data
+  getCheckoutInfo.mockReset().mockResolvedValue({
+    data: {
+      ...checkout,
+      methods: {
+        ...checkout.methods,
+        wxpay: {
+          ...checkout.methods.wxpay,
+          ...options.method,
+        },
+      },
+    },
+  })
+  bridgeInvoke.mockReset()
+  window.localStorage.clear()
+  ;(window as Window & { WeixinJSBridge?: { invoke: typeof bridgeInvoke } }).WeixinJSBridge = undefined
+
+  const wrapper = shallowMount(PaymentView, {
+    global: {
+      stubs: {
+        AppLayout: {
+          template: '<div><slot /></div>',
+        },
+        Teleport: true,
+        Transition: false,
+      },
+    },
+  })
+  await flushPromises()
+  await flushPromises()
+  return wrapper
+}
+
+describe('PaymentView recharge presentation', () => {
+  it('uses CNY payment shortcuts and labels the converted product as Credits', async () => {
+    const wrapper = await mountRecharge({
+      checkout: {
+        balance_recharge_multiplier: 0.11363636,
+      },
+      method: {
+        currency: 'CNY',
+      },
+    })
+
+    const amountInput = wrapper.findComponent({ name: 'AmountInput' })
+    expect(amountInput.props('amounts')).toEqual([100, 200, 500])
+    expect(amountInput.props('currencySymbol')).toBe('¥')
+
+    amountInput.vm.$emit('update:modelValue', 100)
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.text()).toContain('11.36 Credits')
+    expect(wrapper.text()).not.toContain('$11.36')
+  })
+})
+
 describe('PaymentView WooshPay launch', () => {
   it('navigates the current tab instead of opening a popup on desktop', async () => {
     const wrapper = await mountSubscriptionConfirm({
