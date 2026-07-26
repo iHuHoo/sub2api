@@ -908,7 +908,7 @@ async function createOrder(orderAmount: number, orderType: OrderType, planId?: n
       return
     }
     if (decision.kind === 'redirect_waiting' && decision.paymentState.payUrl) {
-      if (isMobileDevice()) {
+      if (visibleMethod === 'wooshpay' || isMobileDevice()) {
         window.location.href = decision.paymentState.payUrl
         return
       }

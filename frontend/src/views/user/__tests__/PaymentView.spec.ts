@@ -21,6 +21,7 @@ const showInfo = vi.hoisted(() => vi.fn())
 const showWarning = vi.hoisted(() => vi.fn())
 const getCheckoutInfo = vi.hoisted(() => vi.fn())
 const bridgeInvoke = vi.hoisted(() => vi.fn())
+const deviceState = vi.hoisted(() => ({ mobile: true }))
 
 vi.mock('vue-router', async () => {
   const actual = await vi.importActual<typeof import('vue-router')>('vue-router')
@@ -83,7 +84,7 @@ vi.mock('@/api/payment', () => ({
 }))
 
 vi.mock('@/utils/device', () => ({
-  isMobileDevice: () => true,
+  isMobileDevice: () => deviceState.mobile,
 }))
 
 function checkoutInfoFixture(overrides: Partial<CheckoutInfoResponse> = {}) {
@@ -201,6 +202,7 @@ function oauthOrderFixture() {
 
 async function mountSubscriptionConfirm(options: Parameters<typeof checkoutInfoWithPlansFixture>[0] = {}) {
   vi.useRealTimers()
+  deviceState.mobile = true
   routeState.path = '/purchase'
   routeState.query = {
     tab: 'subscription',
@@ -235,6 +237,72 @@ async function mountSubscriptionConfirm(options: Parameters<typeof checkoutInfoW
   await flushPromises()
   return wrapper
 }
+
+describe('PaymentView WooshPay launch', () => {
+  it('navigates the current tab instead of opening a popup on desktop', async () => {
+    const wrapper = await mountSubscriptionConfirm({
+      checkout: {
+        methods: {
+          wooshpay: {
+            daily_limit: 0,
+            daily_used: 0,
+            daily_remaining: 0,
+            single_min: 0,
+            single_max: 0,
+            fee_rate: 0,
+            available: true,
+            currency: 'CNY',
+            display_name: 'WooshPay',
+          },
+        },
+      },
+    })
+    deviceState.mobile = false
+    await wrapper.findComponent({ name: 'PaymentMethodSelector' }).vm.$emit('select', 'wooshpay')
+    await wrapper.vm.$nextTick()
+
+    const checkoutURL = 'https://checkout.wooshpay.com/session/test'
+    createOrder.mockResolvedValue({
+      order_id: 4682,
+      amount: 128,
+      pay_amount: 128,
+      fee_rate: 0,
+      expires_at: '2099-01-01T00:10:00.000Z',
+      payment_type: 'wooshpay',
+      pay_url: checkoutURL,
+      out_trade_no: 'sub2_wooshpay_4682',
+      currency: 'CNY',
+    })
+    const openSpy = vi.spyOn(window, 'open').mockReturnValue({ closed: false } as Window)
+    const originalLocation = window.location
+    const locationState = {
+      href: 'http://localhost/purchase',
+      origin: 'http://localhost',
+    }
+    Object.defineProperty(window, 'location', {
+      configurable: true,
+      value: locationState,
+    })
+
+    try {
+      const submitButton = wrapper.findAll('button')
+        .find(button => button.text().includes('payment.createOrder'))
+      expect(submitButton).toBeDefined()
+      await submitButton!.trigger('click')
+      await flushPromises()
+
+      expect(locationState.href).toBe(checkoutURL)
+      expect(openSpy).not.toHaveBeenCalled()
+    } finally {
+      Object.defineProperty(window, 'location', {
+        configurable: true,
+        value: originalLocation,
+      })
+      openSpy.mockRestore()
+      deviceState.mobile = true
+    }
+  })
+})
 
 describe('PaymentView subscription confirmation amounts', () => {
   it('shows converted CNY pay amount using the subscription rate, not the balance multiplier', async () => {
