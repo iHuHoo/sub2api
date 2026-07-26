@@ -3,7 +3,8 @@ import type { CreateOrderResult, MethodLimit } from '@/types/payment'
 import {
   buildCreateOrderPayload,
   decidePaymentLaunch,
-  getVisibleMethods,
+	getVisibleMethods,
+	normalizeVisibleMethod,
   readPaymentRecoverySnapshot,
   type PaymentRecoverySnapshot,
 } from '@/components/payment/paymentFlow'
@@ -33,6 +34,9 @@ function createOrderResult(overrides: Partial<CreateOrderResult> = {}): CreateOr
 }
 
 describe('getVisibleMethods', () => {
+	it('keeps wooshpay as a first-class visible method', () => {
+		expect(normalizeVisibleMethod('wooshpay')).toBe('wooshpay')
+	})
   it('normalizes provider aliases and keeps stripe as a top-level method', () => {
     const visible = getVisibleMethods({
       alipay_direct: methodLimit({ single_min: 5 }),
@@ -74,6 +78,21 @@ describe('getVisibleMethods', () => {
 })
 
 describe('decidePaymentLaunch', () => {
+	it('redirects WooshPay hosted checkout without a browser SDK', () => {
+		const decision = decidePaymentLaunch(createOrderResult({
+			pay_url: 'https://checkouttest.wooshpay.com/pay/cs_test_1',
+			out_trade_no: 'sub2_order_1',
+			currency: 'CNY',
+		}), {
+			visibleMethod: 'wooshpay',
+			orderType: 'balance',
+			isMobile: false,
+		})
+
+		expect(decision.kind).toBe('redirect_waiting')
+		expect(decision.paymentState.payUrl).toContain('checkouttest.wooshpay.com')
+		expect(decision.paymentState.clientSecret).toBe('')
+	})
   it('uses Stripe popup waiting flow for desktop Alipay client secret', () => {
     const decision = decidePaymentLaunch(createOrderResult({
       client_secret: 'cs_test',

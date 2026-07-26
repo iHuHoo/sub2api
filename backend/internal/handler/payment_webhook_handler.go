@@ -67,6 +67,12 @@ func (h *PaymentWebhookHandler) AirwallexWebhook(c *gin.Context) {
 	h.handleNotify(c, payment.TypeAirwallex)
 }
 
+// WooshPayWebhook handles signed WooshPay payment events.
+// POST /api/v1/payment/webhook/wooshpay
+func (h *PaymentWebhookHandler) WooshPayWebhook(c *gin.Context) {
+	h.handleNotify(c, payment.TypeWooshPay)
+}
+
 // handleNotify is the shared logic for all provider webhook handlers.
 func (h *PaymentWebhookHandler) handleNotify(c *gin.Context, providerKey string) {
 	var rawBody string
@@ -164,6 +170,28 @@ func extractOutTradeNo(rawBody, providerKey string) string {
 		if err := json.Unmarshal([]byte(rawBody), &payload); err == nil {
 			return strings.TrimSpace(payload.Data.Object.MerchantOrderID)
 		}
+	case payment.TypeWooshPay:
+		var payload struct {
+			Data struct {
+				Object struct {
+					MerchantOrderID string `json:"merchant_order_id"`
+					Metadata        struct {
+						OrderID string `json:"order_id"`
+					} `json:"metadata"`
+				} `json:"object"`
+			} `json:"data"`
+		}
+		if err := json.Unmarshal([]byte(rawBody), &payload); err == nil {
+			merchantOrderID := strings.TrimSpace(payload.Data.Object.MerchantOrderID)
+			metadataOrderID := strings.TrimSpace(payload.Data.Object.Metadata.OrderID)
+			if merchantOrderID != "" && metadataOrderID != "" && merchantOrderID != metadataOrderID {
+				return ""
+			}
+			if merchantOrderID != "" {
+				return merchantOrderID
+			}
+			return metadataOrderID
+		}
 	}
 	// For other providers (Stripe, Alipay direct, WxPay direct), the registry
 	// typically has only one instance, so no instance lookup is needed.
@@ -203,12 +231,12 @@ const (
 
 // writeSuccessResponse 返回各支付服务商要求的成功响应。
 // 微信支付需要 JSON {"code":"SUCCESS","message":"成功"}；
-// Stripe 和空中云汇接受空 200，其它服务商接受纯文本 "success"。
+// Stripe、空中云汇和 WooshPay 接受空 200，其它服务商接受纯文本 "success"。
 func writeSuccessResponse(c *gin.Context, providerKey string) {
 	switch providerKey {
 	case payment.TypeWxpay:
 		c.JSON(http.StatusOK, wxpaySuccessResponse{Code: wxpaySuccessCode, Message: wxpaySuccessMessage})
-	case payment.TypeStripe, payment.TypeAirwallex:
+	case payment.TypeStripe, payment.TypeAirwallex, payment.TypeWooshPay:
 		c.String(http.StatusOK, "")
 	default:
 		c.String(http.StatusOK, "success")

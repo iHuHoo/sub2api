@@ -579,6 +579,48 @@ func TestValidateProviderNotificationMetadataRejectsStripeCurrencyMismatch(t *te
 	assert.ErrorContains(t, err, "stripe currency mismatch")
 }
 
+func TestValidateProviderNotificationMetadataWooshPay(t *testing.T) {
+	t.Parallel()
+
+	order := &dbent.PaymentOrder{
+		OutTradeNo:  "sub2_order_1",
+		PaymentType: payment.TypeWooshPay,
+		ProviderSnapshot: map[string]any{
+			"schema_version": 2,
+			"provider_key":   payment.TypeWooshPay,
+			"currency":       "CNY",
+		},
+	}
+
+	valid := map[string]string{
+		"currency":          "CNY",
+		"status":            "succeeded",
+		"merchant_order_id": "sub2_order_1",
+	}
+	require.NoError(t, validateProviderNotificationMetadata(order, payment.TypeWooshPay, valid))
+
+	for _, tc := range []struct {
+		name  string
+		field string
+		value string
+		want  string
+	}{
+		{"currency mismatch", "currency", "USD", "wooshpay currency mismatch"},
+		{"status mismatch", "status", "processing", "wooshpay status mismatch"},
+		{"order mismatch", "merchant_order_id", "sub2_order_2", "wooshpay merchant_order_id mismatch"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			metadata := map[string]string{}
+			for key, value := range valid {
+				metadata[key] = value
+			}
+			metadata[tc.field] = tc.value
+			err := validateProviderNotificationMetadata(order, payment.TypeWooshPay, metadata)
+			require.ErrorContains(t, err, tc.want)
+		})
+	}
+}
+
 func TestPaymentAmountToleranceForThreeDecimalCurrency(t *testing.T) {
 	t.Parallel()
 

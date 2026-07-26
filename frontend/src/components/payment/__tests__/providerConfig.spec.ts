@@ -1,12 +1,34 @@
 import { describe, expect, it } from 'vitest'
 import {
-  PAYMENT_CURRENCY_OPTIONS,
-  PROVIDER_CONFIG_FIELDS,
+	PAYMENT_CURRENCY_OPTIONS,
+	PROVIDER_CALLBACK_PATHS,
+	PROVIDER_CONFIG_FIELDS,
+	PROVIDER_SUPPORTED_TYPES,
   isBuiltInAlipayMethod,
   isBuiltInWxpayMethod,
   parseEasyPayCustomMethods,
   serializeEasyPayCustomMethods,
 } from '@/components/payment/providerConfig'
+
+describe('PROVIDER_CONFIG_FIELDS.wooshpay', () => {
+	it('defines wooshpay as one hosted checkout method', () => {
+		expect(PROVIDER_SUPPORTED_TYPES.wooshpay).toEqual(['wooshpay'])
+		expect(PROVIDER_CALLBACK_PATHS.wooshpay.notifyUrl).toBe('/api/v1/payment/webhook/wooshpay')
+		expect(PROVIDER_CONFIG_FIELDS.wooshpay.map(field => field.key)).toEqual([
+			'secretKey', 'webhookSecret', 'apiBase', 'successUrl', 'cancelUrl', 'currency',
+		])
+		expect(PROVIDER_CONFIG_FIELDS.wooshpay.filter(field => field.sensitive).map(field => field.key))
+			.toEqual(['secretKey', 'webhookSecret'])
+	})
+
+	it('keeps CNY fixed and offers only official API endpoints', () => {
+		expect(findField('wooshpay', 'currency')?.options).toEqual([{ value: 'CNY', label: 'CNY' }])
+		expect(findField('wooshpay', 'apiBase')?.options?.map(option => option.value)).toEqual([
+			'https://apitest.wooshpay.com',
+			'https://api.wooshpay.com',
+		])
+	})
+})
 
 function findField(providerKey: string, key: string) {
   const fields = PROVIDER_CONFIG_FIELDS[providerKey] || []

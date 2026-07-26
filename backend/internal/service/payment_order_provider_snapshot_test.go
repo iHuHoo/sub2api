@@ -186,6 +186,13 @@ func TestBuildPaymentOrderProviderSnapshot_IncludesProviderCurrency(t *testing.T
 	}, CreateOrderRequest{})
 	require.Equal(t, "USD", airwallexSnapshot["currency"])
 	require.Equal(t, "acct-78", airwallexSnapshot["merchant_id"])
+
+	wooshPaySnapshot := buildPaymentOrderProviderSnapshot(&payment.InstanceSelection{
+		InstanceID:  "79",
+		ProviderKey: payment.TypeWooshPay,
+		Config:      map[string]string{"currency": "cny"},
+	}, CreateOrderRequest{})
+	require.Equal(t, "CNY", wooshPaySnapshot["currency"])
 }
 
 func valueOrEmpty(v *string) string {
