@@ -579,6 +579,48 @@ func TestValidateProviderNotificationMetadataRejectsStripeCurrencyMismatch(t *te
 	assert.ErrorContains(t, err, "stripe currency mismatch")
 }
 
+func TestValidateProviderNotificationMetadataWooshPay(t *testing.T) {
+	t.Parallel()
+
+	order := &dbent.PaymentOrder{
+		OutTradeNo:  "sub2_order_1",
+		PaymentType: payment.TypeWooshPay,
+		ProviderSnapshot: map[string]any{
+			"schema_version": 2,
+			"provider_key":   payment.TypeWooshPay,
+			"currency":       "CNY",
+		},
+	}
+
+	valid := map[string]string{
+		"currency":          "CNY",
+		"status":            "succeeded",
+		"merchant_order_id": "sub2_order_1",
+	}
+	require.NoError(t, validateProviderNotificationMetadata(order, payment.TypeWooshPay, valid))
+
+	for _, tc := range []struct {
+		name  string
+		field string
+		value string
+		want  string
+	}{
+		{"currency mismatch", "currency", "USD", "wooshpay currency mismatch"},
+		{"status mismatch", "status", "processing", "wooshpay status mismatch"},
+		{"order mismatch", "merchant_order_id", "sub2_order_2", "wooshpay merchant_order_id mismatch"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			metadata := map[string]string{}
+			for key, value := range valid {
+				metadata[key] = value
+			}
+			metadata[tc.field] = tc.value
+			err := validateProviderNotificationMetadata(order, payment.TypeWooshPay, metadata)
+			require.ErrorContains(t, err, tc.want)
+		})
+	}
+}
+
 func TestPaymentAmountToleranceForThreeDecimalCurrency(t *testing.T) {
 	t.Parallel()
 
@@ -702,6 +744,72 @@ func TestExecuteBalanceFulfillmentRecoversAfterRedeemWithoutCreditingAgain(t *te
 	reloaded, err := client.PaymentOrder.Get(ctx, order.ID)
 	require.NoError(t, err)
 	require.Equal(t, OrderStatusCompleted, reloaded.Status)
+}
+
+func TestDuplicatePaymentNotificationDoesNotReprocessCompletedBalanceOrder(t *testing.T) {
+	ctx := context.Background()
+	client := newPaymentConfigServiceTestClient(t)
+	order := createPaymentFulfillmentSubscriptionOrder(t, ctx, client, OrderStatusCompleted, time.Now())
+	order, err := client.PaymentOrder.UpdateOneID(order.ID).
+		SetOrderType(payment.OrderTypeBalance).
+		ClearPlanID().
+		ClearSubscriptionGroupID().
+		ClearSubscriptionDays().
+		Save(ctx)
+	require.NoError(t, err)
+
+	redeemRepo := &redeemCodeRepoStub{codesByCode: map[string]*RedeemCode{
+		order.RechargeCode: {
+			ID:     102,
+			Code:   order.RechargeCode,
+			Type:   RedeemTypeBalance,
+			Value:  order.Amount,
+			Status: StatusUnused,
+		},
+	}}
+	svc := &PaymentService{
+		entClient:     client,
+		redeemService: &RedeemService{redeemRepo: redeemRepo},
+	}
+	notification := &payment.PaymentNotification{
+		TradeNo: "alipay-trade-replayed",
+		OrderID: order.OutTradeNo,
+		Amount:  order.PayAmount,
+		Status:  payment.NotificationStatusSuccess,
+	}
+	require.NoError(t, svc.HandlePaymentNotification(ctx, notification, payment.TypeAlipay))
+	require.NoError(t, svc.HandlePaymentNotification(ctx, notification, payment.TypeAlipay))
+
+	reloaded, err := client.PaymentOrder.Get(ctx, order.ID)
+	require.NoError(t, err)
+	require.Equal(t, OrderStatusCompleted, reloaded.Status)
+	require.Empty(t, redeemRepo.useCalls, "a duplicate notification must not redeem the balance code again")
+}
+
+func TestPaymentNotificationRejectsAmountMismatchBeforeFulfillment(t *testing.T) {
+	ctx := context.Background()
+	client := newPaymentConfigServiceTestClient(t)
+	order := createPaymentFulfillmentSubscriptionOrder(t, ctx, client, OrderStatusPending, time.Now())
+	order, err := client.PaymentOrder.UpdateOneID(order.ID).
+		SetOrderType(payment.OrderTypeBalance).
+		ClearPlanID().
+		ClearSubscriptionGroupID().
+		ClearSubscriptionDays().
+		Save(ctx)
+	require.NoError(t, err)
+
+	svc := &PaymentService{entClient: client}
+	err = svc.HandlePaymentNotification(ctx, &payment.PaymentNotification{
+		TradeNo: "alipay-trade-wrong-amount",
+		OrderID: order.OutTradeNo,
+		Amount:  order.PayAmount - 1,
+		Status:  payment.NotificationStatusSuccess,
+	}, payment.TypeAlipay)
+	require.ErrorContains(t, err, "amount mismatch")
+
+	reloaded, err := client.PaymentOrder.Get(ctx, order.ID)
+	require.NoError(t, err)
+	require.Equal(t, OrderStatusPending, reloaded.Status)
 }
 
 func TestExecuteSubscriptionFulfillmentRecoversCommittedAssignmentWithoutExtendingAgain(t *testing.T) {

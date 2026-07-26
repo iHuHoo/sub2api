@@ -52,6 +52,13 @@ func TestValidateProviderRequest(t *testing.T) {
 			wantErr:        false,
 		},
 		{
+			name:           "valid wooshpay provider",
+			providerKey:    payment.TypeWooshPay,
+			providerName:   "WooshPay Provider",
+			supportedTypes: payment.TypeWooshPay,
+			wantErr:        false,
+		},
+		{
 			name:           "valid alipay provider",
 			providerKey:    "alipay",
 			providerName:   "Alipay Direct",
@@ -244,6 +251,12 @@ func TestIsSensitiveProviderConfigField(t *testing.T) {
 		{payment.TypeAirwallex, "accountId", false},
 		{payment.TypeAirwallex, "currency", false},
 
+		// WooshPay
+		{payment.TypeWooshPay, "secretKey", true},
+		{payment.TypeWooshPay, "webhookSecret", true},
+		{payment.TypeWooshPay, "apiBase", false},
+		{payment.TypeWooshPay, "currency", false},
+
 		// Unknown provider: never sensitive
 		{"unknown", "secretKey", false},
 	}
@@ -257,6 +270,13 @@ func TestIsSensitiveProviderConfigField(t *testing.T) {
 			assert.Equal(t, tc.wantSen, got, "isSensitiveProviderConfigField(%q, %q)", tc.providerKey, tc.field)
 		})
 	}
+}
+
+func TestPaymentProviderConfigCurrencyWooshPay(t *testing.T) {
+	t.Parallel()
+
+	got := paymentProviderConfigCurrency(payment.TypeWooshPay, map[string]string{"currency": "cny"})
+	require.Equal(t, "CNY", got)
 }
 
 func TestJoinTypes(t *testing.T) {

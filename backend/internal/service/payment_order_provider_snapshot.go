@@ -220,6 +220,27 @@ func validateProviderSnapshotMetadata(order *dbent.PaymentOrder, providerKey str
 		if actual := strings.TrimSpace(metadata["status"]); actual != "" && !strings.EqualFold(actual, "SUCCEEDED") {
 			return fmt.Errorf("airwallex status mismatch: expected SUCCEEDED, got %s", actual)
 		}
+	case payment.TypeWooshPay:
+		if expected := strings.TrimSpace(snapshot.Currency); expected != "" {
+			actual := strings.ToUpper(strings.TrimSpace(metadata["currency"]))
+			if actual == "" {
+				return fmt.Errorf("wooshpay notification missing currency")
+			}
+			if !strings.EqualFold(expected, actual) {
+				return fmt.Errorf("wooshpay currency mismatch: expected %s, got %s", expected, actual)
+			}
+		}
+		status := strings.TrimSpace(metadata["status"])
+		if !strings.EqualFold(status, "succeeded") {
+			return fmt.Errorf("wooshpay status mismatch: expected succeeded, got %s", status)
+		}
+		merchantOrderID := strings.TrimSpace(metadata["merchant_order_id"])
+		if merchantOrderID == "" {
+			return fmt.Errorf("wooshpay notification missing merchant_order_id")
+		}
+		if expected := strings.TrimSpace(order.OutTradeNo); expected != "" && merchantOrderID != expected {
+			return fmt.Errorf("wooshpay merchant_order_id mismatch: expected %s, got %s", expected, merchantOrderID)
+		}
 	}
 
 	return nil

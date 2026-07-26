@@ -4,6 +4,8 @@ on:
   push:
     tags:
       - 'v*'
+      # Aox releases are built exclusively by build-aox.yml.
+      - '!v*-aox.*'
   workflow_dispatch:
     inputs:
       tag:

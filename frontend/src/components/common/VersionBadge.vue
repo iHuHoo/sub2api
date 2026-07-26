@@ -42,6 +42,7 @@
               t('version.currentVersion')
             }}</span>
             <button
+              v-if="!isAoxBuild"
               @click="refreshVersion(true)"
               class="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-dark-700 dark:hover:text-dark-200"
               :disabled="loading"
@@ -107,15 +108,25 @@
                 </div>
                 <p class="mt-1 text-xs text-gray-500 dark:text-dark-400">
                   {{
-                    hasUpdate
+                    isAoxBuild
+                      ? t('version.aoxManaged')
+                      : hasUpdate
                       ? t('version.latestVersion') + ': v' + latestVersion
                       : t('version.upToDate')
                   }}
                 </p>
               </div>
 
+              <!-- Aox builds are updated only through the managed image pipeline. -->
+              <div
+                v-if="isAoxBuild"
+                class="rounded-lg border border-blue-200 bg-blue-50 p-3 text-center text-xs leading-5 text-blue-700 dark:border-blue-800/50 dark:bg-blue-900/20 dark:text-blue-300"
+              >
+                {{ t('version.aoxManaged') }}
+              </div>
+
               <!-- Priority 1: Update error (must check before hasUpdate) -->
-              <div v-if="updateError" class="space-y-2">
+              <div v-else-if="updateError" class="space-y-2">
                 <div
                   class="flex items-center gap-3 rounded-lg border border-red-200 bg-red-50 p-3 dark:border-red-800/50 dark:bg-red-900/20"
                 >
@@ -676,6 +687,7 @@ const latestVersion = computed(() => appStore.latestVersion)
 const hasUpdate = computed(() => appStore.hasUpdate)
 const releaseInfo = computed(() => appStore.releaseInfo)
 const buildType = computed(() => appStore.buildType)
+const isAoxBuild = computed(() => buildType.value === 'aox')
 
 // Update process states (local to this component)
 const updating = ref(false)
@@ -740,7 +752,7 @@ function closeDropdown() {
 }
 
 async function refreshVersion(force = true) {
-  if (!isAdmin.value) return
+  if (!isAdmin.value || isAoxBuild.value) return
 
   // Reset update states when refreshing
   updateError.value = ''
@@ -752,7 +764,7 @@ async function refreshVersion(force = true) {
 }
 
 async function handleUpdate() {
-  if (updating.value) return
+  if (isAoxBuild.value || updating.value) return
 
   updating.value = true
   updateError.value = ''
@@ -783,7 +795,7 @@ function resetRollbackState() {
 }
 
 async function toggleRollbackPanel() {
-  if (!isAdmin.value) return
+  if (!isAdmin.value || isAoxBuild.value) return
   rollbackPanelOpen.value = !rollbackPanelOpen.value
   // Source builds only show a hint, no version list to fetch
   if (
@@ -797,7 +809,7 @@ async function toggleRollbackPanel() {
 }
 
 async function loadRollbackVersions() {
-  if (!isAdmin.value) return
+  if (!isAdmin.value || isAoxBuild.value) return
   rollbackVersionsLoading.value = true
   rollbackVersionsError.value = ''
   try {
@@ -826,7 +838,7 @@ function formatPublishedAt(publishedAt: string): string {
 }
 
 async function handleRollback() {
-  if (!isAdmin.value) return
+  if (!isAdmin.value || isAoxBuild.value) return
   if (rollingBack.value || !selectedRollbackVersion.value) return
 
   rollingBack.value = true
