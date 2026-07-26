@@ -289,6 +289,11 @@ func TestCalculateCreditedBalanceStillUsesRechargeMultiplier(t *testing.T) {
 	if got != 50 {
 		t.Fatalf("credited balance = %v, want 50", got)
 	}
+
+	got = calculateCreditedBalance(88, 0.11363636)
+	if got != 10 {
+		t.Fatalf("credited balance = %v, want 10", got)
+	}
 }
 
 func TestCalculateCreateOrderPayAmountRejectsFractionalZeroDecimal(t *testing.T) {

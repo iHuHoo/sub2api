@@ -33,6 +33,20 @@ Change only `PaymentConfigService.UpdatePaymentConfig` so
 `BalanceRechargeMultiplier` uses `formatPositiveFloatExact` instead of
 `formatPositiveFloat`.
 
+Keep precision concerns separated by layer:
+
+- persist the multiplier without an early two-decimal conversion;
+- calculate credited balance with `shopspring/decimal`;
+- round the final credited balance to two decimal places;
+- format CNY gateway amounts according to the currency minor unit;
+- show user-facing balances, credited amounts, and rate previews with two
+  decimal places.
+
+The administrator multiplier input remains an operator configuration control
+and exposes the stored value. User-facing pages and previews continue to show
+two decimal places. Formatting a displayed value must never mutate the stored
+configuration value or the value submitted when unrelated settings are saved.
+
 Do not change:
 
 - payment or credit calculation;
@@ -44,7 +58,8 @@ Do not change:
 
 The admin input already accepts the required value and sends it as a number.
 The backend parser and credit calculation already accept the resulting
-precision.
+precision. Existing UI formatting already uses two decimal places for the
+public rate preview and credited balance.
 
 ## Verification
 
@@ -57,9 +72,14 @@ Add a service-level regression test that:
 The test must fail against the current implementation with an actual value of
 `0.11`, then pass after the one-line production change.
 
+Extend the credited-balance regression test to assert that CNY 88 multiplied
+by `0.11363636` produces a final credited balance of `10.00`.
+
 After release, production verification requires:
 
 - saving `0.11363636` in the admin UI;
-- reloading and observing the same value;
+- confirming through the persisted admin setting that the stored value remains
+  `0.11363636`;
+- confirming the UI rate preview remains two decimal places;
 - confirming CNY 88 previews and credits as 10.00;
 - keeping payment disabled until those checks pass.
