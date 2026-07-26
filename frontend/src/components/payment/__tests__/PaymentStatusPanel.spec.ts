@@ -97,7 +97,34 @@ describe('PaymentStatusPanel', () => {
 
     expect(pollOrderStatus).toHaveBeenCalledWith(42)
     expect(wrapper.text()).toContain('payment.result.success')
+    expect(wrapper.text()).toContain('88.00 Credits')
+    expect(wrapper.text()).not.toContain('$88.00')
     expect(wrapper.emitted('success')).toHaveLength(1)
+  })
+
+  it('shows the purchased Credits while a balance payment is pending', async () => {
+    const wrapper = mount(PaymentStatusPanel, {
+      props: {
+        orderId: 42,
+        amount: 11.36,
+        payAmount: 100,
+        qrCode: 'https://pay.example.com/qr/42',
+        expiresAt: '2099-01-01T12:30:00Z',
+        paymentType: 'alipay',
+        orderType: 'balance',
+        currency: 'CNY',
+      },
+      global: {
+        stubs: {
+          Icon: true,
+        },
+      },
+    })
+
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('11.36 Credits')
+    expect(wrapper.text()).not.toContain('$11.36')
   })
 
   it('shows reopen button in QR mode when payUrl is also available', async () => {

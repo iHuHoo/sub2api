@@ -1,5 +1,12 @@
 <template>
   <div class="space-y-4">
+    <div v-if="outcome === null && purchasedCredits" class="card p-4">
+      <div class="flex justify-between text-sm">
+        <span class="text-gray-500 dark:text-gray-400">{{ t('payment.creditedBalance') }}</span>
+        <span class="font-medium text-gray-900 dark:text-white">{{ purchasedCredits }}</span>
+      </div>
+    </div>
+
     <!-- ═══ Terminal States: show result, user clicks to return ═══ -->
 
     <!-- Success -->
@@ -22,7 +29,7 @@
               </div>
               <div class="flex justify-between">
                 <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.amount') }}</span>
-                <span class="font-medium text-gray-900 dark:text-white">{{ creditedAmountSymbol }}{{ paidOrder.amount.toFixed(2) }}</span>
+                <span class="font-medium text-gray-900 dark:text-white">{{ formatPurchasedAmount(paidOrder.amount) }}</span>
               </div>
               <div class="flex justify-between">
                 <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.payAmount') }}</span>
@@ -334,9 +341,18 @@ const countdownDisplay = computed(() => {
 
 const displayPaymentAmount = computed(() => formatGatewayAmount(props.payAmount || props.amount || 0))
 const displayOrderNumber = computed(() => props.outTradeNo || `#${props.orderId}`)
+const purchasedCredits = computed(() => {
+  if (props.orderType !== 'balance' || !props.amount || props.amount <= 0) return ''
+  return `${props.amount.toFixed(2)} Credits`
+})
 
 function formatGatewayAmount(value: number, currency?: string | null): string {
   return formatPaymentAmount(value, currency || paymentCurrency.value, localeCode.value)
+}
+
+function formatPurchasedAmount(value: number): string {
+  if (props.orderType === 'balance') return `${value.toFixed(2)} Credits`
+  return `${creditedAmountSymbol}${value.toFixed(2)}`
 }
 
 function isSuccessStatus(status: string | null | undefined): boolean {
