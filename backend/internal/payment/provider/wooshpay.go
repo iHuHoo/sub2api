@@ -369,7 +369,15 @@ func verifyWooshPayWebhookSignature(rawBody, signatureHeader, secret string, now
 	if err != nil {
 		return fmt.Errorf("wooshpay signature timestamp is invalid")
 	}
-	age := now.Sub(time.Unix(timestampUnix, 0))
+	timestamp := wooshPayUnixTime(timestampUnix)
+	referenceTime := now
+	var eventEnvelope struct {
+		Created int64 `json:"created"`
+	}
+	if json.Unmarshal([]byte(rawBody), &eventEnvelope) == nil && eventEnvelope.Created > 0 {
+		referenceTime = wooshPayUnixTime(eventEnvelope.Created)
+	}
+	age := referenceTime.Sub(timestamp)
 	if age < -wooshPayWebhookTolerance || age > wooshPayWebhookTolerance {
 		return fmt.Errorf("wooshpay signature timestamp is outside tolerance")
 	}
@@ -382,6 +390,13 @@ func verifyWooshPayWebhookSignature(rawBody, signatureHeader, secret string, now
 		}
 	}
 	return fmt.Errorf("wooshpay signature mismatch")
+}
+
+func wooshPayUnixTime(timestamp int64) time.Time {
+	if timestamp >= 1_000_000_000_000 {
+		return time.UnixMilli(timestamp)
+	}
+	return time.Unix(timestamp, 0)
 }
 
 func resolveWooshPayOrderID(merchantOrderID, metadataOrderID string) (string, error) {

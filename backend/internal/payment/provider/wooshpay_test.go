@@ -210,6 +210,36 @@ func TestVerifyWooshPayWebhookSignature(t *testing.T) {
 	}
 }
 
+func TestVerifyWooshPayWebhookSignatureAcceptsMillisecondTimestamp(t *testing.T) {
+	t.Parallel()
+	body := `{"type":"payment_intent.succeeded"}`
+	now := time.Unix(1_800_000_000, 123_000_000)
+	timestamp := strconv.FormatInt(now.UnixMilli(), 10)
+	signature := signWooshPayEvent("whsec_test", timestamp, body)
+
+	require.NoError(t, verifyWooshPayWebhookSignature(
+		body,
+		"t="+timestamp+",v1="+signature,
+		"whsec_test",
+		now,
+	))
+}
+
+func TestVerifyWooshPayWebhookSignatureAcceptsDelayedRetry(t *testing.T) {
+	t.Parallel()
+	body := `{"created":1800000000000,"type":"payment_intent.succeeded"}`
+	timestamp := "1800000000159"
+	signature := signWooshPayEvent("whsec_test", timestamp, body)
+	now := time.UnixMilli(1_800_000_600_000)
+
+	require.NoError(t, verifyWooshPayWebhookSignature(
+		body,
+		"t="+timestamp+",v1="+signature,
+		"whsec_test",
+		now,
+	))
+}
+
 func TestWooshPayNotification(t *testing.T) {
 	t.Parallel()
 	now := time.Now()
