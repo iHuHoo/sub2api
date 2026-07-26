@@ -31,6 +31,7 @@ export default {
     refresh: '刷新',
     sourceMode: '源码构建',
     sourceModeHint: '源码构建请使用 git pull 更新',
+    aoxManaged: 'Aox 托管定制版，更新由 Aox 镜像发布流程统一管理。',
     updateNow: '立即更新',
     updating: '正在更新...',
     updateComplete: '更新完成',

@@ -11,6 +11,8 @@ export interface ReleaseInfo {
   html_url: string
 }
 
+export type BuildType = 'source' | 'release' | 'aox'
+
 export interface VersionInfo {
   current_version: string
   latest_version: string
@@ -18,7 +20,7 @@ export interface VersionInfo {
   release_info?: ReleaseInfo
   cached: boolean
   warning?: string
-  build_type: string // "source" for manual builds, "release" for CI builds
+  build_type: BuildType
 }
 
 /**

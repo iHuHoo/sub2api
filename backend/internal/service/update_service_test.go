@@ -31,13 +31,17 @@ type updateServiceGitHubClientStub struct {
 	release        *GitHubRelease
 	recentReleases []*GitHubRelease
 	recentErr      error
+	latestCalls    int
+	recentCalls    int
 }
 
 func (s *updateServiceGitHubClientStub) FetchLatestRelease(context.Context, string) (*GitHubRelease, error) {
+	s.latestCalls++
 	return s.release, nil
 }
 
 func (s *updateServiceGitHubClientStub) FetchRecentReleases(context.Context, string, int) ([]*GitHubRelease, error) {
+	s.recentCalls++
 	return s.recentReleases, s.recentErr
 }
 
@@ -47,6 +51,37 @@ func (s *updateServiceGitHubClientStub) DownloadFile(context.Context, string, st
 
 func (s *updateServiceGitHubClientStub) FetchChecksumFile(context.Context, string) ([]byte, error) {
 	panic("FetchChecksumFile should not be called when no update is available")
+}
+
+func TestAoxBuildDisablesManagedUpdateOperations(t *testing.T) {
+	client := &updateServiceGitHubClientStub{}
+	svc := NewUpdateService(
+		&updateServiceCacheStub{},
+		client,
+		"0.1.165-aox.0.0.1",
+		"aox",
+	)
+
+	info, err := svc.CheckUpdate(context.Background(), true)
+
+	require.NoError(t, err)
+	require.Equal(t, "aox", info.BuildType)
+	require.Equal(t, "0.1.165-aox.0.0.1", info.CurrentVersion)
+	require.Equal(t, info.CurrentVersion, info.LatestVersion)
+	require.False(t, info.HasUpdate)
+	require.Zero(t, client.latestCalls)
+
+	require.ErrorIs(t, svc.PerformUpdate(context.Background()), ErrAoxManagedUpdateDisabled)
+	require.ErrorIs(t, svc.Rollback(), ErrAoxManagedUpdateDisabled)
+	_, err = svc.ListRollbackVersions(context.Background())
+	require.ErrorIs(t, err, ErrAoxManagedUpdateDisabled)
+	require.ErrorIs(
+		t,
+		svc.RollbackToVersion(context.Background(), "0.1.164"),
+		ErrAoxManagedUpdateDisabled,
+	)
+	require.Zero(t, client.latestCalls)
+	require.Zero(t, client.recentCalls)
 }
 
 func TestUpdateServicePerformUpdateNoUpdateReturnsSentinel(t *testing.T) {
