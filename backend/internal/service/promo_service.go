@@ -84,50 +84,65 @@ func (s *PromoService) ValidatePromoCode(ctx context.Context, code string) (*Pro
 }
 
 func (s *PromoService) ValidateSubscriptionPromo(ctx context.Context, code string, originalAmount float64) (*SubscriptionPromoPreview, error) {
+	preview, _, err := s.validateSubscriptionPromo(ctx, code, originalAmount, false)
+	return preview, err
+}
+
+func (s *PromoService) validateSubscriptionPromoForUpdate(ctx context.Context, code string, originalAmount float64) (*SubscriptionPromoPreview, *PromoCode, error) {
+	return s.validateSubscriptionPromo(ctx, code, originalAmount, true)
+}
+
+func (s *PromoService) validateSubscriptionPromo(ctx context.Context, code string, originalAmount float64, forUpdate bool) (*SubscriptionPromoPreview, *PromoCode, error) {
 	code = normalizePromoCode(code)
 	if code == "" {
-		return nil, nil
+		return nil, nil, nil
 	}
 
-	promoCode, err := s.promoRepo.GetByCode(ctx, code)
+	var promoCode *PromoCode
+	var err error
+	if forUpdate {
+		promoCode, err = s.promoRepo.GetByCodeForUpdate(ctx, code)
+	} else {
+		promoCode, err = s.promoRepo.GetByCode(ctx, code)
+	}
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if promoCode.Purpose != PromoCodePurposeSubscriptionDiscount {
-		return nil, ErrPromoCodeWrongPurpose
+		return nil, nil, ErrPromoCodeWrongPurpose
 	}
 	if promoCode.IsExpired() {
-		return nil, ErrPromoCodeExpired
+		return nil, nil, ErrPromoCodeExpired
 	}
 	if promoCode.Status == PromoCodeStatusDisabled {
-		return nil, ErrPromoCodeDisabled
+		return nil, nil, ErrPromoCodeDisabled
 	}
 	if promoCode.Status != PromoCodeStatusActive {
-		return nil, ErrPromoCodeInvalid
+		return nil, nil, ErrPromoCodeInvalid
 	}
 	if promoCode.DiscountRate == nil || *promoCode.DiscountRate <= 0 || *promoCode.DiscountRate >= 1 {
-		return nil, ErrPromoCodeInvalidDiscount
+		return nil, nil, ErrPromoCodeInvalidDiscount
 	}
 
 	consumed, err := s.promoRepo.GetSubscriptionUsageByStatus(ctx, promoCode.ID, PromoUsageStatusConsumed)
 	if err != nil {
-		return nil, fmt.Errorf("check consumed promo usage: %w", err)
+		return nil, nil, fmt.Errorf("check consumed promo usage: %w", err)
 	}
 	if consumed != nil || promoCode.UsedCount > 0 {
-		return nil, ErrPromoCodeConsumed
+		return nil, nil, ErrPromoCodeConsumed
 	}
 	reserved, err := s.promoRepo.GetSubscriptionUsageByStatus(ctx, promoCode.ID, PromoUsageStatusReserved)
 	if err != nil {
-		return nil, fmt.Errorf("check reserved promo usage: %w", err)
+		return nil, nil, fmt.Errorf("check reserved promo usage: %w", err)
 	}
 	if reserved != nil {
-		return nil, ErrPromoCodeReserved
+		return nil, nil, ErrPromoCodeReserved
 	}
 
 	original := decimal.NewFromFloat(originalAmount).Round(2)
 	discounted := original.Mul(decimal.NewFromFloat(*promoCode.DiscountRate)).Round(2)
 	if discounted.LessThanOrEqual(decimal.Zero) {
-		return nil, ErrPromoCodeNotPayable
+		return nil, nil, ErrPromoCodeNotPayable
 	}
 	discount := original.Sub(discounted).Round(2)
 	originalValue, _ := original.Float64()
@@ -139,7 +154,7 @@ func (s *PromoService) ValidateSubscriptionPromo(ctx context.Context, code strin
 		OriginalAmount:   originalValue,
 		DiscountAmount:   discountValue,
 		DiscountedAmount: discountedValue,
-	}, nil
+	}, promoCode, nil
 }
 
 // validatePromoCodeStatus 验证优惠码状态

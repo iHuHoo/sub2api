@@ -236,6 +236,7 @@ type CreateOrderRequest struct {
 	PaymentSource     string  `json:"payment_source"`
 	OrderType         string  `json:"order_type"`
 	PlanID            int64   `json:"plan_id"`
+	PromoCode         string  `json:"promo_code"`
 	// IsMobile lets the frontend declare its mobile status directly. When
 	// nil we fall back to User-Agent heuristics (which miss iPadOS / some
 	// embedded browsers that strip the "Mobile" keyword).
@@ -285,6 +286,7 @@ func (h *PaymentHandler) CreateOrder(c *gin.Context) {
 		PaymentSource:   req.PaymentSource,
 		OrderType:       req.OrderType,
 		PlanID:          req.PlanID,
+		PromoCode:       req.PromoCode,
 		Locale:          c.GetHeader("Accept-Language"),
 	})
 	if err != nil {
@@ -292,6 +294,29 @@ func (h *PaymentHandler) CreateOrder(c *gin.Context) {
 		return
 	}
 	response.Success(c, result)
+}
+
+type previewSubscriptionPromoRequest struct {
+	Code   string `json:"code" binding:"required"`
+	PlanID int64  `json:"plan_id" binding:"required"`
+}
+
+func (h *PaymentHandler) PreviewSubscriptionPromo(c *gin.Context) {
+	subject, ok := requireAuth(c)
+	if !ok {
+		return
+	}
+	var req previewSubscriptionPromoRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	preview, err := h.paymentService.PreviewSubscriptionPromo(c.Request.Context(), subject.UserID, req.PlanID, req.Code)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, preview)
 }
 
 func applyWeChatPaymentResumeClaims(req *CreateOrderRequest, claims *service.WeChatPaymentResumeClaims) error {

@@ -10,6 +10,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 
+	"entgo.io/ent/dialect"
 	entsql "entgo.io/ent/dialect/sql"
 )
 
@@ -76,10 +77,11 @@ func (r *promoCodeRepository) GetByCode(ctx context.Context, code string) (*serv
 
 func (r *promoCodeRepository) GetByCodeForUpdate(ctx context.Context, code string) (*service.PromoCode, error) {
 	client := clientFromContext(ctx, r.client)
-	m, err := client.PromoCode.Query().
-		Where(promocode.CodeEqualFold(code)).
-		ForUpdate().
-		Only(ctx)
+	query := client.PromoCode.Query().Where(promocode.CodeEqualFold(code))
+	if client.Driver().Dialect() != dialect.SQLite {
+		query = query.ForUpdate()
+	}
+	m, err := query.Only(ctx)
 	if err != nil {
 		if dbent.IsNotFound(err) {
 			return nil, service.ErrPromoCodeNotFound
