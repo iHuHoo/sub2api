@@ -1,7 +1,11 @@
 package repository
 
 import (
+	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"testing"
 	"time"
@@ -20,7 +24,7 @@ func http2KeepAliveTestPoolSettings() poolSettings {
 }
 
 // Codex/OpenAI 上游改走 HTTP/2 后，池化连接被代理/NAT 静默掐断会成为“死连接”：
-// 两端都以为连接存活，请求落上去会挂到 TCP 重传超时（分钟级）才失败。Go 的
+// 两端都以为连接存活，请求落上去会挂到 TCP 重传超时（分钟级）才失败。
 // Go HTTP/2 默认不发健康 PING，无法检测这种死连接。
 // 必须显式启用主动 PING 探测，让死连接被提前剔除，而不是只靠 ResponseHeaderTimeout
 // 事后兜底。
@@ -43,11 +47,37 @@ func TestBuildUpstreamTransport_OpenAIH2_EnablesPingHealthCheck(t *testing.T) {
 }
 
 // 非 H2 模式（default/h1）不应因本次改动被误配置：default 走 Go 自动 H2（惰性配置，
-// 构建时 TLSNextProto 仍为空），h1 模式显式禁用 H2。避免波及 Claude/Gemini 热路径。
+// 构建时 Protocols/TLSNextProto 仍为空），h1 模式显式禁用 H2。避免波及 Claude/Gemini 热路径。
 func TestBuildUpstreamTransport_NonOpenAIH2_NotEagerlyConfigured(t *testing.T) {
 	tr, err := buildUpstreamTransport(http2KeepAliveTestPoolSettings(), nil, upstreamProtocolModeDefault)
 	require.NoError(t, err)
 	require.Nil(t, tr.HTTP2, "default 模式不应主动配置 HTTP/2 keepalive")
+}
+
+// openai_h2 模式构建的 Transport 必须真正以 HTTP/2 与上游通信，PING 健康探测才有载体：
+// 自定义 DialContext 下 Go 不会自动启用 H2，全靠 enableOpenAIHTTP2KeepAlive 的显式配置。
+func TestBuildUpstreamTransport_OpenAIH2_NegotiatesHTTP2(t *testing.T) {
+	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	srv.EnableHTTP2 = true
+	srv.StartTLS()
+	defer srv.Close()
+
+	tr, err := buildUpstreamTransport(http2KeepAliveTestPoolSettings(), nil, upstreamProtocolModeOpenAIH2)
+	require.NoError(t, err)
+	defer tr.CloseIdleConnections()
+	roots := x509.NewCertPool()
+	roots.AddCert(srv.Certificate())
+	tr.TLSClientConfig = &tls.Config{RootCAs: roots}
+
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, srv.URL, nil)
+	require.NoError(t, err)
+	resp, err := tr.RoundTrip(req)
+	require.NoError(t, err)
+	require.NoError(t, resp.Body.Close())
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	require.Equal(t, 2, resp.ProtoMajor, "openai_h2 必须协商到 HTTP/2")
 }
 
 // 死连接在经 HTTP 代理（CONNECT 隧道）时最高发，这是带 proxy 账号的真实生产路径：

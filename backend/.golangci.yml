@@ -123,6 +123,12 @@ linters:
 
   exclusions:
     rules:
+      # G703/G704 污点分析在测试文件中只会命中 httptest mock 与测试者自设的
+      # 环境变量路径，不构成攻击面；且该分析跨环境结果不稳定（本地/CI 报告的
+      # 位置集合不同），逐点 nolint 无法收敛，故按路径豁免。
+      - path: '_test\.go$'
+        linters: [ gosec ]
+        text: 'G70[34]'
       - linters: [gosec]
         path: '^internal/(pkg/servertiming/http\.go|repository/github_release_service_test\.go|server/middleware/openai_fast_policy_forwarding_test\.go)$'
         text: "G704"
