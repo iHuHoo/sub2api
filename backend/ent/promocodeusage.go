@@ -23,10 +23,24 @@ type PromoCodeUsage struct {
 	PromoCodeID int64 `json:"promo_code_id,omitempty"`
 	// 使用用户ID
 	UserID int64 `json:"user_id,omitempty"`
+	// 订阅支付订单ID
+	PaymentOrderID *int64 `json:"payment_order_id,omitempty"`
+	// 用途: registration_bonus, subscription_discount
+	UsageType string `json:"usage_type,omitempty"`
+	// 状态: reserved, consumed, released
+	Status string `json:"status,omitempty"`
 	// 实际赠送金额
 	BonusAmount float64 `json:"bonus_amount,omitempty"`
+	// 订阅订单优惠金额
+	DiscountAmount float64 `json:"discount_amount,omitempty"`
 	// 使用时间
 	UsedAt time.Time `json:"used_at,omitempty"`
+	// ReservedAt holds the value of the "reserved_at" field.
+	ReservedAt *time.Time `json:"reserved_at,omitempty"`
+	// ConsumedAt holds the value of the "consumed_at" field.
+	ConsumedAt *time.Time `json:"consumed_at,omitempty"`
+	// ReleasedAt holds the value of the "released_at" field.
+	ReleasedAt *time.Time `json:"released_at,omitempty"`
 	// Edges holds the relations/edges for other nodes in the graph.
 	// The values are being populated by the PromoCodeUsageQuery when eager-loading is set.
 	Edges        PromoCodeUsageEdges `json:"edges"`
@@ -71,11 +85,13 @@ func (*PromoCodeUsage) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
-		case promocodeusage.FieldBonusAmount:
+		case promocodeusage.FieldBonusAmount, promocodeusage.FieldDiscountAmount:
 			values[i] = new(sql.NullFloat64)
-		case promocodeusage.FieldID, promocodeusage.FieldPromoCodeID, promocodeusage.FieldUserID:
+		case promocodeusage.FieldID, promocodeusage.FieldPromoCodeID, promocodeusage.FieldUserID, promocodeusage.FieldPaymentOrderID:
 			values[i] = new(sql.NullInt64)
-		case promocodeusage.FieldUsedAt:
+		case promocodeusage.FieldUsageType, promocodeusage.FieldStatus:
+			values[i] = new(sql.NullString)
+		case promocodeusage.FieldUsedAt, promocodeusage.FieldReservedAt, promocodeusage.FieldConsumedAt, promocodeusage.FieldReleasedAt:
 			values[i] = new(sql.NullTime)
 		default:
 			values[i] = new(sql.UnknownType)
@@ -110,17 +126,63 @@ func (_m *PromoCodeUsage) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.UserID = value.Int64
 			}
+		case promocodeusage.FieldPaymentOrderID:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field payment_order_id", values[i])
+			} else if value.Valid {
+				_m.PaymentOrderID = new(int64)
+				*_m.PaymentOrderID = value.Int64
+			}
+		case promocodeusage.FieldUsageType:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field usage_type", values[i])
+			} else if value.Valid {
+				_m.UsageType = value.String
+			}
+		case promocodeusage.FieldStatus:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field status", values[i])
+			} else if value.Valid {
+				_m.Status = value.String
+			}
 		case promocodeusage.FieldBonusAmount:
 			if value, ok := values[i].(*sql.NullFloat64); !ok {
 				return fmt.Errorf("unexpected type %T for field bonus_amount", values[i])
 			} else if value.Valid {
 				_m.BonusAmount = value.Float64
 			}
+		case promocodeusage.FieldDiscountAmount:
+			if value, ok := values[i].(*sql.NullFloat64); !ok {
+				return fmt.Errorf("unexpected type %T for field discount_amount", values[i])
+			} else if value.Valid {
+				_m.DiscountAmount = value.Float64
+			}
 		case promocodeusage.FieldUsedAt:
 			if value, ok := values[i].(*sql.NullTime); !ok {
 				return fmt.Errorf("unexpected type %T for field used_at", values[i])
 			} else if value.Valid {
 				_m.UsedAt = value.Time
+			}
+		case promocodeusage.FieldReservedAt:
+			if value, ok := values[i].(*sql.NullTime); !ok {
+				return fmt.Errorf("unexpected type %T for field reserved_at", values[i])
+			} else if value.Valid {
+				_m.ReservedAt = new(time.Time)
+				*_m.ReservedAt = value.Time
+			}
+		case promocodeusage.FieldConsumedAt:
+			if value, ok := values[i].(*sql.NullTime); !ok {
+				return fmt.Errorf("unexpected type %T for field consumed_at", values[i])
+			} else if value.Valid {
+				_m.ConsumedAt = new(time.Time)
+				*_m.ConsumedAt = value.Time
+			}
+		case promocodeusage.FieldReleasedAt:
+			if value, ok := values[i].(*sql.NullTime); !ok {
+				return fmt.Errorf("unexpected type %T for field released_at", values[i])
+			} else if value.Valid {
+				_m.ReleasedAt = new(time.Time)
+				*_m.ReleasedAt = value.Time
 			}
 		default:
 			_m.selectValues.Set(columns[i], values[i])
@@ -174,11 +236,40 @@ func (_m *PromoCodeUsage) String() string {
 	builder.WriteString("user_id=")
 	builder.WriteString(fmt.Sprintf("%v", _m.UserID))
 	builder.WriteString(", ")
+	if v := _m.PaymentOrderID; v != nil {
+		builder.WriteString("payment_order_id=")
+		builder.WriteString(fmt.Sprintf("%v", *v))
+	}
+	builder.WriteString(", ")
+	builder.WriteString("usage_type=")
+	builder.WriteString(_m.UsageType)
+	builder.WriteString(", ")
+	builder.WriteString("status=")
+	builder.WriteString(_m.Status)
+	builder.WriteString(", ")
 	builder.WriteString("bonus_amount=")
 	builder.WriteString(fmt.Sprintf("%v", _m.BonusAmount))
 	builder.WriteString(", ")
+	builder.WriteString("discount_amount=")
+	builder.WriteString(fmt.Sprintf("%v", _m.DiscountAmount))
+	builder.WriteString(", ")
 	builder.WriteString("used_at=")
 	builder.WriteString(_m.UsedAt.Format(time.ANSIC))
+	builder.WriteString(", ")
+	if v := _m.ReservedAt; v != nil {
+		builder.WriteString("reserved_at=")
+		builder.WriteString(v.Format(time.ANSIC))
+	}
+	builder.WriteString(", ")
+	if v := _m.ConsumedAt; v != nil {
+		builder.WriteString("consumed_at=")
+		builder.WriteString(v.Format(time.ANSIC))
+	}
+	builder.WriteString(", ")
+	if v := _m.ReleasedAt; v != nil {
+		builder.WriteString("released_at=")
+		builder.WriteString(v.Format(time.ANSIC))
+	}
 	builder.WriteByte(')')
 	return builder.String()
 }

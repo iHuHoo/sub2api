@@ -74,9 +74,15 @@
             </div>
           </template>
 
-          <template #cell-bonus_amount="{ value }">
+          <template #cell-purpose="{ value }">
+            <span class="text-sm text-gray-600 dark:text-gray-300">{{ t(`admin.promo.purposes.${value}`) }}</span>
+          </template>
+
+          <template #cell-benefit="{ row }">
             <span class="text-sm font-medium text-gray-900 dark:text-white">
-              ${{ value.toFixed(2) }}
+              {{ row.purpose === 'subscription_discount'
+                ? t('admin.promo.payPercentValue', { percent: Math.round((row.discount_rate || 0) * 100) })
+                : `$${row.bonus_amount.toFixed(2)}` }}
             </span>
           </template>
 
@@ -112,6 +118,7 @@
           <template #cell-actions="{ row }">
             <div class="flex items-center space-x-1">
               <button
+                v-if="row.purpose === 'registration_bonus'"
                 @click="copyRegisterLink(row)"
                 class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-green-50 hover:text-green-600 dark:hover:bg-green-900/20 dark:hover:text-green-400"
                 :title="t('admin.promo.copyRegisterLink')"
@@ -177,6 +184,13 @@
           />
         </div>
         <div>
+          <label class="input-label">{{ t('admin.promo.purpose') }}</label>
+          <select v-model="createForm.purpose" data-testid="promo-purpose" class="input">
+            <option value="registration_bonus">{{ t('admin.promo.purposes.registration_bonus') }}</option>
+            <option value="subscription_discount">{{ t('admin.promo.purposes.subscription_discount') }}</option>
+          </select>
+        </div>
+        <div v-if="createForm.purpose === 'registration_bonus'">
           <label class="input-label">{{ t('admin.promo.bonusAmount') }}</label>
           <input
             v-model.number="createForm.bonus_amount"
@@ -187,7 +201,19 @@
             class="input"
           />
         </div>
-        <div>
+        <div v-else>
+          <label class="input-label">{{ t('admin.promo.payPercent') }}</label>
+          <input
+            v-model.number="createForm.pay_percent"
+            data-testid="promo-pay-percent"
+            type="number"
+            min="1"
+            max="99"
+            required
+            class="input"
+          />
+        </div>
+        <div v-if="createForm.purpose === 'registration_bonus'">
           <label class="input-label">
             {{ t('admin.promo.maxUses') }}
             <span class="ml-1 text-xs font-normal text-gray-400">({{ t('admin.promo.zeroUnlimited') }})</span>
@@ -199,6 +225,7 @@
             class="input"
           />
         </div>
+        <p v-else class="text-xs text-gray-500 dark:text-gray-400">{{ t('admin.promo.subscriptionSingleUse') }}</p>
         <div>
           <label class="input-label">
             {{ t('admin.promo.expiresAt') }}
@@ -252,6 +279,13 @@
           />
         </div>
         <div>
+          <label class="input-label">{{ t('admin.promo.purpose') }}</label>
+          <select v-model="editForm.purpose" class="input">
+            <option value="registration_bonus">{{ t('admin.promo.purposes.registration_bonus') }}</option>
+            <option value="subscription_discount">{{ t('admin.promo.purposes.subscription_discount') }}</option>
+          </select>
+        </div>
+        <div v-if="editForm.purpose === 'registration_bonus'">
           <label class="input-label">{{ t('admin.promo.bonusAmount') }}</label>
           <input
             v-model.number="editForm.bonus_amount"
@@ -262,7 +296,11 @@
             class="input"
           />
         </div>
-        <div>
+        <div v-else>
+          <label class="input-label">{{ t('admin.promo.payPercent') }}</label>
+          <input v-model.number="editForm.pay_percent" data-testid="promo-edit-pay-percent" type="number" min="1" max="99" required class="input" />
+        </div>
+        <div v-if="editForm.purpose === 'registration_bonus'">
           <label class="input-label">
             {{ t('admin.promo.maxUses') }}
             <span class="ml-1 text-xs font-normal text-gray-400">({{ t('admin.promo.zeroUnlimited') }})</span>
@@ -274,6 +312,7 @@
             class="input"
           />
         </div>
+        <p v-else class="text-xs text-gray-500 dark:text-gray-400">{{ t('admin.promo.subscriptionSingleUse') }}</p>
         <div>
           <label class="input-label">{{ t('admin.promo.status') }}</label>
           <Select v-model="editForm.status" :options="statusOptions" />
@@ -341,13 +380,18 @@
                 {{ usage.user?.email || t('admin.promo.userPrefix', { id: usage.user_id }) }}
               </p>
               <p class="text-xs text-gray-500 dark:text-gray-400">
-                {{ formatDateTime(usage.used_at) }}
+                {{ t(`admin.promo.usageStatuses.${usage.status}`) }} · {{ formatDateTime(usageTimestamp(usage)) }}
+              </p>
+              <p v-if="usage.payment_order_id" class="text-xs text-gray-500 dark:text-gray-400">
+                {{ t('admin.promo.orderId', { id: usage.payment_order_id }) }}
               </p>
             </div>
           </div>
           <div class="text-right">
             <span class="text-sm font-medium text-green-600 dark:text-green-400">
-              +${{ usage.bonus_amount.toFixed(2) }}
+              {{ usage.usage_type === 'subscription_discount'
+                ? `-$${usage.discount_amount.toFixed(2)}`
+                : `+$${usage.bonus_amount.toFixed(2)}` }}
             </span>
           </div>
         </div>
@@ -450,6 +494,8 @@ const usagesTotal = ref(0)
 // Forms
 const createForm = reactive({
   code: '',
+  purpose: 'registration_bonus' as PromoCode['purpose'],
+  pay_percent: 80,
   bonus_amount: 1,
   max_uses: 0,
   expires_at_str: '',
@@ -458,6 +504,8 @@ const createForm = reactive({
 
 const editForm = reactive({
   code: '',
+  purpose: 'registration_bonus' as PromoCode['purpose'],
+  pay_percent: 80,
   bonus_amount: 0,
   max_uses: 0,
   status: 'active' as 'active' | 'disabled',
@@ -479,7 +527,8 @@ const statusOptions = computed(() => [
 
 const columns = computed<Column[]>(() => [
   { key: 'code', label: t('admin.promo.columns.code') },
-  { key: 'bonus_amount', label: t('admin.promo.columns.bonusAmount'), sortable: true },
+  { key: 'purpose', label: t('admin.promo.columns.purpose') },
+  { key: 'benefit', label: t('admin.promo.columns.benefit') },
   { key: 'usage', label: t('admin.promo.columns.usage') },
   { key: 'status', label: t('admin.promo.columns.status'), sortable: true },
   { key: 'expires_at', label: t('admin.promo.columns.expiresAt'), sortable: true },
@@ -597,8 +646,10 @@ const handleCreate = async () => {
   try {
     await adminAPI.promo.create({
       code: createForm.code || undefined,
-      bonus_amount: createForm.bonus_amount,
-      max_uses: createForm.max_uses,
+      purpose: createForm.purpose,
+      discount_rate: createForm.purpose === 'subscription_discount' ? createForm.pay_percent / 100 : undefined,
+      bonus_amount: createForm.purpose === 'registration_bonus' ? createForm.bonus_amount : 0,
+      max_uses: createForm.purpose === 'subscription_discount' ? 1 : createForm.max_uses,
       expires_at: createForm.expires_at_str ? Math.floor(new Date(createForm.expires_at_str).getTime() / 1000) : undefined,
       notes: createForm.notes || undefined
     })
@@ -615,6 +666,8 @@ const handleCreate = async () => {
 
 const resetCreateForm = () => {
   createForm.code = ''
+  createForm.purpose = 'registration_bonus'
+  createForm.pay_percent = 80
   createForm.bonus_amount = 1
   createForm.max_uses = 0
   createForm.expires_at_str = ''
@@ -625,6 +678,8 @@ const resetCreateForm = () => {
 const handleEdit = (code: PromoCode) => {
   editingCode.value = code
   editForm.code = code.code
+  editForm.purpose = code.purpose
+  editForm.pay_percent = Math.round((code.discount_rate || 0.8) * 100)
   editForm.bonus_amount = code.bonus_amount
   editForm.max_uses = code.max_uses
   editForm.status = code.status
@@ -647,8 +702,10 @@ const handleUpdate = async () => {
   try {
     await adminAPI.promo.update(editingCode.value.id, {
       code: editForm.code,
-      bonus_amount: editForm.bonus_amount,
-      max_uses: editForm.max_uses,
+      purpose: editForm.purpose,
+      discount_rate: editForm.purpose === 'subscription_discount' ? editForm.pay_percent / 100 : undefined,
+      bonus_amount: editForm.purpose === 'registration_bonus' ? editForm.bonus_amount : 0,
+      max_uses: editForm.purpose === 'subscription_discount' ? 1 : editForm.max_uses,
       status: editForm.status,
       expires_at: editForm.expires_at_str ? Math.floor(new Date(editForm.expires_at_str).getTime() / 1000) : 0,
       notes: editForm.notes
@@ -735,6 +792,9 @@ const handleUsagesPageChange = (page: number) => {
   usagesPage.value = page
   loadUsages()
 }
+
+const usageTimestamp = (usage: PromoCodeUsage) =>
+  usage.consumed_at || usage.released_at || usage.reserved_at || usage.used_at
 
 onMounted(() => {
   loadCodes()

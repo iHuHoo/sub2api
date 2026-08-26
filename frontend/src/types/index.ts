@@ -2239,6 +2239,8 @@ export interface UserAttributeValuesMap {
 export interface PromoCode {
   id: number
   code: string
+  purpose: 'registration_bonus' | 'subscription_discount'
+  discount_rate: number | null
   bonus_amount: number
   max_uses: number
   used_count: number
@@ -2253,13 +2255,22 @@ export interface PromoCodeUsage {
   id: number
   promo_code_id: number
   user_id: number
+  payment_order_id: number | null
+  usage_type: 'registration_bonus' | 'subscription_discount'
+  status: 'reserved' | 'consumed' | 'released'
   bonus_amount: number
+  discount_amount: number
   used_at: string
+  reserved_at: string | null
+  consumed_at: string | null
+  released_at: string | null
   user?: User
 }
 
 export interface CreatePromoCodeRequest {
   code?: string
+  purpose: 'registration_bonus' | 'subscription_discount'
+  discount_rate?: number
   bonus_amount: number
   max_uses?: number
   expires_at?: number | null
@@ -2268,6 +2279,8 @@ export interface CreatePromoCodeRequest {
 
 export interface UpdatePromoCodeRequest {
   code?: string
+  purpose?: 'registration_bonus' | 'subscription_discount'
+  discount_rate?: number
   bonus_amount?: number
   max_uses?: number
   status?: 'active' | 'disabled'

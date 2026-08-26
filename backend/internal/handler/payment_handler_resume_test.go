@@ -39,6 +39,7 @@ func TestApplyWeChatPaymentResumeClaims(t *testing.T) {
 		Amount:      "12.50",
 		OrderType:   payment.OrderTypeSubscription,
 		PlanID:      7,
+		PromoCode:   "SAVE20",
 	})
 	if err != nil {
 		t.Fatalf("applyWeChatPaymentResumeClaims returned error: %v", err)
@@ -54,6 +55,20 @@ func TestApplyWeChatPaymentResumeClaims(t *testing.T) {
 	}
 	if req.PlanID != 7 {
 		t.Fatalf("plan_id = %d, want 7", req.PlanID)
+	}
+	if req.PromoCode != "SAVE20" {
+		t.Fatalf("promo_code = %q, want SAVE20", req.PromoCode)
+	}
+}
+
+func TestApplyWeChatPaymentResumeClaimsRejectsPromoCodeMismatch(t *testing.T) {
+	t.Parallel()
+	req := CreateOrderRequest{PaymentType: payment.TypeWxpay, PromoCode: "SAVE10"}
+	err := applyWeChatPaymentResumeClaims(&req, &service.WeChatPaymentResumeClaims{
+		OpenID: payment.TypeWxpay, PaymentType: payment.TypeWxpay, PromoCode: "SAVE20",
+	})
+	if err == nil {
+		t.Fatal("applyWeChatPaymentResumeClaims should reject mismatched promo codes")
 	}
 }
 
@@ -118,7 +133,7 @@ func TestVerifyOrderPublicReturnsLegacyOrderState(t *testing.T) {
 		Save(context.Background())
 	require.NoError(t, err)
 
-	paymentSvc := service.NewPaymentService(client, payment.NewRegistry(), nil, nil, nil, nil, nil, nil, nil)
+	paymentSvc := service.NewPaymentService(client, payment.NewRegistry(), nil, nil, nil, nil, nil, nil, nil, nil)
 	h := NewPaymentHandler(paymentSvc, nil)
 
 	recorder := httptest.NewRecorder()
@@ -218,7 +233,7 @@ func TestResolveOrderPublicByResumeTokenReturnsFrontendContractFields(t *testing
 	require.NoError(t, err)
 
 	configSvc := service.NewPaymentConfigService(client, nil, []byte("0123456789abcdef0123456789abcdef"))
-	paymentSvc := service.NewPaymentService(client, payment.NewRegistry(), nil, nil, nil, configSvc, nil, nil, nil)
+	paymentSvc := service.NewPaymentService(client, payment.NewRegistry(), nil, nil, nil, configSvc, nil, nil, nil, nil)
 	h := NewPaymentHandler(paymentSvc, nil)
 
 	recorder := httptest.NewRecorder()
@@ -306,7 +321,7 @@ func TestResolveOrderPublicByResumeTokenReturnsBadRequestForMismatchedToken(t *t
 	require.NoError(t, err)
 
 	configSvc := service.NewPaymentConfigService(client, nil, []byte("0123456789abcdef0123456789abcdef"))
-	paymentSvc := service.NewPaymentService(client, payment.NewRegistry(), nil, nil, nil, configSvc, nil, nil, nil)
+	paymentSvc := service.NewPaymentService(client, payment.NewRegistry(), nil, nil, nil, configSvc, nil, nil, nil, nil)
 	h := NewPaymentHandler(paymentSvc, nil)
 
 	recorder := httptest.NewRecorder()
@@ -346,7 +361,7 @@ func TestVerifyOrderPublicRejectsBlankOutTradeNo(t *testing.T) {
 	client := enttest.NewClient(t, enttest.WithOptions(dbent.Driver(drv)))
 	t.Cleanup(func() { _ = client.Close() })
 
-	paymentSvc := service.NewPaymentService(client, payment.NewRegistry(), nil, nil, nil, nil, nil, nil, nil)
+	paymentSvc := service.NewPaymentService(client, payment.NewRegistry(), nil, nil, nil, nil, nil, nil, nil, nil)
 	h := NewPaymentHandler(paymentSvc, nil)
 
 	recorder := httptest.NewRecorder()

@@ -30,6 +30,16 @@ const (
 	FieldFeeRate = "fee_rate"
 	// FieldRechargeCode holds the string denoting the recharge_code field in the database.
 	FieldRechargeCode = "recharge_code"
+	// FieldPromoCodeID holds the string denoting the promo_code_id field in the database.
+	FieldPromoCodeID = "promo_code_id"
+	// FieldPromoCode holds the string denoting the promo_code field in the database.
+	FieldPromoCode = "promo_code"
+	// FieldOriginalAmount holds the string denoting the original_amount field in the database.
+	FieldOriginalAmount = "original_amount"
+	// FieldDiscountRate holds the string denoting the discount_rate field in the database.
+	FieldDiscountRate = "discount_rate"
+	// FieldDiscountAmount holds the string denoting the discount_amount field in the database.
+	FieldDiscountAmount = "discount_amount"
 	// FieldOutTradeNo holds the string denoting the out_trade_no field in the database.
 	FieldOutTradeNo = "out_trade_no"
 	// FieldPaymentType holds the string denoting the payment_type field in the database.
@@ -116,6 +126,11 @@ var Columns = []string{
 	FieldPayAmount,
 	FieldFeeRate,
 	FieldRechargeCode,
+	FieldPromoCodeID,
+	FieldPromoCode,
+	FieldOriginalAmount,
+	FieldDiscountRate,
+	FieldDiscountAmount,
 	FieldOutTradeNo,
 	FieldPaymentType,
 	FieldPaymentTradeNo,
@@ -168,6 +183,10 @@ var (
 	DefaultFeeRate float64
 	// RechargeCodeValidator is a validator for the "recharge_code" field. It is called by the builders before save.
 	RechargeCodeValidator func(string) error
+	// PromoCodeValidator is a validator for the "promo_code" field. It is called by the builders before save.
+	PromoCodeValidator func(string) error
+	// DefaultDiscountAmount holds the default value on creation for the "discount_amount" field.
+	DefaultDiscountAmount float64
 	// DefaultOutTradeNo holds the default value on creation for the "out_trade_no" field.
 	DefaultOutTradeNo string
 	// OutTradeNoValidator is a validator for the "out_trade_no" field. It is called by the builders before save.
@@ -252,6 +271,31 @@ func ByFeeRate(opts ...sql.OrderTermOption) OrderOption {
 // ByRechargeCode orders the results by the recharge_code field.
 func ByRechargeCode(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldRechargeCode, opts...).ToFunc()
+}
+
+// ByPromoCodeID orders the results by the promo_code_id field.
+func ByPromoCodeID(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldPromoCodeID, opts...).ToFunc()
+}
+
+// ByPromoCode orders the results by the promo_code field.
+func ByPromoCode(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldPromoCode, opts...).ToFunc()
+}
+
+// ByOriginalAmount orders the results by the original_amount field.
+func ByOriginalAmount(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldOriginalAmount, opts...).ToFunc()
+}
+
+// ByDiscountRate orders the results by the discount_rate field.
+func ByDiscountRate(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldDiscountRate, opts...).ToFunc()
+}
+
+// ByDiscountAmount orders the results by the discount_amount field.
+func ByDiscountAmount(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldDiscountAmount, opts...).ToFunc()
 }
 
 // ByOutTradeNo orders the results by the out_trade_no field.

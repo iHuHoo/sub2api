@@ -58,6 +58,61 @@ func (_u *PromoCodeUsageUpdate) SetNillableUserID(v *int64) *PromoCodeUsageUpdat
 	return _u
 }
 
+// SetPaymentOrderID sets the "payment_order_id" field.
+func (_u *PromoCodeUsageUpdate) SetPaymentOrderID(v int64) *PromoCodeUsageUpdate {
+	_u.mutation.ResetPaymentOrderID()
+	_u.mutation.SetPaymentOrderID(v)
+	return _u
+}
+
+// SetNillablePaymentOrderID sets the "payment_order_id" field if the given value is not nil.
+func (_u *PromoCodeUsageUpdate) SetNillablePaymentOrderID(v *int64) *PromoCodeUsageUpdate {
+	if v != nil {
+		_u.SetPaymentOrderID(*v)
+	}
+	return _u
+}
+
+// AddPaymentOrderID adds value to the "payment_order_id" field.
+func (_u *PromoCodeUsageUpdate) AddPaymentOrderID(v int64) *PromoCodeUsageUpdate {
+	_u.mutation.AddPaymentOrderID(v)
+	return _u
+}
+
+// ClearPaymentOrderID clears the value of the "payment_order_id" field.
+func (_u *PromoCodeUsageUpdate) ClearPaymentOrderID() *PromoCodeUsageUpdate {
+	_u.mutation.ClearPaymentOrderID()
+	return _u
+}
+
+// SetUsageType sets the "usage_type" field.
+func (_u *PromoCodeUsageUpdate) SetUsageType(v string) *PromoCodeUsageUpdate {
+	_u.mutation.SetUsageType(v)
+	return _u
+}
+
+// SetNillableUsageType sets the "usage_type" field if the given value is not nil.
+func (_u *PromoCodeUsageUpdate) SetNillableUsageType(v *string) *PromoCodeUsageUpdate {
+	if v != nil {
+		_u.SetUsageType(*v)
+	}
+	return _u
+}
+
+// SetStatus sets the "status" field.
+func (_u *PromoCodeUsageUpdate) SetStatus(v string) *PromoCodeUsageUpdate {
+	_u.mutation.SetStatus(v)
+	return _u
+}
+
+// SetNillableStatus sets the "status" field if the given value is not nil.
+func (_u *PromoCodeUsageUpdate) SetNillableStatus(v *string) *PromoCodeUsageUpdate {
+	if v != nil {
+		_u.SetStatus(*v)
+	}
+	return _u
+}
+
 // SetBonusAmount sets the "bonus_amount" field.
 func (_u *PromoCodeUsageUpdate) SetBonusAmount(v float64) *PromoCodeUsageUpdate {
 	_u.mutation.ResetBonusAmount()
@@ -79,6 +134,27 @@ func (_u *PromoCodeUsageUpdate) AddBonusAmount(v float64) *PromoCodeUsageUpdate 
 	return _u
 }
 
+// SetDiscountAmount sets the "discount_amount" field.
+func (_u *PromoCodeUsageUpdate) SetDiscountAmount(v float64) *PromoCodeUsageUpdate {
+	_u.mutation.ResetDiscountAmount()
+	_u.mutation.SetDiscountAmount(v)
+	return _u
+}
+
+// SetNillableDiscountAmount sets the "discount_amount" field if the given value is not nil.
+func (_u *PromoCodeUsageUpdate) SetNillableDiscountAmount(v *float64) *PromoCodeUsageUpdate {
+	if v != nil {
+		_u.SetDiscountAmount(*v)
+	}
+	return _u
+}
+
+// AddDiscountAmount adds value to the "discount_amount" field.
+func (_u *PromoCodeUsageUpdate) AddDiscountAmount(v float64) *PromoCodeUsageUpdate {
+	_u.mutation.AddDiscountAmount(v)
+	return _u
+}
+
 // SetUsedAt sets the "used_at" field.
 func (_u *PromoCodeUsageUpdate) SetUsedAt(v time.Time) *PromoCodeUsageUpdate {
 	_u.mutation.SetUsedAt(v)
@@ -90,6 +166,66 @@ func (_u *PromoCodeUsageUpdate) SetNillableUsedAt(v *time.Time) *PromoCodeUsageU
 	if v != nil {
 		_u.SetUsedAt(*v)
 	}
+	return _u
+}
+
+// SetReservedAt sets the "reserved_at" field.
+func (_u *PromoCodeUsageUpdate) SetReservedAt(v time.Time) *PromoCodeUsageUpdate {
+	_u.mutation.SetReservedAt(v)
+	return _u
+}
+
+// SetNillableReservedAt sets the "reserved_at" field if the given value is not nil.
+func (_u *PromoCodeUsageUpdate) SetNillableReservedAt(v *time.Time) *PromoCodeUsageUpdate {
+	if v != nil {
+		_u.SetReservedAt(*v)
+	}
+	return _u
+}
+
+// ClearReservedAt clears the value of the "reserved_at" field.
+func (_u *PromoCodeUsageUpdate) ClearReservedAt() *PromoCodeUsageUpdate {
+	_u.mutation.ClearReservedAt()
+	return _u
+}
+
+// SetConsumedAt sets the "consumed_at" field.
+func (_u *PromoCodeUsageUpdate) SetConsumedAt(v time.Time) *PromoCodeUsageUpdate {
+	_u.mutation.SetConsumedAt(v)
+	return _u
+}
+
+// SetNillableConsumedAt sets the "consumed_at" field if the given value is not nil.
+func (_u *PromoCodeUsageUpdate) SetNillableConsumedAt(v *time.Time) *PromoCodeUsageUpdate {
+	if v != nil {
+		_u.SetConsumedAt(*v)
+	}
+	return _u
+}
+
+// ClearConsumedAt clears the value of the "consumed_at" field.
+func (_u *PromoCodeUsageUpdate) ClearConsumedAt() *PromoCodeUsageUpdate {
+	_u.mutation.ClearConsumedAt()
+	return _u
+}
+
+// SetReleasedAt sets the "released_at" field.
+func (_u *PromoCodeUsageUpdate) SetReleasedAt(v time.Time) *PromoCodeUsageUpdate {
+	_u.mutation.SetReleasedAt(v)
+	return _u
+}
+
+// SetNillableReleasedAt sets the "released_at" field if the given value is not nil.
+func (_u *PromoCodeUsageUpdate) SetNillableReleasedAt(v *time.Time) *PromoCodeUsageUpdate {
+	if v != nil {
+		_u.SetReleasedAt(*v)
+	}
+	return _u
+}
+
+// ClearReleasedAt clears the value of the "released_at" field.
+func (_u *PromoCodeUsageUpdate) ClearReleasedAt() *PromoCodeUsageUpdate {
+	_u.mutation.ClearReleasedAt()
 	return _u
 }
 
@@ -149,6 +285,16 @@ func (_u *PromoCodeUsageUpdate) ExecX(ctx context.Context) {
 
 // check runs all checks and user-defined validators on the builder.
 func (_u *PromoCodeUsageUpdate) check() error {
+	if v, ok := _u.mutation.UsageType(); ok {
+		if err := promocodeusage.UsageTypeValidator(v); err != nil {
+			return &ValidationError{Name: "usage_type", err: fmt.Errorf(`ent: validator failed for field "PromoCodeUsage.usage_type": %w`, err)}
+		}
+	}
+	if v, ok := _u.mutation.Status(); ok {
+		if err := promocodeusage.StatusValidator(v); err != nil {
+			return &ValidationError{Name: "status", err: fmt.Errorf(`ent: validator failed for field "PromoCodeUsage.status": %w`, err)}
+		}
+	}
 	if _u.mutation.PromoCodeCleared() && len(_u.mutation.PromoCodeIDs()) > 0 {
 		return errors.New(`ent: clearing a required unique edge "PromoCodeUsage.promo_code"`)
 	}
@@ -170,14 +316,53 @@ func (_u *PromoCodeUsageUpdate) sqlSave(ctx context.Context) (_node int, err err
 			}
 		}
 	}
+	if value, ok := _u.mutation.PaymentOrderID(); ok {
+		_spec.SetField(promocodeusage.FieldPaymentOrderID, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedPaymentOrderID(); ok {
+		_spec.AddField(promocodeusage.FieldPaymentOrderID, field.TypeInt64, value)
+	}
+	if _u.mutation.PaymentOrderIDCleared() {
+		_spec.ClearField(promocodeusage.FieldPaymentOrderID, field.TypeInt64)
+	}
+	if value, ok := _u.mutation.UsageType(); ok {
+		_spec.SetField(promocodeusage.FieldUsageType, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.Status(); ok {
+		_spec.SetField(promocodeusage.FieldStatus, field.TypeString, value)
+	}
 	if value, ok := _u.mutation.BonusAmount(); ok {
 		_spec.SetField(promocodeusage.FieldBonusAmount, field.TypeFloat64, value)
 	}
 	if value, ok := _u.mutation.AddedBonusAmount(); ok {
 		_spec.AddField(promocodeusage.FieldBonusAmount, field.TypeFloat64, value)
 	}
+	if value, ok := _u.mutation.DiscountAmount(); ok {
+		_spec.SetField(promocodeusage.FieldDiscountAmount, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedDiscountAmount(); ok {
+		_spec.AddField(promocodeusage.FieldDiscountAmount, field.TypeFloat64, value)
+	}
 	if value, ok := _u.mutation.UsedAt(); ok {
 		_spec.SetField(promocodeusage.FieldUsedAt, field.TypeTime, value)
+	}
+	if value, ok := _u.mutation.ReservedAt(); ok {
+		_spec.SetField(promocodeusage.FieldReservedAt, field.TypeTime, value)
+	}
+	if _u.mutation.ReservedAtCleared() {
+		_spec.ClearField(promocodeusage.FieldReservedAt, field.TypeTime)
+	}
+	if value, ok := _u.mutation.ConsumedAt(); ok {
+		_spec.SetField(promocodeusage.FieldConsumedAt, field.TypeTime, value)
+	}
+	if _u.mutation.ConsumedAtCleared() {
+		_spec.ClearField(promocodeusage.FieldConsumedAt, field.TypeTime)
+	}
+	if value, ok := _u.mutation.ReleasedAt(); ok {
+		_spec.SetField(promocodeusage.FieldReleasedAt, field.TypeTime, value)
+	}
+	if _u.mutation.ReleasedAtCleared() {
+		_spec.ClearField(promocodeusage.FieldReleasedAt, field.TypeTime)
 	}
 	if _u.mutation.PromoCodeCleared() {
 		edge := &sqlgraph.EdgeSpec{
@@ -285,6 +470,61 @@ func (_u *PromoCodeUsageUpdateOne) SetNillableUserID(v *int64) *PromoCodeUsageUp
 	return _u
 }
 
+// SetPaymentOrderID sets the "payment_order_id" field.
+func (_u *PromoCodeUsageUpdateOne) SetPaymentOrderID(v int64) *PromoCodeUsageUpdateOne {
+	_u.mutation.ResetPaymentOrderID()
+	_u.mutation.SetPaymentOrderID(v)
+	return _u
+}
+
+// SetNillablePaymentOrderID sets the "payment_order_id" field if the given value is not nil.
+func (_u *PromoCodeUsageUpdateOne) SetNillablePaymentOrderID(v *int64) *PromoCodeUsageUpdateOne {
+	if v != nil {
+		_u.SetPaymentOrderID(*v)
+	}
+	return _u
+}
+
+// AddPaymentOrderID adds value to the "payment_order_id" field.
+func (_u *PromoCodeUsageUpdateOne) AddPaymentOrderID(v int64) *PromoCodeUsageUpdateOne {
+	_u.mutation.AddPaymentOrderID(v)
+	return _u
+}
+
+// ClearPaymentOrderID clears the value of the "payment_order_id" field.
+func (_u *PromoCodeUsageUpdateOne) ClearPaymentOrderID() *PromoCodeUsageUpdateOne {
+	_u.mutation.ClearPaymentOrderID()
+	return _u
+}
+
+// SetUsageType sets the "usage_type" field.
+func (_u *PromoCodeUsageUpdateOne) SetUsageType(v string) *PromoCodeUsageUpdateOne {
+	_u.mutation.SetUsageType(v)
+	return _u
+}
+
+// SetNillableUsageType sets the "usage_type" field if the given value is not nil.
+func (_u *PromoCodeUsageUpdateOne) SetNillableUsageType(v *string) *PromoCodeUsageUpdateOne {
+	if v != nil {
+		_u.SetUsageType(*v)
+	}
+	return _u
+}
+
+// SetStatus sets the "status" field.
+func (_u *PromoCodeUsageUpdateOne) SetStatus(v string) *PromoCodeUsageUpdateOne {
+	_u.mutation.SetStatus(v)
+	return _u
+}
+
+// SetNillableStatus sets the "status" field if the given value is not nil.
+func (_u *PromoCodeUsageUpdateOne) SetNillableStatus(v *string) *PromoCodeUsageUpdateOne {
+	if v != nil {
+		_u.SetStatus(*v)
+	}
+	return _u
+}
+
 // SetBonusAmount sets the "bonus_amount" field.
 func (_u *PromoCodeUsageUpdateOne) SetBonusAmount(v float64) *PromoCodeUsageUpdateOne {
 	_u.mutation.ResetBonusAmount()
@@ -306,6 +546,27 @@ func (_u *PromoCodeUsageUpdateOne) AddBonusAmount(v float64) *PromoCodeUsageUpda
 	return _u
 }
 
+// SetDiscountAmount sets the "discount_amount" field.
+func (_u *PromoCodeUsageUpdateOne) SetDiscountAmount(v float64) *PromoCodeUsageUpdateOne {
+	_u.mutation.ResetDiscountAmount()
+	_u.mutation.SetDiscountAmount(v)
+	return _u
+}
+
+// SetNillableDiscountAmount sets the "discount_amount" field if the given value is not nil.
+func (_u *PromoCodeUsageUpdateOne) SetNillableDiscountAmount(v *float64) *PromoCodeUsageUpdateOne {
+	if v != nil {
+		_u.SetDiscountAmount(*v)
+	}
+	return _u
+}
+
+// AddDiscountAmount adds value to the "discount_amount" field.
+func (_u *PromoCodeUsageUpdateOne) AddDiscountAmount(v float64) *PromoCodeUsageUpdateOne {
+	_u.mutation.AddDiscountAmount(v)
+	return _u
+}
+
 // SetUsedAt sets the "used_at" field.
 func (_u *PromoCodeUsageUpdateOne) SetUsedAt(v time.Time) *PromoCodeUsageUpdateOne {
 	_u.mutation.SetUsedAt(v)
@@ -317,6 +578,66 @@ func (_u *PromoCodeUsageUpdateOne) SetNillableUsedAt(v *time.Time) *PromoCodeUsa
 	if v != nil {
 		_u.SetUsedAt(*v)
 	}
+	return _u
+}
+
+// SetReservedAt sets the "reserved_at" field.
+func (_u *PromoCodeUsageUpdateOne) SetReservedAt(v time.Time) *PromoCodeUsageUpdateOne {
+	_u.mutation.SetReservedAt(v)
+	return _u
+}
+
+// SetNillableReservedAt sets the "reserved_at" field if the given value is not nil.
+func (_u *PromoCodeUsageUpdateOne) SetNillableReservedAt(v *time.Time) *PromoCodeUsageUpdateOne {
+	if v != nil {
+		_u.SetReservedAt(*v)
+	}
+	return _u
+}
+
+// ClearReservedAt clears the value of the "reserved_at" field.
+func (_u *PromoCodeUsageUpdateOne) ClearReservedAt() *PromoCodeUsageUpdateOne {
+	_u.mutation.ClearReservedAt()
+	return _u
+}
+
+// SetConsumedAt sets the "consumed_at" field.
+func (_u *PromoCodeUsageUpdateOne) SetConsumedAt(v time.Time) *PromoCodeUsageUpdateOne {
+	_u.mutation.SetConsumedAt(v)
+	return _u
+}
+
+// SetNillableConsumedAt sets the "consumed_at" field if the given value is not nil.
+func (_u *PromoCodeUsageUpdateOne) SetNillableConsumedAt(v *time.Time) *PromoCodeUsageUpdateOne {
+	if v != nil {
+		_u.SetConsumedAt(*v)
+	}
+	return _u
+}
+
+// ClearConsumedAt clears the value of the "consumed_at" field.
+func (_u *PromoCodeUsageUpdateOne) ClearConsumedAt() *PromoCodeUsageUpdateOne {
+	_u.mutation.ClearConsumedAt()
+	return _u
+}
+
+// SetReleasedAt sets the "released_at" field.
+func (_u *PromoCodeUsageUpdateOne) SetReleasedAt(v time.Time) *PromoCodeUsageUpdateOne {
+	_u.mutation.SetReleasedAt(v)
+	return _u
+}
+
+// SetNillableReleasedAt sets the "released_at" field if the given value is not nil.
+func (_u *PromoCodeUsageUpdateOne) SetNillableReleasedAt(v *time.Time) *PromoCodeUsageUpdateOne {
+	if v != nil {
+		_u.SetReleasedAt(*v)
+	}
+	return _u
+}
+
+// ClearReleasedAt clears the value of the "released_at" field.
+func (_u *PromoCodeUsageUpdateOne) ClearReleasedAt() *PromoCodeUsageUpdateOne {
+	_u.mutation.ClearReleasedAt()
 	return _u
 }
 
@@ -389,6 +710,16 @@ func (_u *PromoCodeUsageUpdateOne) ExecX(ctx context.Context) {
 
 // check runs all checks and user-defined validators on the builder.
 func (_u *PromoCodeUsageUpdateOne) check() error {
+	if v, ok := _u.mutation.UsageType(); ok {
+		if err := promocodeusage.UsageTypeValidator(v); err != nil {
+			return &ValidationError{Name: "usage_type", err: fmt.Errorf(`ent: validator failed for field "PromoCodeUsage.usage_type": %w`, err)}
+		}
+	}
+	if v, ok := _u.mutation.Status(); ok {
+		if err := promocodeusage.StatusValidator(v); err != nil {
+			return &ValidationError{Name: "status", err: fmt.Errorf(`ent: validator failed for field "PromoCodeUsage.status": %w`, err)}
+		}
+	}
 	if _u.mutation.PromoCodeCleared() && len(_u.mutation.PromoCodeIDs()) > 0 {
 		return errors.New(`ent: clearing a required unique edge "PromoCodeUsage.promo_code"`)
 	}
@@ -427,14 +758,53 @@ func (_u *PromoCodeUsageUpdateOne) sqlSave(ctx context.Context) (_node *PromoCod
 			}
 		}
 	}
+	if value, ok := _u.mutation.PaymentOrderID(); ok {
+		_spec.SetField(promocodeusage.FieldPaymentOrderID, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedPaymentOrderID(); ok {
+		_spec.AddField(promocodeusage.FieldPaymentOrderID, field.TypeInt64, value)
+	}
+	if _u.mutation.PaymentOrderIDCleared() {
+		_spec.ClearField(promocodeusage.FieldPaymentOrderID, field.TypeInt64)
+	}
+	if value, ok := _u.mutation.UsageType(); ok {
+		_spec.SetField(promocodeusage.FieldUsageType, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.Status(); ok {
+		_spec.SetField(promocodeusage.FieldStatus, field.TypeString, value)
+	}
 	if value, ok := _u.mutation.BonusAmount(); ok {
 		_spec.SetField(promocodeusage.FieldBonusAmount, field.TypeFloat64, value)
 	}
 	if value, ok := _u.mutation.AddedBonusAmount(); ok {
 		_spec.AddField(promocodeusage.FieldBonusAmount, field.TypeFloat64, value)
 	}
+	if value, ok := _u.mutation.DiscountAmount(); ok {
+		_spec.SetField(promocodeusage.FieldDiscountAmount, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedDiscountAmount(); ok {
+		_spec.AddField(promocodeusage.FieldDiscountAmount, field.TypeFloat64, value)
+	}
 	if value, ok := _u.mutation.UsedAt(); ok {
 		_spec.SetField(promocodeusage.FieldUsedAt, field.TypeTime, value)
+	}
+	if value, ok := _u.mutation.ReservedAt(); ok {
+		_spec.SetField(promocodeusage.FieldReservedAt, field.TypeTime, value)
+	}
+	if _u.mutation.ReservedAtCleared() {
+		_spec.ClearField(promocodeusage.FieldReservedAt, field.TypeTime)
+	}
+	if value, ok := _u.mutation.ConsumedAt(); ok {
+		_spec.SetField(promocodeusage.FieldConsumedAt, field.TypeTime, value)
+	}
+	if _u.mutation.ConsumedAtCleared() {
+		_spec.ClearField(promocodeusage.FieldConsumedAt, field.TypeTime)
+	}
+	if value, ok := _u.mutation.ReleasedAt(); ok {
+		_spec.SetField(promocodeusage.FieldReleasedAt, field.TypeTime, value)
+	}
+	if _u.mutation.ReleasedAtCleared() {
+		_spec.ClearField(promocodeusage.FieldReleasedAt, field.TypeTime)
 	}
 	if _u.mutation.PromoCodeCleared() {
 		edge := &sqlgraph.EdgeSpec{

@@ -136,6 +136,14 @@ export interface SubscriptionPlan {
   sort_order: number
 }
 
+export interface SubscriptionPromoPreview {
+  code: string
+  discount_rate: number
+  original_amount: number
+  discount_amount: number
+  discounted_amount: number
+}
+
 export interface PaymentChannel {
   id: number
   group_id?: number
@@ -176,6 +184,7 @@ export interface CreateOrderRequest {
   openid?: string
   wechat_resume_token?: string
   is_mobile?: boolean
+  promo_code?: string
 }
 
 export type CreateOrderResultType = 'order_created' | 'oauth_required' | 'jsapi_ready'

@@ -154,6 +154,13 @@ const (
 const (
 	PromoCodeStatusActive   = domain.PromoCodeStatusActive
 	PromoCodeStatusDisabled = domain.PromoCodeStatusDisabled
+
+	PromoCodePurposeRegistrationBonus    = domain.PromoCodePurposeRegistrationBonus
+	PromoCodePurposeSubscriptionDiscount = domain.PromoCodePurposeSubscriptionDiscount
+
+	PromoUsageStatusReserved = domain.PromoUsageStatusReserved
+	PromoUsageStatusConsumed = domain.PromoUsageStatusConsumed
+	PromoUsageStatusReleased = domain.PromoUsageStatusReleased
 )
 
 // Admin adjustment type constants

@@ -168,6 +168,128 @@ func (_u *PaymentOrderUpdate) SetNillableRechargeCode(v *string) *PaymentOrderUp
 	return _u
 }
 
+// SetPromoCodeID sets the "promo_code_id" field.
+func (_u *PaymentOrderUpdate) SetPromoCodeID(v int64) *PaymentOrderUpdate {
+	_u.mutation.ResetPromoCodeID()
+	_u.mutation.SetPromoCodeID(v)
+	return _u
+}
+
+// SetNillablePromoCodeID sets the "promo_code_id" field if the given value is not nil.
+func (_u *PaymentOrderUpdate) SetNillablePromoCodeID(v *int64) *PaymentOrderUpdate {
+	if v != nil {
+		_u.SetPromoCodeID(*v)
+	}
+	return _u
+}
+
+// AddPromoCodeID adds value to the "promo_code_id" field.
+func (_u *PaymentOrderUpdate) AddPromoCodeID(v int64) *PaymentOrderUpdate {
+	_u.mutation.AddPromoCodeID(v)
+	return _u
+}
+
+// ClearPromoCodeID clears the value of the "promo_code_id" field.
+func (_u *PaymentOrderUpdate) ClearPromoCodeID() *PaymentOrderUpdate {
+	_u.mutation.ClearPromoCodeID()
+	return _u
+}
+
+// SetPromoCode sets the "promo_code" field.
+func (_u *PaymentOrderUpdate) SetPromoCode(v string) *PaymentOrderUpdate {
+	_u.mutation.SetPromoCode(v)
+	return _u
+}
+
+// SetNillablePromoCode sets the "promo_code" field if the given value is not nil.
+func (_u *PaymentOrderUpdate) SetNillablePromoCode(v *string) *PaymentOrderUpdate {
+	if v != nil {
+		_u.SetPromoCode(*v)
+	}
+	return _u
+}
+
+// ClearPromoCode clears the value of the "promo_code" field.
+func (_u *PaymentOrderUpdate) ClearPromoCode() *PaymentOrderUpdate {
+	_u.mutation.ClearPromoCode()
+	return _u
+}
+
+// SetOriginalAmount sets the "original_amount" field.
+func (_u *PaymentOrderUpdate) SetOriginalAmount(v float64) *PaymentOrderUpdate {
+	_u.mutation.ResetOriginalAmount()
+	_u.mutation.SetOriginalAmount(v)
+	return _u
+}
+
+// SetNillableOriginalAmount sets the "original_amount" field if the given value is not nil.
+func (_u *PaymentOrderUpdate) SetNillableOriginalAmount(v *float64) *PaymentOrderUpdate {
+	if v != nil {
+		_u.SetOriginalAmount(*v)
+	}
+	return _u
+}
+
+// AddOriginalAmount adds value to the "original_amount" field.
+func (_u *PaymentOrderUpdate) AddOriginalAmount(v float64) *PaymentOrderUpdate {
+	_u.mutation.AddOriginalAmount(v)
+	return _u
+}
+
+// ClearOriginalAmount clears the value of the "original_amount" field.
+func (_u *PaymentOrderUpdate) ClearOriginalAmount() *PaymentOrderUpdate {
+	_u.mutation.ClearOriginalAmount()
+	return _u
+}
+
+// SetDiscountRate sets the "discount_rate" field.
+func (_u *PaymentOrderUpdate) SetDiscountRate(v float64) *PaymentOrderUpdate {
+	_u.mutation.ResetDiscountRate()
+	_u.mutation.SetDiscountRate(v)
+	return _u
+}
+
+// SetNillableDiscountRate sets the "discount_rate" field if the given value is not nil.
+func (_u *PaymentOrderUpdate) SetNillableDiscountRate(v *float64) *PaymentOrderUpdate {
+	if v != nil {
+		_u.SetDiscountRate(*v)
+	}
+	return _u
+}
+
+// AddDiscountRate adds value to the "discount_rate" field.
+func (_u *PaymentOrderUpdate) AddDiscountRate(v float64) *PaymentOrderUpdate {
+	_u.mutation.AddDiscountRate(v)
+	return _u
+}
+
+// ClearDiscountRate clears the value of the "discount_rate" field.
+func (_u *PaymentOrderUpdate) ClearDiscountRate() *PaymentOrderUpdate {
+	_u.mutation.ClearDiscountRate()
+	return _u
+}
+
+// SetDiscountAmount sets the "discount_amount" field.
+func (_u *PaymentOrderUpdate) SetDiscountAmount(v float64) *PaymentOrderUpdate {
+	_u.mutation.ResetDiscountAmount()
+	_u.mutation.SetDiscountAmount(v)
+	return _u
+}
+
+// SetNillableDiscountAmount sets the "discount_amount" field if the given value is not nil.
+func (_u *PaymentOrderUpdate) SetNillableDiscountAmount(v *float64) *PaymentOrderUpdate {
+	if v != nil {
+		_u.SetDiscountAmount(*v)
+	}
+	return _u
+}
+
+// AddDiscountAmount adds value to the "discount_amount" field.
+func (_u *PaymentOrderUpdate) AddDiscountAmount(v float64) *PaymentOrderUpdate {
+	_u.mutation.AddDiscountAmount(v)
+	return _u
+}
+
 // SetOutTradeNo sets the "out_trade_no" field.
 func (_u *PaymentOrderUpdate) SetOutTradeNo(v string) *PaymentOrderUpdate {
 	_u.mutation.SetOutTradeNo(v)
@@ -783,6 +905,11 @@ func (_u *PaymentOrderUpdate) check() error {
 			return &ValidationError{Name: "recharge_code", err: fmt.Errorf(`ent: validator failed for field "PaymentOrder.recharge_code": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.PromoCode(); ok {
+		if err := paymentorder.PromoCodeValidator(v); err != nil {
+			return &ValidationError{Name: "promo_code", err: fmt.Errorf(`ent: validator failed for field "PaymentOrder.promo_code": %w`, err)}
+		}
+	}
 	if v, ok := _u.mutation.OutTradeNo(); ok {
 		if err := paymentorder.OutTradeNoValidator(v); err != nil {
 			return &ValidationError{Name: "out_trade_no", err: fmt.Errorf(`ent: validator failed for field "PaymentOrder.out_trade_no": %w`, err)}
@@ -883,6 +1010,45 @@ func (_u *PaymentOrderUpdate) sqlSave(ctx context.Context) (_node int, err error
 	}
 	if value, ok := _u.mutation.RechargeCode(); ok {
 		_spec.SetField(paymentorder.FieldRechargeCode, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.PromoCodeID(); ok {
+		_spec.SetField(paymentorder.FieldPromoCodeID, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedPromoCodeID(); ok {
+		_spec.AddField(paymentorder.FieldPromoCodeID, field.TypeInt64, value)
+	}
+	if _u.mutation.PromoCodeIDCleared() {
+		_spec.ClearField(paymentorder.FieldPromoCodeID, field.TypeInt64)
+	}
+	if value, ok := _u.mutation.PromoCode(); ok {
+		_spec.SetField(paymentorder.FieldPromoCode, field.TypeString, value)
+	}
+	if _u.mutation.PromoCodeCleared() {
+		_spec.ClearField(paymentorder.FieldPromoCode, field.TypeString)
+	}
+	if value, ok := _u.mutation.OriginalAmount(); ok {
+		_spec.SetField(paymentorder.FieldOriginalAmount, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedOriginalAmount(); ok {
+		_spec.AddField(paymentorder.FieldOriginalAmount, field.TypeFloat64, value)
+	}
+	if _u.mutation.OriginalAmountCleared() {
+		_spec.ClearField(paymentorder.FieldOriginalAmount, field.TypeFloat64)
+	}
+	if value, ok := _u.mutation.DiscountRate(); ok {
+		_spec.SetField(paymentorder.FieldDiscountRate, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedDiscountRate(); ok {
+		_spec.AddField(paymentorder.FieldDiscountRate, field.TypeFloat64, value)
+	}
+	if _u.mutation.DiscountRateCleared() {
+		_spec.ClearField(paymentorder.FieldDiscountRate, field.TypeFloat64)
+	}
+	if value, ok := _u.mutation.DiscountAmount(); ok {
+		_spec.SetField(paymentorder.FieldDiscountAmount, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedDiscountAmount(); ok {
+		_spec.AddField(paymentorder.FieldDiscountAmount, field.TypeFloat64, value)
 	}
 	if value, ok := _u.mutation.OutTradeNo(); ok {
 		_spec.SetField(paymentorder.FieldOutTradeNo, field.TypeString, value)
@@ -1228,6 +1394,128 @@ func (_u *PaymentOrderUpdateOne) SetNillableRechargeCode(v *string) *PaymentOrde
 	if v != nil {
 		_u.SetRechargeCode(*v)
 	}
+	return _u
+}
+
+// SetPromoCodeID sets the "promo_code_id" field.
+func (_u *PaymentOrderUpdateOne) SetPromoCodeID(v int64) *PaymentOrderUpdateOne {
+	_u.mutation.ResetPromoCodeID()
+	_u.mutation.SetPromoCodeID(v)
+	return _u
+}
+
+// SetNillablePromoCodeID sets the "promo_code_id" field if the given value is not nil.
+func (_u *PaymentOrderUpdateOne) SetNillablePromoCodeID(v *int64) *PaymentOrderUpdateOne {
+	if v != nil {
+		_u.SetPromoCodeID(*v)
+	}
+	return _u
+}
+
+// AddPromoCodeID adds value to the "promo_code_id" field.
+func (_u *PaymentOrderUpdateOne) AddPromoCodeID(v int64) *PaymentOrderUpdateOne {
+	_u.mutation.AddPromoCodeID(v)
+	return _u
+}
+
+// ClearPromoCodeID clears the value of the "promo_code_id" field.
+func (_u *PaymentOrderUpdateOne) ClearPromoCodeID() *PaymentOrderUpdateOne {
+	_u.mutation.ClearPromoCodeID()
+	return _u
+}
+
+// SetPromoCode sets the "promo_code" field.
+func (_u *PaymentOrderUpdateOne) SetPromoCode(v string) *PaymentOrderUpdateOne {
+	_u.mutation.SetPromoCode(v)
+	return _u
+}
+
+// SetNillablePromoCode sets the "promo_code" field if the given value is not nil.
+func (_u *PaymentOrderUpdateOne) SetNillablePromoCode(v *string) *PaymentOrderUpdateOne {
+	if v != nil {
+		_u.SetPromoCode(*v)
+	}
+	return _u
+}
+
+// ClearPromoCode clears the value of the "promo_code" field.
+func (_u *PaymentOrderUpdateOne) ClearPromoCode() *PaymentOrderUpdateOne {
+	_u.mutation.ClearPromoCode()
+	return _u
+}
+
+// SetOriginalAmount sets the "original_amount" field.
+func (_u *PaymentOrderUpdateOne) SetOriginalAmount(v float64) *PaymentOrderUpdateOne {
+	_u.mutation.ResetOriginalAmount()
+	_u.mutation.SetOriginalAmount(v)
+	return _u
+}
+
+// SetNillableOriginalAmount sets the "original_amount" field if the given value is not nil.
+func (_u *PaymentOrderUpdateOne) SetNillableOriginalAmount(v *float64) *PaymentOrderUpdateOne {
+	if v != nil {
+		_u.SetOriginalAmount(*v)
+	}
+	return _u
+}
+
+// AddOriginalAmount adds value to the "original_amount" field.
+func (_u *PaymentOrderUpdateOne) AddOriginalAmount(v float64) *PaymentOrderUpdateOne {
+	_u.mutation.AddOriginalAmount(v)
+	return _u
+}
+
+// ClearOriginalAmount clears the value of the "original_amount" field.
+func (_u *PaymentOrderUpdateOne) ClearOriginalAmount() *PaymentOrderUpdateOne {
+	_u.mutation.ClearOriginalAmount()
+	return _u
+}
+
+// SetDiscountRate sets the "discount_rate" field.
+func (_u *PaymentOrderUpdateOne) SetDiscountRate(v float64) *PaymentOrderUpdateOne {
+	_u.mutation.ResetDiscountRate()
+	_u.mutation.SetDiscountRate(v)
+	return _u
+}
+
+// SetNillableDiscountRate sets the "discount_rate" field if the given value is not nil.
+func (_u *PaymentOrderUpdateOne) SetNillableDiscountRate(v *float64) *PaymentOrderUpdateOne {
+	if v != nil {
+		_u.SetDiscountRate(*v)
+	}
+	return _u
+}
+
+// AddDiscountRate adds value to the "discount_rate" field.
+func (_u *PaymentOrderUpdateOne) AddDiscountRate(v float64) *PaymentOrderUpdateOne {
+	_u.mutation.AddDiscountRate(v)
+	return _u
+}
+
+// ClearDiscountRate clears the value of the "discount_rate" field.
+func (_u *PaymentOrderUpdateOne) ClearDiscountRate() *PaymentOrderUpdateOne {
+	_u.mutation.ClearDiscountRate()
+	return _u
+}
+
+// SetDiscountAmount sets the "discount_amount" field.
+func (_u *PaymentOrderUpdateOne) SetDiscountAmount(v float64) *PaymentOrderUpdateOne {
+	_u.mutation.ResetDiscountAmount()
+	_u.mutation.SetDiscountAmount(v)
+	return _u
+}
+
+// SetNillableDiscountAmount sets the "discount_amount" field if the given value is not nil.
+func (_u *PaymentOrderUpdateOne) SetNillableDiscountAmount(v *float64) *PaymentOrderUpdateOne {
+	if v != nil {
+		_u.SetDiscountAmount(*v)
+	}
+	return _u
+}
+
+// AddDiscountAmount adds value to the "discount_amount" field.
+func (_u *PaymentOrderUpdateOne) AddDiscountAmount(v float64) *PaymentOrderUpdateOne {
+	_u.mutation.AddDiscountAmount(v)
 	return _u
 }
 
@@ -1859,6 +2147,11 @@ func (_u *PaymentOrderUpdateOne) check() error {
 			return &ValidationError{Name: "recharge_code", err: fmt.Errorf(`ent: validator failed for field "PaymentOrder.recharge_code": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.PromoCode(); ok {
+		if err := paymentorder.PromoCodeValidator(v); err != nil {
+			return &ValidationError{Name: "promo_code", err: fmt.Errorf(`ent: validator failed for field "PaymentOrder.promo_code": %w`, err)}
+		}
+	}
 	if v, ok := _u.mutation.OutTradeNo(); ok {
 		if err := paymentorder.OutTradeNoValidator(v); err != nil {
 			return &ValidationError{Name: "out_trade_no", err: fmt.Errorf(`ent: validator failed for field "PaymentOrder.out_trade_no": %w`, err)}
@@ -1976,6 +2269,45 @@ func (_u *PaymentOrderUpdateOne) sqlSave(ctx context.Context) (_node *PaymentOrd
 	}
 	if value, ok := _u.mutation.RechargeCode(); ok {
 		_spec.SetField(paymentorder.FieldRechargeCode, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.PromoCodeID(); ok {
+		_spec.SetField(paymentorder.FieldPromoCodeID, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedPromoCodeID(); ok {
+		_spec.AddField(paymentorder.FieldPromoCodeID, field.TypeInt64, value)
+	}
+	if _u.mutation.PromoCodeIDCleared() {
+		_spec.ClearField(paymentorder.FieldPromoCodeID, field.TypeInt64)
+	}
+	if value, ok := _u.mutation.PromoCode(); ok {
+		_spec.SetField(paymentorder.FieldPromoCode, field.TypeString, value)
+	}
+	if _u.mutation.PromoCodeCleared() {
+		_spec.ClearField(paymentorder.FieldPromoCode, field.TypeString)
+	}
+	if value, ok := _u.mutation.OriginalAmount(); ok {
+		_spec.SetField(paymentorder.FieldOriginalAmount, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedOriginalAmount(); ok {
+		_spec.AddField(paymentorder.FieldOriginalAmount, field.TypeFloat64, value)
+	}
+	if _u.mutation.OriginalAmountCleared() {
+		_spec.ClearField(paymentorder.FieldOriginalAmount, field.TypeFloat64)
+	}
+	if value, ok := _u.mutation.DiscountRate(); ok {
+		_spec.SetField(paymentorder.FieldDiscountRate, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedDiscountRate(); ok {
+		_spec.AddField(paymentorder.FieldDiscountRate, field.TypeFloat64, value)
+	}
+	if _u.mutation.DiscountRateCleared() {
+		_spec.ClearField(paymentorder.FieldDiscountRate, field.TypeFloat64)
+	}
+	if value, ok := _u.mutation.DiscountAmount(); ok {
+		_spec.SetField(paymentorder.FieldDiscountAmount, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedDiscountAmount(); ok {
+		_spec.AddField(paymentorder.FieldDiscountAmount, field.TypeFloat64, value)
 	}
 	if value, ok := _u.mutation.OutTradeNo(); ok {
 		_spec.SetField(paymentorder.FieldOutTradeNo, field.TypeString, value)

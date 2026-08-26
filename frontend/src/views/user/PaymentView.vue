@@ -150,6 +150,45 @@
                   </div>
                 </div>
               </div>
+              <div class="card p-6">
+                <label for="subscription-promo" class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  {{ t('payment.subscriptionPromo.label') }}
+                </label>
+                <div class="flex gap-2">
+                  <input
+                    id="subscription-promo"
+                    v-model="promoInput"
+                    data-testid="subscription-promo-input"
+                    type="text"
+                    autocomplete="off"
+                    :placeholder="t('payment.subscriptionPromo.placeholder')"
+                    class="input flex-1 uppercase"
+                  />
+                  <button
+                    data-testid="subscription-promo-apply"
+                    class="btn btn-secondary shrink-0"
+                    :disabled="promoLoading || !promoInput.trim()"
+                    @click="applySubscriptionPromo"
+                  >
+                    {{ promoLoading ? t('common.processing') : t('payment.subscriptionPromo.apply') }}
+                  </button>
+                </div>
+                <p v-if="promoError" class="mt-2 text-sm text-red-600 dark:text-red-400">{{ promoError }}</p>
+                <div v-if="promoPreview" class="mt-3 space-y-1 border-t border-gray-200 pt-3 text-sm dark:border-dark-600">
+                  <div class="flex justify-between text-gray-500 dark:text-gray-400">
+                    <span>{{ t('payment.subscriptionPromo.original') }}</span>
+                    <span>{{ formatSelectedSubscriptionPaymentAmount(promoPreview.original_amount) }}</span>
+                  </div>
+                  <div class="flex justify-between text-green-600 dark:text-green-400">
+                    <span>{{ t('payment.subscriptionPromo.discount', { percent: Math.round(promoPreview.discount_rate * 100) }) }}</span>
+                    <span>-{{ formatSelectedSubscriptionPaymentAmount(promoPreview.discount_amount) }}</span>
+                  </div>
+                  <div class="flex justify-between font-medium text-gray-900 dark:text-white">
+                    <span>{{ t('payment.subscriptionPromo.discounted') }}</span>
+                    <span>{{ formatSelectedSubscriptionPaymentAmount(promoPreview.discounted_amount) }}</span>
+                  </div>
+                </div>
+              </div>
               <div v-if="enabledMethods.length >= 1" class="card p-6">
                 <PaymentMethodSelector
                   :methods="subMethodOptions"
@@ -173,14 +212,14 @@
                   </div>
                 </div>
               </div>
-              <button :class="['btn w-full py-3 text-base font-medium', paymentButtonClass]" :disabled="!canSubmitSubscription || submitting" @click="confirmSubscribe">
+              <button data-testid="subscription-submit" :class="['btn w-full py-3 text-base font-medium', paymentButtonClass]" :disabled="!canSubmitSubscription || submitting" @click="confirmSubscribe">
                 <span v-if="submitting" class="flex items-center justify-center gap-2">
                   <span class="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></span>
                   {{ t('common.processing') }}
                 </span>
                 <span v-else>{{ t('payment.createOrder') }} {{ formatSelectedPaymentAmount(subTotalAmount) }}</span>
               </button>
-              <button class="btn btn-secondary w-full" @click="selectedPlan = null">{{ t('common.cancel') }}</button>
+              <button class="btn btn-secondary w-full" @click="clearSelectedPlan">{{ t('common.cancel') }}</button>
             </template>
             <!-- Plan list -->
             <template v-else>
@@ -268,7 +307,7 @@ import { paymentAPI } from '@/api/payment'
 import { extractApiErrorMessage, extractI18nErrorMessage } from '@/utils/apiError'
 import { isMobileDevice } from '@/utils/device'
 import { hasPeakRate, formatPeakRateWindow, serverTimezoneLabel, type PeakRateFields } from '@/utils/peak-rate'
-import type { SubscriptionPlan, CheckoutInfoResponse, CreateOrderResult, OrderType } from '@/types/payment'
+import type { SubscriptionPlan, SubscriptionPromoPreview, CheckoutInfoResponse, CreateOrderResult, OrderType } from '@/types/payment'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import AmountInput from '@/components/payment/AmountInput.vue'
 import PaymentMethodSelector from '@/components/payment/PaymentMethodSelector.vue'
@@ -327,6 +366,10 @@ const activeTab = ref<'recharge' | 'subscription'>('recharge')
 const amount = ref<number | null>(null)
 const selectedMethod = ref('')
 const selectedPlan = ref<SubscriptionPlan | null>(null)
+const promoInput = ref('')
+const promoPreview = ref<SubscriptionPromoPreview | null>(null)
+const promoLoading = ref(false)
+const promoError = ref('')
 const previewImage = ref('')
 
 const paymentPhase = ref<'select' | 'paying'>('select')
@@ -337,6 +380,7 @@ interface CreateOrderOptions {
   paymentType?: string
   isResume?: boolean
   mobileQrFallbackAttempted?: boolean
+  promoCode?: string
 }
 
 interface WeixinJSBridgeLike {
@@ -653,7 +697,7 @@ const canSubmit = computed(() =>
 )
 
 const subPaymentAmount = computed(() => {
-  const price = selectedPlan.value?.price ?? 0
+  const price = promoPreview.value?.discounted_amount ?? selectedPlan.value?.price ?? 0
   return subscriptionPaymentAmountForCurrency(price, selectedCurrency.value)
 })
 
@@ -676,7 +720,7 @@ function subscriptionTotalAmountForCurrency(value: number, currency: string): nu
 
 // Subscription-specific: method options based on gateway pay amount
 const subMethodOptions = computed<PaymentMethodOption[]>(() => {
-  const price = selectedPlan.value?.price ?? 0
+  const price = promoPreview.value?.discounted_amount ?? selectedPlan.value?.price ?? 0
   return enabledMethods.value.map((type) => {
     const ml = visibleMethods.value[type]
     const currency = normalizePaymentCurrency(ml?.currency)
@@ -691,6 +735,8 @@ const subMethodOptions = computed<PaymentMethodOption[]>(() => {
 
 const canSubmitSubscription = computed(() =>
   selectedPlan.value !== null
+    && !promoLoading.value
+    && (!promoInput.value.trim() || promoPreview.value !== null)
     && amountFitsMethod(subTotalAmount.value, selectedMethod.value)
     && selectedLimit.value?.available !== false
 )
@@ -700,6 +746,13 @@ watch(() => [validAmount.value, selectedMethod.value] as const, ([amt, method]) 
   if (amt <= 0 || amountFitsMethod(amt, method)) return
   const available = enabledMethods.value.find((m) => amountFitsMethod(amt, m))
   if (available) selectedMethod.value = available
+})
+
+watch(promoInput, (code) => {
+  if (promoPreview.value && code.trim().toUpperCase() !== promoPreview.value.code) {
+    promoPreview.value = null
+  }
+  promoError.value = ''
 })
 
 // Payment button class: follows selected payment method color
@@ -739,6 +792,7 @@ function planPeakRateLabel(plan: SubscriptionPlan): string {
 }
 
 function selectPlan(plan: SubscriptionPlan) {
+  clearSubscriptionPromo()
   selectedPlan.value = plan
   errorMessage.value = ''
 }
@@ -746,8 +800,37 @@ function selectPlan(plan: SubscriptionPlan) {
 function selectPlanFromModal(plan: SubscriptionPlan) {
   showRenewalModal.value = false
   renewGroupId.value = null
+  clearSubscriptionPromo()
   selectedPlan.value = plan
   errorMessage.value = ''
+}
+
+function clearSubscriptionPromo() {
+  promoInput.value = ''
+  promoPreview.value = null
+  promoError.value = ''
+}
+
+function clearSelectedPlan() {
+  selectedPlan.value = null
+  clearSubscriptionPromo()
+}
+
+async function applySubscriptionPromo() {
+  const code = promoInput.value.trim()
+  if (!code || !selectedPlan.value || promoLoading.value) return
+  promoLoading.value = true
+  promoError.value = ''
+  promoPreview.value = null
+  try {
+    const response = await paymentAPI.previewSubscriptionPromo({ code, plan_id: selectedPlan.value.id })
+    promoPreview.value = response.data
+    promoInput.value = response.data.code
+  } catch (err: unknown) {
+    promoError.value = extractApiErrorMessage(err, t('payment.subscriptionPromo.invalid'))
+  } finally {
+    promoLoading.value = false
+  }
 }
 
 function closeRenewalModal() {
@@ -762,7 +845,9 @@ async function handleSubmitRecharge() {
 
 async function confirmSubscribe() {
   if (!selectedPlan.value || submitting.value) return
-  await createOrder(selectedPlan.value.price, 'subscription', selectedPlan.value.id)
+  await createOrder(selectedPlan.value.price, 'subscription', selectedPlan.value.id, {
+    promoCode: promoPreview.value?.code,
+  })
 }
 
 async function createOrder(orderAmount: number, orderType: OrderType, planId?: number, options: CreateOrderOptions = {}) {
@@ -781,6 +866,7 @@ async function createOrder(orderAmount: number, orderType: OrderType, planId?: n
       isWechatBrowser: typeof window !== 'undefined' && /MicroMessenger/i.test(window.navigator.userAgent),
       forceQRCode: !!(checkout.value.alipay_force_qrcode && normalizeVisibleMethod(requestType) === 'alipay'),
       mobilePrecreateDeepLink: checkout.value.alipay_mobile_precreate_deep_link === true,
+      promoCode: orderType === 'subscription' ? options.promoCode : undefined,
     })
     if (options.openid) {
       payload.openid = options.openid
@@ -883,6 +969,7 @@ async function createOrder(orderAmount: number, orderType: OrderType, planId?: n
               planId,
               paymentType: visibleMethod,
               attempted: options.mobileQrFallbackAttempted === true,
+              promoCode: options.promoCode,
             },
           )
           if (!fallbackApplied) {
@@ -901,6 +988,7 @@ async function createOrder(orderAmount: number, orderType: OrderType, planId?: n
           planId,
           paymentType: visibleMethod,
           attempted: options.mobileQrFallbackAttempted === true,
+          promoCode: options.promoCode,
         })
         if (!fallbackApplied) {
           throw err
@@ -930,6 +1018,7 @@ async function createOrder(orderAmount: number, orderType: OrderType, planId?: n
       planId,
       paymentType: requestType,
       attempted: options.mobileQrFallbackAttempted === true,
+      promoCode: options.promoCode,
     })) {
       return
     } else {
@@ -957,6 +1046,7 @@ interface MobileQrFallbackContext {
   planId?: number
   paymentType: string
   attempted: boolean
+  promoCode?: string
 }
 
 function shouldFallbackToDesktopQr(err: unknown, paymentMethod: string, attempted: boolean): boolean {
@@ -1007,6 +1097,7 @@ async function attemptMobileQrFallback(err: unknown, context: MobileQrFallbackCo
       origin: typeof window !== 'undefined' ? window.location.origin : '',
       isMobile: false,
       isWechatBrowser: false,
+      promoCode: context.promoCode,
     })
     const result = await paymentStore.createOrder(payload) as CreateOrderResult & { resume_token?: string }
     const stripeMethod = visibleMethod === 'wxpay' ? 'wechat_pay' : 'alipay'

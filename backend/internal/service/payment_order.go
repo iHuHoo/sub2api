@@ -55,9 +55,21 @@ func (s *PaymentService) CreateOrder(ctx context.Context, req CreateOrderRequest
 	}
 	orderAmount := req.Amount
 	limitAmount := req.Amount
+	var promoPreview *SubscriptionPromoPreview
 	if plan != nil {
 		orderAmount = plan.Price
 		limitAmount = plan.Price
+		if strings.TrimSpace(req.PromoCode) != "" {
+			if s.promoService == nil {
+				return nil, ErrPromoCodeUnavailable
+			}
+			promoPreview, err = s.promoService.ValidateSubscriptionPromo(ctx, req.PromoCode, plan.Price)
+			if err != nil {
+				return nil, err
+			}
+			orderAmount = promoPreview.DiscountedAmount
+			limitAmount = promoPreview.DiscountedAmount
+		}
 	} else if req.OrderType == payment.OrderTypeBalance {
 		orderAmount = calculateCreditedBalance(req.Amount, cfg.BalanceRechargeMultiplier)
 	}
@@ -91,7 +103,7 @@ func (s *PaymentService) CreateOrder(ctx context.Context, req CreateOrderRequest
 		}
 	}
 	if plan != nil {
-		orderAmount = calculateSubscriptionOrderAmountUSD(plan.Price, selectedCurrency, cfg.SubscriptionUSDToCNYRate, cfg.BalanceRechargeMultiplier)
+		orderAmount = calculateSubscriptionOrderAmountUSD(limitAmount, selectedCurrency, cfg.SubscriptionUSDToCNYRate, cfg.BalanceRechargeMultiplier)
 	}
 	if err := validateSelectedCreateOrderAmountCurrency(payAmountStr, sel); err != nil {
 		return nil, err
@@ -101,6 +113,11 @@ func (s *PaymentService) CreateOrder(ctx context.Context, req CreateOrderRequest
 		return nil, err
 	}
 	if oauthResp != nil {
+		if promoPreview != nil {
+			oauthResp.OriginalAmount = &promoPreview.OriginalAmount
+			oauthResp.DiscountRate = &promoPreview.DiscountRate
+			oauthResp.DiscountAmount = &promoPreview.DiscountAmount
+		}
 		return oauthResp, nil
 	}
 	order, err := s.createOrderInTx(ctx, req, user, plan, cfg, orderAmount, limitAmount, feeRate, payAmount, sel)
@@ -112,12 +129,21 @@ func (s *PaymentService) CreateOrder(ctx context.Context, req CreateOrderRequest
 		_, _ = s.entClient.PaymentOrder.UpdateOneID(order.ID).
 			SetStatus(OrderStatusFailed).
 			Save(ctx)
+		var notStarted *paymentProviderNotStartedError
+		if errors.As(err, &notStarted) {
+			if _, releaseErr := s.releaseSubscriptionPromoForOrder(ctx, order.ID, time.Now()); releaseErr != nil {
+				return nil, errors.Join(err, releaseErr)
+			}
+		}
 		return nil, err
 	}
 	return resp, nil
 }
 
 func (s *PaymentService) validateOrderInput(ctx context.Context, req CreateOrderRequest, cfg *PaymentConfig) (*dbent.SubscriptionPlan, error) {
+	if strings.TrimSpace(req.PromoCode) != "" && req.OrderType != payment.OrderTypeSubscription {
+		return nil, ErrPromoCodeSubscriptionOnly
+	}
 	if req.OrderType == payment.OrderTypeBalance && cfg.BalanceDisabled {
 		return nil, infraerrors.Forbidden("BALANCE_PAYMENT_DISABLED", "balance recharge has been disabled")
 	}
@@ -168,6 +194,14 @@ func (s *PaymentService) createOrderInTx(ctx context.Context, req CreateOrderReq
 	if err := s.checkDailyLimit(ctx, tx, req.UserID, dailyLimitAmount, cfg.DailyLimit); err != nil {
 		return nil, err
 	}
+	var promoPreview *SubscriptionPromoPreview
+	var promoCode *PromoCode
+	if plan != nil {
+		promoPreview, promoCode, err = s.lockSubscriptionPromo(ctx, tx, req, plan.Price, limitAmount)
+		if err != nil {
+			return nil, err
+		}
+	}
 	tm := cfg.OrderTimeoutMin
 	if tm <= 0 {
 		tm = defaultOrderTimeoutMin
@@ -216,6 +250,13 @@ func (s *PaymentService) createOrderInTx(ctx context.Context, req CreateOrderReq
 	if plan != nil {
 		b.SetPlanID(plan.ID).SetSubscriptionGroupID(plan.GroupID).SetSubscriptionDays(psComputeValidityDays(plan.ValidityDays, plan.ValidityUnit))
 	}
+	if promoPreview != nil {
+		b.SetPromoCodeID(promoCode.ID).
+			SetPromoCode(promoPreview.Code).
+			SetOriginalAmount(promoPreview.OriginalAmount).
+			SetDiscountRate(promoPreview.DiscountRate).
+			SetDiscountAmount(promoPreview.DiscountAmount)
+	}
 	order, err := b.Save(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("create order: %w", err)
@@ -224,6 +265,9 @@ func (s *PaymentService) createOrderInTx(ctx context.Context, req CreateOrderReq
 	order, err = tx.PaymentOrder.UpdateOneID(order.ID).SetRechargeCode(code).Save(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("set recharge code: %w", err)
+	}
+	if err := s.reserveSubscriptionPromo(dbent.NewTxContext(ctx, tx), order.ID, req.UserID, promoCode, promoPreview); err != nil {
+		return nil, err
 	}
 	if err := tx.Commit(); err != nil {
 		return nil, fmt.Errorf("commit order transaction: %w", err)
@@ -418,16 +462,16 @@ func (s *PaymentService) invokeProvider(ctx context.Context, order *dbent.Paymen
 			for k, v := range appErr.Metadata {
 				md[k] = v
 			}
-			return nil, appErr.WithMetadata(md)
+			return nil, &paymentProviderNotStartedError{err: appErr.WithMetadata(md)}
 		}
-		return nil, infraerrors.ServiceUnavailable("PAYMENT_PROVIDER_MISCONFIGURED", "provider_misconfigured").
-			WithMetadata(map[string]string{"provider": sel.ProviderKey, "instance_id": sel.InstanceID})
+		return nil, &paymentProviderNotStartedError{err: infraerrors.ServiceUnavailable("PAYMENT_PROVIDER_MISCONFIGURED", "provider_misconfigured").
+			WithMetadata(map[string]string{"provider": sel.ProviderKey, "instance_id": sel.InstanceID})}
 	}
 	subject := s.buildPaymentSubject(plan, limitAmount, cfg, sel)
 	outTradeNo := order.OutTradeNo
 	canonicalReturnURL, err := CanonicalizeReturnURL(req.ReturnURL, req.SrcHost, req.SrcURL)
 	if err != nil {
-		return nil, err
+		return nil, &paymentProviderNotStartedError{err: err}
 	}
 	resumeToken := ""
 	if resume := s.paymentResume(); resume != nil {
@@ -441,13 +485,13 @@ func (s *PaymentService) invokeProvider(ctx context.Context, order *dbent.Paymen
 				CanonicalReturnURL: canonicalReturnURL,
 			})
 			if err != nil {
-				return nil, fmt.Errorf("create payment resume token: %w", err)
+				return nil, &paymentProviderNotStartedError{err: fmt.Errorf("create payment resume token: %w", err)}
 			}
 		}
 	}
 	providerReturnURL, err := buildPaymentReturnURL(canonicalReturnURL, order.ID, outTradeNo, resumeToken)
 	if err != nil {
-		return nil, err
+		return nil, &paymentProviderNotStartedError{err: err}
 	}
 	providerReq := buildProviderCreatePaymentRequest(CreateOrderRequest{
 		PaymentType: req.PaymentType,
@@ -740,7 +784,7 @@ func classifyCreatePaymentError(req CreateOrderRequest, providerKey string, err 
 }
 
 func buildCreateOrderResponse(order *dbent.PaymentOrder, req CreateOrderRequest, payAmount float64, sel *payment.InstanceSelection, pr *payment.CreatePaymentResponse, resultType payment.CreatePaymentResultType) *CreateOrderResponse {
-	return &CreateOrderResponse{
+	resp := &CreateOrderResponse{
 		OrderID:      order.ID,
 		Amount:       order.Amount,
 		PayAmount:    payAmount,
@@ -762,6 +806,12 @@ func buildCreateOrderResponse(order *dbent.PaymentOrder, req CreateOrderRequest,
 		ExpiresAt:    order.ExpiresAt,
 		PaymentMode:  sel.PaymentMode,
 	}
+	if order.PromoCodeID != nil {
+		resp.OriginalAmount = order.OriginalAmount
+		resp.DiscountRate = order.DiscountRate
+		resp.DiscountAmount = &order.DiscountAmount
+	}
+	return resp
 }
 
 func buildWeChatPaymentOAuthStartURL(req CreateOrderRequest, scope string) (string, error) {
@@ -779,6 +829,9 @@ func buildWeChatPaymentOAuthStartURL(req CreateOrderRequest, scope string) (stri
 	}
 	if req.PlanID > 0 {
 		q.Set("plan_id", strconv.FormatInt(req.PlanID, 10))
+	}
+	if promoCode := normalizePromoCode(req.PromoCode); promoCode != "" {
+		q.Set("promo_code", promoCode)
 	}
 	if scope = strings.TrimSpace(scope); scope != "" {
 		q.Set("scope", scope)

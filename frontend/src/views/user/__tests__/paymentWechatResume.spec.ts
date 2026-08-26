@@ -11,6 +11,7 @@ describe('parseWechatResumeRoute', () => {
       amount: '12.5',
       order_type: 'subscription',
       plan_id: '7',
+      promo_code: 'SAVE20',
     }, [], 88)).toEqual({
       wechatResumeToken: 'resume-token-123',
       paymentType: 'wxpay',
@@ -50,6 +51,7 @@ describe('stripWechatResumeQuery', () => {
       plan_id: '7',
       state: 'state-123',
       scope: 'snsapi_base',
+      promo_code: 'SAVE20',
     })).toEqual({
       foo: 'bar',
     })

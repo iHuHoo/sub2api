@@ -18,10 +18,24 @@ const (
 	FieldPromoCodeID = "promo_code_id"
 	// FieldUserID holds the string denoting the user_id field in the database.
 	FieldUserID = "user_id"
+	// FieldPaymentOrderID holds the string denoting the payment_order_id field in the database.
+	FieldPaymentOrderID = "payment_order_id"
+	// FieldUsageType holds the string denoting the usage_type field in the database.
+	FieldUsageType = "usage_type"
+	// FieldStatus holds the string denoting the status field in the database.
+	FieldStatus = "status"
 	// FieldBonusAmount holds the string denoting the bonus_amount field in the database.
 	FieldBonusAmount = "bonus_amount"
+	// FieldDiscountAmount holds the string denoting the discount_amount field in the database.
+	FieldDiscountAmount = "discount_amount"
 	// FieldUsedAt holds the string denoting the used_at field in the database.
 	FieldUsedAt = "used_at"
+	// FieldReservedAt holds the string denoting the reserved_at field in the database.
+	FieldReservedAt = "reserved_at"
+	// FieldConsumedAt holds the string denoting the consumed_at field in the database.
+	FieldConsumedAt = "consumed_at"
+	// FieldReleasedAt holds the string denoting the released_at field in the database.
+	FieldReleasedAt = "released_at"
 	// EdgePromoCode holds the string denoting the promo_code edge name in mutations.
 	EdgePromoCode = "promo_code"
 	// EdgeUser holds the string denoting the user edge name in mutations.
@@ -49,8 +63,15 @@ var Columns = []string{
 	FieldID,
 	FieldPromoCodeID,
 	FieldUserID,
+	FieldPaymentOrderID,
+	FieldUsageType,
+	FieldStatus,
 	FieldBonusAmount,
+	FieldDiscountAmount,
 	FieldUsedAt,
+	FieldReservedAt,
+	FieldConsumedAt,
+	FieldReleasedAt,
 }
 
 // ValidColumn reports if the column name is valid (part of the table columns).
@@ -64,6 +85,16 @@ func ValidColumn(column string) bool {
 }
 
 var (
+	// DefaultUsageType holds the default value on creation for the "usage_type" field.
+	DefaultUsageType string
+	// UsageTypeValidator is a validator for the "usage_type" field. It is called by the builders before save.
+	UsageTypeValidator func(string) error
+	// DefaultStatus holds the default value on creation for the "status" field.
+	DefaultStatus string
+	// StatusValidator is a validator for the "status" field. It is called by the builders before save.
+	StatusValidator func(string) error
+	// DefaultDiscountAmount holds the default value on creation for the "discount_amount" field.
+	DefaultDiscountAmount float64
 	// DefaultUsedAt holds the default value on creation for the "used_at" field.
 	DefaultUsedAt func() time.Time
 )
@@ -86,14 +117,49 @@ func ByUserID(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldUserID, opts...).ToFunc()
 }
 
+// ByPaymentOrderID orders the results by the payment_order_id field.
+func ByPaymentOrderID(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldPaymentOrderID, opts...).ToFunc()
+}
+
+// ByUsageType orders the results by the usage_type field.
+func ByUsageType(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldUsageType, opts...).ToFunc()
+}
+
+// ByStatus orders the results by the status field.
+func ByStatus(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldStatus, opts...).ToFunc()
+}
+
 // ByBonusAmount orders the results by the bonus_amount field.
 func ByBonusAmount(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldBonusAmount, opts...).ToFunc()
 }
 
+// ByDiscountAmount orders the results by the discount_amount field.
+func ByDiscountAmount(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldDiscountAmount, opts...).ToFunc()
+}
+
 // ByUsedAt orders the results by the used_at field.
 func ByUsedAt(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldUsedAt, opts...).ToFunc()
+}
+
+// ByReservedAt orders the results by the reserved_at field.
+func ByReservedAt(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldReservedAt, opts...).ToFunc()
+}
+
+// ByConsumedAt orders the results by the consumed_at field.
+func ByConsumedAt(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldConsumedAt, opts...).ToFunc()
+}
+
+// ByReleasedAt orders the results by the released_at field.
+func ByReleasedAt(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldReleasedAt, opts...).ToFunc()
 }
 
 // ByPromoCodeField orders the results by promo_code field.

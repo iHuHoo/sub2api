@@ -11,16 +11,27 @@ import (
 	dbent "github.com/Wei-Shaw/sub2api/ent"
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
+	"github.com/shopspring/decimal"
 )
 
 var (
-	ErrPromoCodeNotFound    = infraerrors.NotFound("PROMO_CODE_NOT_FOUND", "promo code not found")
-	ErrPromoCodeExpired     = infraerrors.BadRequest("PROMO_CODE_EXPIRED", "promo code has expired")
-	ErrPromoCodeDisabled    = infraerrors.BadRequest("PROMO_CODE_DISABLED", "promo code is disabled")
-	ErrPromoCodeMaxUsed     = infraerrors.BadRequest("PROMO_CODE_MAX_USED", "promo code has reached maximum uses")
-	ErrPromoCodeAlreadyUsed = infraerrors.Conflict("PROMO_CODE_ALREADY_USED", "you have already used this promo code")
-	ErrPromoCodeInvalid     = infraerrors.BadRequest("PROMO_CODE_INVALID", "invalid promo code")
+	ErrPromoCodeNotFound        = infraerrors.NotFound("PROMO_CODE_NOT_FOUND", "promo code not found")
+	ErrPromoCodeExpired         = infraerrors.BadRequest("PROMO_CODE_EXPIRED", "promo code has expired")
+	ErrPromoCodeDisabled        = infraerrors.BadRequest("PROMO_CODE_DISABLED", "promo code is disabled")
+	ErrPromoCodeMaxUsed         = infraerrors.BadRequest("PROMO_CODE_MAX_USED", "promo code has reached maximum uses")
+	ErrPromoCodeAlreadyUsed     = infraerrors.Conflict("PROMO_CODE_ALREADY_USED", "you have already used this promo code")
+	ErrPromoCodeInvalid         = infraerrors.BadRequest("PROMO_CODE_INVALID", "invalid promo code")
+	ErrPromoCodeWrongPurpose    = infraerrors.BadRequest("PROMO_CODE_WRONG_PURPOSE", "promo code cannot be used for this purchase")
+	ErrPromoCodeInvalidPurpose  = infraerrors.BadRequest("PROMO_CODE_INVALID_PURPOSE", "invalid promo code purpose")
+	ErrPromoCodeInvalidDiscount = infraerrors.BadRequest("PROMO_CODE_INVALID_DISCOUNT", "discount rate must be greater than zero and less than one")
+	ErrPromoCodeReserved        = infraerrors.Conflict("PROMO_CODE_RESERVED", "promo code is reserved by an unpaid order")
+	ErrPromoCodeConsumed        = infraerrors.Conflict("PROMO_CODE_CONSUMED", "promo code has already been used")
+	ErrPromoCodeNotPayable      = infraerrors.BadRequest("PROMO_CODE_NOT_PAYABLE", "discounted amount must be payable")
 )
+
+func normalizePromoCode(code string) string {
+	return strings.ToUpper(strings.TrimSpace(code))
+}
 
 // PromoService 优惠码服务
 type PromoService struct {
@@ -51,7 +62,7 @@ func NewPromoService(
 // ValidatePromoCode 验证优惠码（注册前调用）
 // 返回 nil, nil 表示空码（不报错）
 func (s *PromoService) ValidatePromoCode(ctx context.Context, code string) (*PromoCode, error) {
-	code = strings.TrimSpace(code)
+	code = normalizePromoCode(code)
 	if code == "" {
 		return nil, nil // 空码不报错，直接返回
 	}
@@ -65,8 +76,85 @@ func (s *PromoService) ValidatePromoCode(ctx context.Context, code string) (*Pro
 	if err := s.validatePromoCodeStatus(promoCode); err != nil {
 		return nil, err
 	}
+	if promoCode.Purpose != "" && promoCode.Purpose != PromoCodePurposeRegistrationBonus {
+		return nil, ErrPromoCodeWrongPurpose
+	}
 
 	return promoCode, nil
+}
+
+func (s *PromoService) ValidateSubscriptionPromo(ctx context.Context, code string, originalAmount float64) (*SubscriptionPromoPreview, error) {
+	preview, _, err := s.validateSubscriptionPromo(ctx, code, originalAmount, false)
+	return preview, err
+}
+
+func (s *PromoService) validateSubscriptionPromoForUpdate(ctx context.Context, code string, originalAmount float64) (*SubscriptionPromoPreview, *PromoCode, error) {
+	return s.validateSubscriptionPromo(ctx, code, originalAmount, true)
+}
+
+func (s *PromoService) validateSubscriptionPromo(ctx context.Context, code string, originalAmount float64, forUpdate bool) (*SubscriptionPromoPreview, *PromoCode, error) {
+	code = normalizePromoCode(code)
+	if code == "" {
+		return nil, nil, nil
+	}
+
+	var promoCode *PromoCode
+	var err error
+	if forUpdate {
+		promoCode, err = s.promoRepo.GetByCodeForUpdate(ctx, code)
+	} else {
+		promoCode, err = s.promoRepo.GetByCode(ctx, code)
+	}
+	if err != nil {
+		return nil, nil, err
+	}
+	if promoCode.Purpose != PromoCodePurposeSubscriptionDiscount {
+		return nil, nil, ErrPromoCodeWrongPurpose
+	}
+	if promoCode.IsExpired() {
+		return nil, nil, ErrPromoCodeExpired
+	}
+	if promoCode.Status == PromoCodeStatusDisabled {
+		return nil, nil, ErrPromoCodeDisabled
+	}
+	if promoCode.Status != PromoCodeStatusActive {
+		return nil, nil, ErrPromoCodeInvalid
+	}
+	if promoCode.DiscountRate == nil || *promoCode.DiscountRate <= 0 || *promoCode.DiscountRate >= 1 {
+		return nil, nil, ErrPromoCodeInvalidDiscount
+	}
+
+	consumed, err := s.promoRepo.GetSubscriptionUsageByStatus(ctx, promoCode.ID, PromoUsageStatusConsumed)
+	if err != nil {
+		return nil, nil, fmt.Errorf("check consumed promo usage: %w", err)
+	}
+	if consumed != nil || promoCode.UsedCount > 0 {
+		return nil, nil, ErrPromoCodeConsumed
+	}
+	reserved, err := s.promoRepo.GetSubscriptionUsageByStatus(ctx, promoCode.ID, PromoUsageStatusReserved)
+	if err != nil {
+		return nil, nil, fmt.Errorf("check reserved promo usage: %w", err)
+	}
+	if reserved != nil {
+		return nil, nil, ErrPromoCodeReserved
+	}
+
+	original := decimal.NewFromFloat(originalAmount).Round(2)
+	discounted := original.Mul(decimal.NewFromFloat(*promoCode.DiscountRate)).Round(2)
+	if discounted.LessThanOrEqual(decimal.Zero) {
+		return nil, nil, ErrPromoCodeNotPayable
+	}
+	discount := original.Sub(discounted).Round(2)
+	originalValue, _ := original.Float64()
+	discountValue, _ := discount.Float64()
+	discountedValue, _ := discounted.Float64()
+	return &SubscriptionPromoPreview{
+		Code:             promoCode.Code,
+		DiscountRate:     *promoCode.DiscountRate,
+		OriginalAmount:   originalValue,
+		DiscountAmount:   discountValue,
+		DiscountedAmount: discountedValue,
+	}, promoCode, nil
 }
 
 // validatePromoCodeStatus 验证优惠码状态
@@ -89,7 +177,7 @@ func (s *PromoService) validatePromoCodeStatus(promoCode *PromoCode) error {
 // ApplyPromoCode 应用优惠码（注册成功后调用）
 // 使用事务和行锁确保并发安全
 func (s *PromoService) ApplyPromoCode(ctx context.Context, userID int64, code string) error {
-	code = strings.TrimSpace(code)
+	code = normalizePromoCode(code)
 	if code == "" {
 		return nil
 	}
@@ -113,6 +201,9 @@ func (s *PromoService) ApplyPromoCode(ctx context.Context, userID int64, code st
 	if err := s.validatePromoCodeStatus(promoCode); err != nil {
 		return err
 	}
+	if promoCode.Purpose != "" && promoCode.Purpose != PromoCodePurposeRegistrationBonus {
+		return ErrPromoCodeWrongPurpose
+	}
 
 	// 在事务中检查用户是否已使用过此优惠码
 	existing, err := s.promoRepo.GetUsageByPromoCodeAndUser(txCtx, promoCode.ID, userID)
@@ -132,9 +223,12 @@ func (s *PromoService) ApplyPromoCode(ctx context.Context, userID int64, code st
 	usage := &PromoCodeUsage{
 		PromoCodeID: promoCode.ID,
 		UserID:      userID,
+		UsageType:   PromoCodePurposeRegistrationBonus,
+		Status:      PromoUsageStatusConsumed,
 		BonusAmount: promoCode.BonusAmount,
 		UsedAt:      time.Now(),
 	}
+	usage.ConsumedAt = &usage.UsedAt
 	if err := s.promoRepo.CreateUsage(txCtx, usage); err != nil {
 		return fmt.Errorf("create usage record: %w", err)
 	}
@@ -180,7 +274,7 @@ func (s *PromoService) GenerateRandomCode() (string, error) {
 
 // Create 创建优惠码
 func (s *PromoService) Create(ctx context.Context, input *CreatePromoCodeInput) (*PromoCode, error) {
-	code := strings.TrimSpace(input.Code)
+	code := normalizePromoCode(input.Code)
 	if code == "" {
 		// 自动生成
 		var err error
@@ -191,13 +285,21 @@ func (s *PromoService) Create(ctx context.Context, input *CreatePromoCodeInput) 
 	}
 
 	promoCode := &PromoCode{
-		Code:        strings.ToUpper(code),
-		BonusAmount: input.BonusAmount,
-		MaxUses:     input.MaxUses,
-		UsedCount:   0,
-		Status:      PromoCodeStatusActive,
-		ExpiresAt:   input.ExpiresAt,
-		Notes:       input.Notes,
+		Code:         code,
+		Purpose:      strings.TrimSpace(input.Purpose),
+		DiscountRate: input.DiscountRate,
+		BonusAmount:  input.BonusAmount,
+		MaxUses:      input.MaxUses,
+		UsedCount:    0,
+		Status:       PromoCodeStatusActive,
+		ExpiresAt:    input.ExpiresAt,
+		Notes:        input.Notes,
+	}
+	if promoCode.Purpose == "" {
+		promoCode.Purpose = PromoCodePurposeRegistrationBonus
+	}
+	if err := validatePromoCodeDefinition(promoCode); err != nil {
+		return nil, err
 	}
 
 	if err := s.promoRepo.Create(ctx, promoCode); err != nil {
@@ -224,7 +326,16 @@ func (s *PromoService) Update(ctx context.Context, id int64, input *UpdatePromoC
 	}
 
 	if input.Code != nil {
-		promoCode.Code = strings.ToUpper(strings.TrimSpace(*input.Code))
+		promoCode.Code = normalizePromoCode(*input.Code)
+	}
+	if input.Purpose != nil {
+		promoCode.Purpose = strings.TrimSpace(*input.Purpose)
+		if promoCode.Purpose == PromoCodePurposeRegistrationBonus {
+			promoCode.DiscountRate = nil
+		}
+	}
+	if input.DiscountRate != nil {
+		promoCode.DiscountRate = input.DiscountRate
 	}
 	if input.BonusAmount != nil {
 		promoCode.BonusAmount = *input.BonusAmount
@@ -244,12 +355,35 @@ func (s *PromoService) Update(ctx context.Context, id int64, input *UpdatePromoC
 	if input.Notes != nil {
 		promoCode.Notes = *input.Notes
 	}
+	if err := validatePromoCodeDefinition(promoCode); err != nil {
+		return nil, err
+	}
 
 	if err := s.promoRepo.Update(ctx, promoCode); err != nil {
 		return nil, fmt.Errorf("update promo code: %w", err)
 	}
 
 	return promoCode, nil
+}
+
+func validatePromoCodeDefinition(promoCode *PromoCode) error {
+	switch promoCode.Purpose {
+	case PromoCodePurposeRegistrationBonus:
+		if promoCode.DiscountRate != nil {
+			return ErrPromoCodeInvalidDiscount
+		}
+	case PromoCodePurposeSubscriptionDiscount:
+		if promoCode.DiscountRate == nil || *promoCode.DiscountRate <= 0 || *promoCode.DiscountRate >= 1 {
+			return ErrPromoCodeInvalidDiscount
+		}
+		if promoCode.MaxUses != 1 {
+			return ErrPromoCodeInvalid
+		}
+		promoCode.BonusAmount = 0
+	default:
+		return ErrPromoCodeInvalidPurpose
+	}
+	return nil
 }
 
 // Delete 删除优惠码

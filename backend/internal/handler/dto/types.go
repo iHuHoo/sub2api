@@ -678,25 +678,34 @@ type BulkAssignResult struct {
 
 // PromoCode 注册优惠码
 type PromoCode struct {
-	ID          int64      `json:"id"`
-	Code        string     `json:"code"`
-	BonusAmount float64    `json:"bonus_amount"`
-	MaxUses     int        `json:"max_uses"`
-	UsedCount   int        `json:"used_count"`
-	Status      string     `json:"status"`
-	ExpiresAt   *time.Time `json:"expires_at"`
-	Notes       string     `json:"notes"`
-	CreatedAt   time.Time  `json:"created_at"`
-	UpdatedAt   time.Time  `json:"updated_at"`
+	ID           int64      `json:"id"`
+	Code         string     `json:"code"`
+	Purpose      string     `json:"purpose"`
+	DiscountRate *float64   `json:"discount_rate"`
+	BonusAmount  float64    `json:"bonus_amount"`
+	MaxUses      int        `json:"max_uses"`
+	UsedCount    int        `json:"used_count"`
+	Status       string     `json:"status"`
+	ExpiresAt    *time.Time `json:"expires_at"`
+	Notes        string     `json:"notes"`
+	CreatedAt    time.Time  `json:"created_at"`
+	UpdatedAt    time.Time  `json:"updated_at"`
 }
 
 // PromoCodeUsage 优惠码使用记录
 type PromoCodeUsage struct {
-	ID          int64     `json:"id"`
-	PromoCodeID int64     `json:"promo_code_id"`
-	UserID      int64     `json:"user_id"`
-	BonusAmount float64   `json:"bonus_amount"`
-	UsedAt      time.Time `json:"used_at"`
+	ID             int64      `json:"id"`
+	PromoCodeID    int64      `json:"promo_code_id"`
+	UserID         int64      `json:"user_id"`
+	PaymentOrderID *int64     `json:"payment_order_id"`
+	UsageType      string     `json:"usage_type"`
+	Status         string     `json:"status"`
+	BonusAmount    float64    `json:"bonus_amount"`
+	DiscountAmount float64    `json:"discount_amount"`
+	UsedAt         time.Time  `json:"used_at"`
+	ReservedAt     *time.Time `json:"reserved_at"`
+	ConsumedAt     *time.Time `json:"consumed_at"`
+	ReleasedAt     *time.Time `json:"released_at"`
 
 	User *User `json:"user,omitempty"`
 }

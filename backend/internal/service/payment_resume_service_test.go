@@ -282,6 +282,7 @@ func TestWeChatPaymentResumeTokenRoundTrip(t *testing.T) {
 		Amount:      "12.50",
 		OrderType:   payment.OrderTypeSubscription,
 		PlanID:      7,
+		PromoCode:   " save20 ",
 		RedirectTo:  "/purchase?from=wechat",
 		Scope:       "snsapi_base",
 		IssuedAt:    1234567890,
@@ -299,6 +300,9 @@ func TestWeChatPaymentResumeTokenRoundTrip(t *testing.T) {
 	}
 	if claims.Amount != "12.50" || claims.OrderType != payment.OrderTypeSubscription || claims.PlanID != 7 {
 		t.Fatalf("claims payment context mismatch: %+v", claims)
+	}
+	if claims.PromoCode != "SAVE20" {
+		t.Fatalf("claims promo code = %q, want SAVE20", claims.PromoCode)
 	}
 	if claims.RedirectTo != "/purchase?from=wechat" || claims.Scope != "snsapi_base" {
 		t.Fatalf("claims redirect/scope mismatch: %+v", claims)

@@ -1,7 +1,7 @@
 # Subscription Promo Code Design
 
 Date: 2026-08-26
-Status: Proposed for implementation
+Status: Approved for implementation on 2026-08-27
 
 ## 1. Objective
 

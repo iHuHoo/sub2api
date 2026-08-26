@@ -29898,6 +29898,15 @@ type PaymentOrderMutation struct {
 	fee_rate                 *float64
 	addfee_rate              *float64
 	recharge_code            *string
+	promo_code_id            *int64
+	addpromo_code_id         *int64
+	promo_code               *string
+	original_amount          *float64
+	addoriginal_amount       *float64
+	discount_rate            *float64
+	adddiscount_rate         *float64
+	discount_amount          *float64
+	adddiscount_amount       *float64
 	out_trade_no             *string
 	payment_type             *string
 	payment_trade_no         *string
@@ -30398,6 +30407,321 @@ func (m *PaymentOrderMutation) OldRechargeCode(ctx context.Context) (v string, e
 // ResetRechargeCode resets all changes to the "recharge_code" field.
 func (m *PaymentOrderMutation) ResetRechargeCode() {
 	m.recharge_code = nil
+}
+
+// SetPromoCodeID sets the "promo_code_id" field.
+func (m *PaymentOrderMutation) SetPromoCodeID(i int64) {
+	m.promo_code_id = &i
+	m.addpromo_code_id = nil
+}
+
+// PromoCodeID returns the value of the "promo_code_id" field in the mutation.
+func (m *PaymentOrderMutation) PromoCodeID() (r int64, exists bool) {
+	v := m.promo_code_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldPromoCodeID returns the old "promo_code_id" field's value of the PaymentOrder entity.
+// If the PaymentOrder object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *PaymentOrderMutation) OldPromoCodeID(ctx context.Context) (v *int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldPromoCodeID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldPromoCodeID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldPromoCodeID: %w", err)
+	}
+	return oldValue.PromoCodeID, nil
+}
+
+// AddPromoCodeID adds i to the "promo_code_id" field.
+func (m *PaymentOrderMutation) AddPromoCodeID(i int64) {
+	if m.addpromo_code_id != nil {
+		*m.addpromo_code_id += i
+	} else {
+		m.addpromo_code_id = &i
+	}
+}
+
+// AddedPromoCodeID returns the value that was added to the "promo_code_id" field in this mutation.
+func (m *PaymentOrderMutation) AddedPromoCodeID() (r int64, exists bool) {
+	v := m.addpromo_code_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearPromoCodeID clears the value of the "promo_code_id" field.
+func (m *PaymentOrderMutation) ClearPromoCodeID() {
+	m.promo_code_id = nil
+	m.addpromo_code_id = nil
+	m.clearedFields[paymentorder.FieldPromoCodeID] = struct{}{}
+}
+
+// PromoCodeIDCleared returns if the "promo_code_id" field was cleared in this mutation.
+func (m *PaymentOrderMutation) PromoCodeIDCleared() bool {
+	_, ok := m.clearedFields[paymentorder.FieldPromoCodeID]
+	return ok
+}
+
+// ResetPromoCodeID resets all changes to the "promo_code_id" field.
+func (m *PaymentOrderMutation) ResetPromoCodeID() {
+	m.promo_code_id = nil
+	m.addpromo_code_id = nil
+	delete(m.clearedFields, paymentorder.FieldPromoCodeID)
+}
+
+// SetPromoCode sets the "promo_code" field.
+func (m *PaymentOrderMutation) SetPromoCode(s string) {
+	m.promo_code = &s
+}
+
+// PromoCode returns the value of the "promo_code" field in the mutation.
+func (m *PaymentOrderMutation) PromoCode() (r string, exists bool) {
+	v := m.promo_code
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldPromoCode returns the old "promo_code" field's value of the PaymentOrder entity.
+// If the PaymentOrder object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *PaymentOrderMutation) OldPromoCode(ctx context.Context) (v *string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldPromoCode is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldPromoCode requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldPromoCode: %w", err)
+	}
+	return oldValue.PromoCode, nil
+}
+
+// ClearPromoCode clears the value of the "promo_code" field.
+func (m *PaymentOrderMutation) ClearPromoCode() {
+	m.promo_code = nil
+	m.clearedFields[paymentorder.FieldPromoCode] = struct{}{}
+}
+
+// PromoCodeCleared returns if the "promo_code" field was cleared in this mutation.
+func (m *PaymentOrderMutation) PromoCodeCleared() bool {
+	_, ok := m.clearedFields[paymentorder.FieldPromoCode]
+	return ok
+}
+
+// ResetPromoCode resets all changes to the "promo_code" field.
+func (m *PaymentOrderMutation) ResetPromoCode() {
+	m.promo_code = nil
+	delete(m.clearedFields, paymentorder.FieldPromoCode)
+}
+
+// SetOriginalAmount sets the "original_amount" field.
+func (m *PaymentOrderMutation) SetOriginalAmount(f float64) {
+	m.original_amount = &f
+	m.addoriginal_amount = nil
+}
+
+// OriginalAmount returns the value of the "original_amount" field in the mutation.
+func (m *PaymentOrderMutation) OriginalAmount() (r float64, exists bool) {
+	v := m.original_amount
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldOriginalAmount returns the old "original_amount" field's value of the PaymentOrder entity.
+// If the PaymentOrder object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *PaymentOrderMutation) OldOriginalAmount(ctx context.Context) (v *float64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldOriginalAmount is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldOriginalAmount requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldOriginalAmount: %w", err)
+	}
+	return oldValue.OriginalAmount, nil
+}
+
+// AddOriginalAmount adds f to the "original_amount" field.
+func (m *PaymentOrderMutation) AddOriginalAmount(f float64) {
+	if m.addoriginal_amount != nil {
+		*m.addoriginal_amount += f
+	} else {
+		m.addoriginal_amount = &f
+	}
+}
+
+// AddedOriginalAmount returns the value that was added to the "original_amount" field in this mutation.
+func (m *PaymentOrderMutation) AddedOriginalAmount() (r float64, exists bool) {
+	v := m.addoriginal_amount
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearOriginalAmount clears the value of the "original_amount" field.
+func (m *PaymentOrderMutation) ClearOriginalAmount() {
+	m.original_amount = nil
+	m.addoriginal_amount = nil
+	m.clearedFields[paymentorder.FieldOriginalAmount] = struct{}{}
+}
+
+// OriginalAmountCleared returns if the "original_amount" field was cleared in this mutation.
+func (m *PaymentOrderMutation) OriginalAmountCleared() bool {
+	_, ok := m.clearedFields[paymentorder.FieldOriginalAmount]
+	return ok
+}
+
+// ResetOriginalAmount resets all changes to the "original_amount" field.
+func (m *PaymentOrderMutation) ResetOriginalAmount() {
+	m.original_amount = nil
+	m.addoriginal_amount = nil
+	delete(m.clearedFields, paymentorder.FieldOriginalAmount)
+}
+
+// SetDiscountRate sets the "discount_rate" field.
+func (m *PaymentOrderMutation) SetDiscountRate(f float64) {
+	m.discount_rate = &f
+	m.adddiscount_rate = nil
+}
+
+// DiscountRate returns the value of the "discount_rate" field in the mutation.
+func (m *PaymentOrderMutation) DiscountRate() (r float64, exists bool) {
+	v := m.discount_rate
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldDiscountRate returns the old "discount_rate" field's value of the PaymentOrder entity.
+// If the PaymentOrder object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *PaymentOrderMutation) OldDiscountRate(ctx context.Context) (v *float64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldDiscountRate is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldDiscountRate requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldDiscountRate: %w", err)
+	}
+	return oldValue.DiscountRate, nil
+}
+
+// AddDiscountRate adds f to the "discount_rate" field.
+func (m *PaymentOrderMutation) AddDiscountRate(f float64) {
+	if m.adddiscount_rate != nil {
+		*m.adddiscount_rate += f
+	} else {
+		m.adddiscount_rate = &f
+	}
+}
+
+// AddedDiscountRate returns the value that was added to the "discount_rate" field in this mutation.
+func (m *PaymentOrderMutation) AddedDiscountRate() (r float64, exists bool) {
+	v := m.adddiscount_rate
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearDiscountRate clears the value of the "discount_rate" field.
+func (m *PaymentOrderMutation) ClearDiscountRate() {
+	m.discount_rate = nil
+	m.adddiscount_rate = nil
+	m.clearedFields[paymentorder.FieldDiscountRate] = struct{}{}
+}
+
+// DiscountRateCleared returns if the "discount_rate" field was cleared in this mutation.
+func (m *PaymentOrderMutation) DiscountRateCleared() bool {
+	_, ok := m.clearedFields[paymentorder.FieldDiscountRate]
+	return ok
+}
+
+// ResetDiscountRate resets all changes to the "discount_rate" field.
+func (m *PaymentOrderMutation) ResetDiscountRate() {
+	m.discount_rate = nil
+	m.adddiscount_rate = nil
+	delete(m.clearedFields, paymentorder.FieldDiscountRate)
+}
+
+// SetDiscountAmount sets the "discount_amount" field.
+func (m *PaymentOrderMutation) SetDiscountAmount(f float64) {
+	m.discount_amount = &f
+	m.adddiscount_amount = nil
+}
+
+// DiscountAmount returns the value of the "discount_amount" field in the mutation.
+func (m *PaymentOrderMutation) DiscountAmount() (r float64, exists bool) {
+	v := m.discount_amount
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldDiscountAmount returns the old "discount_amount" field's value of the PaymentOrder entity.
+// If the PaymentOrder object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *PaymentOrderMutation) OldDiscountAmount(ctx context.Context) (v float64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldDiscountAmount is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldDiscountAmount requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldDiscountAmount: %w", err)
+	}
+	return oldValue.DiscountAmount, nil
+}
+
+// AddDiscountAmount adds f to the "discount_amount" field.
+func (m *PaymentOrderMutation) AddDiscountAmount(f float64) {
+	if m.adddiscount_amount != nil {
+		*m.adddiscount_amount += f
+	} else {
+		m.adddiscount_amount = &f
+	}
+}
+
+// AddedDiscountAmount returns the value that was added to the "discount_amount" field in this mutation.
+func (m *PaymentOrderMutation) AddedDiscountAmount() (r float64, exists bool) {
+	v := m.adddiscount_amount
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetDiscountAmount resets all changes to the "discount_amount" field.
+func (m *PaymentOrderMutation) ResetDiscountAmount() {
+	m.discount_amount = nil
+	m.adddiscount_amount = nil
 }
 
 // SetOutTradeNo sets the "out_trade_no" field.
@@ -31907,7 +32231,7 @@ func (m *PaymentOrderMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *PaymentOrderMutation) Fields() []string {
-	fields := make([]string, 0, 39)
+	fields := make([]string, 0, 44)
 	if m.user != nil {
 		fields = append(fields, paymentorder.FieldUserID)
 	}
@@ -31931,6 +32255,21 @@ func (m *PaymentOrderMutation) Fields() []string {
 	}
 	if m.recharge_code != nil {
 		fields = append(fields, paymentorder.FieldRechargeCode)
+	}
+	if m.promo_code_id != nil {
+		fields = append(fields, paymentorder.FieldPromoCodeID)
+	}
+	if m.promo_code != nil {
+		fields = append(fields, paymentorder.FieldPromoCode)
+	}
+	if m.original_amount != nil {
+		fields = append(fields, paymentorder.FieldOriginalAmount)
+	}
+	if m.discount_rate != nil {
+		fields = append(fields, paymentorder.FieldDiscountRate)
+	}
+	if m.discount_amount != nil {
+		fields = append(fields, paymentorder.FieldDiscountAmount)
 	}
 	if m.out_trade_no != nil {
 		fields = append(fields, paymentorder.FieldOutTradeNo)
@@ -32049,6 +32388,16 @@ func (m *PaymentOrderMutation) Field(name string) (ent.Value, bool) {
 		return m.FeeRate()
 	case paymentorder.FieldRechargeCode:
 		return m.RechargeCode()
+	case paymentorder.FieldPromoCodeID:
+		return m.PromoCodeID()
+	case paymentorder.FieldPromoCode:
+		return m.PromoCode()
+	case paymentorder.FieldOriginalAmount:
+		return m.OriginalAmount()
+	case paymentorder.FieldDiscountRate:
+		return m.DiscountRate()
+	case paymentorder.FieldDiscountAmount:
+		return m.DiscountAmount()
 	case paymentorder.FieldOutTradeNo:
 		return m.OutTradeNo()
 	case paymentorder.FieldPaymentType:
@@ -32136,6 +32485,16 @@ func (m *PaymentOrderMutation) OldField(ctx context.Context, name string) (ent.V
 		return m.OldFeeRate(ctx)
 	case paymentorder.FieldRechargeCode:
 		return m.OldRechargeCode(ctx)
+	case paymentorder.FieldPromoCodeID:
+		return m.OldPromoCodeID(ctx)
+	case paymentorder.FieldPromoCode:
+		return m.OldPromoCode(ctx)
+	case paymentorder.FieldOriginalAmount:
+		return m.OldOriginalAmount(ctx)
+	case paymentorder.FieldDiscountRate:
+		return m.OldDiscountRate(ctx)
+	case paymentorder.FieldDiscountAmount:
+		return m.OldDiscountAmount(ctx)
 	case paymentorder.FieldOutTradeNo:
 		return m.OldOutTradeNo(ctx)
 	case paymentorder.FieldPaymentType:
@@ -32262,6 +32621,41 @@ func (m *PaymentOrderMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetRechargeCode(v)
+		return nil
+	case paymentorder.FieldPromoCodeID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetPromoCodeID(v)
+		return nil
+	case paymentorder.FieldPromoCode:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetPromoCode(v)
+		return nil
+	case paymentorder.FieldOriginalAmount:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetOriginalAmount(v)
+		return nil
+	case paymentorder.FieldDiscountRate:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetDiscountRate(v)
+		return nil
+	case paymentorder.FieldDiscountAmount:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetDiscountAmount(v)
 		return nil
 	case paymentorder.FieldOutTradeNo:
 		v, ok := value.(string)
@@ -32497,6 +32891,18 @@ func (m *PaymentOrderMutation) AddedFields() []string {
 	if m.addfee_rate != nil {
 		fields = append(fields, paymentorder.FieldFeeRate)
 	}
+	if m.addpromo_code_id != nil {
+		fields = append(fields, paymentorder.FieldPromoCodeID)
+	}
+	if m.addoriginal_amount != nil {
+		fields = append(fields, paymentorder.FieldOriginalAmount)
+	}
+	if m.adddiscount_rate != nil {
+		fields = append(fields, paymentorder.FieldDiscountRate)
+	}
+	if m.adddiscount_amount != nil {
+		fields = append(fields, paymentorder.FieldDiscountAmount)
+	}
 	if m.addplan_id != nil {
 		fields = append(fields, paymentorder.FieldPlanID)
 	}
@@ -32523,6 +32929,14 @@ func (m *PaymentOrderMutation) AddedField(name string) (ent.Value, bool) {
 		return m.AddedPayAmount()
 	case paymentorder.FieldFeeRate:
 		return m.AddedFeeRate()
+	case paymentorder.FieldPromoCodeID:
+		return m.AddedPromoCodeID()
+	case paymentorder.FieldOriginalAmount:
+		return m.AddedOriginalAmount()
+	case paymentorder.FieldDiscountRate:
+		return m.AddedDiscountRate()
+	case paymentorder.FieldDiscountAmount:
+		return m.AddedDiscountAmount()
 	case paymentorder.FieldPlanID:
 		return m.AddedPlanID()
 	case paymentorder.FieldSubscriptionGroupID:
@@ -32560,6 +32974,34 @@ func (m *PaymentOrderMutation) AddField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.AddFeeRate(v)
+		return nil
+	case paymentorder.FieldPromoCodeID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddPromoCodeID(v)
+		return nil
+	case paymentorder.FieldOriginalAmount:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddOriginalAmount(v)
+		return nil
+	case paymentorder.FieldDiscountRate:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddDiscountRate(v)
+		return nil
+	case paymentorder.FieldDiscountAmount:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddDiscountAmount(v)
 		return nil
 	case paymentorder.FieldPlanID:
 		v, ok := value.(int64)
@@ -32599,6 +33041,18 @@ func (m *PaymentOrderMutation) ClearedFields() []string {
 	var fields []string
 	if m.FieldCleared(paymentorder.FieldUserNotes) {
 		fields = append(fields, paymentorder.FieldUserNotes)
+	}
+	if m.FieldCleared(paymentorder.FieldPromoCodeID) {
+		fields = append(fields, paymentorder.FieldPromoCodeID)
+	}
+	if m.FieldCleared(paymentorder.FieldPromoCode) {
+		fields = append(fields, paymentorder.FieldPromoCode)
+	}
+	if m.FieldCleared(paymentorder.FieldOriginalAmount) {
+		fields = append(fields, paymentorder.FieldOriginalAmount)
+	}
+	if m.FieldCleared(paymentorder.FieldDiscountRate) {
+		fields = append(fields, paymentorder.FieldDiscountRate)
 	}
 	if m.FieldCleared(paymentorder.FieldPayURL) {
 		fields = append(fields, paymentorder.FieldPayURL)
@@ -32673,6 +33127,18 @@ func (m *PaymentOrderMutation) ClearField(name string) error {
 	switch name {
 	case paymentorder.FieldUserNotes:
 		m.ClearUserNotes()
+		return nil
+	case paymentorder.FieldPromoCodeID:
+		m.ClearPromoCodeID()
+		return nil
+	case paymentorder.FieldPromoCode:
+		m.ClearPromoCode()
+		return nil
+	case paymentorder.FieldOriginalAmount:
+		m.ClearOriginalAmount()
+		return nil
+	case paymentorder.FieldDiscountRate:
+		m.ClearDiscountRate()
 		return nil
 	case paymentorder.FieldPayURL:
 		m.ClearPayURL()
@@ -32762,6 +33228,21 @@ func (m *PaymentOrderMutation) ResetField(name string) error {
 		return nil
 	case paymentorder.FieldRechargeCode:
 		m.ResetRechargeCode()
+		return nil
+	case paymentorder.FieldPromoCodeID:
+		m.ResetPromoCodeID()
+		return nil
+	case paymentorder.FieldPromoCode:
+		m.ResetPromoCode()
+		return nil
+	case paymentorder.FieldOriginalAmount:
+		m.ResetOriginalAmount()
+		return nil
+	case paymentorder.FieldDiscountRate:
+		m.ResetDiscountRate()
+		return nil
+	case paymentorder.FieldDiscountAmount:
+		m.ResetDiscountAmount()
 		return nil
 	case paymentorder.FieldOutTradeNo:
 		m.ResetOutTradeNo()
@@ -35536,6 +36017,9 @@ type PromoCodeMutation struct {
 	typ                  string
 	id                   *int64
 	code                 *string
+	purpose              *string
+	discount_rate        *float64
+	adddiscount_rate     *float64
 	bonus_amount         *float64
 	addbonus_amount      *float64
 	max_uses             *int
@@ -35688,6 +36172,112 @@ func (m *PromoCodeMutation) OldCode(ctx context.Context) (v string, err error) {
 // ResetCode resets all changes to the "code" field.
 func (m *PromoCodeMutation) ResetCode() {
 	m.code = nil
+}
+
+// SetPurpose sets the "purpose" field.
+func (m *PromoCodeMutation) SetPurpose(s string) {
+	m.purpose = &s
+}
+
+// Purpose returns the value of the "purpose" field in the mutation.
+func (m *PromoCodeMutation) Purpose() (r string, exists bool) {
+	v := m.purpose
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldPurpose returns the old "purpose" field's value of the PromoCode entity.
+// If the PromoCode object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *PromoCodeMutation) OldPurpose(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldPurpose is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldPurpose requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldPurpose: %w", err)
+	}
+	return oldValue.Purpose, nil
+}
+
+// ResetPurpose resets all changes to the "purpose" field.
+func (m *PromoCodeMutation) ResetPurpose() {
+	m.purpose = nil
+}
+
+// SetDiscountRate sets the "discount_rate" field.
+func (m *PromoCodeMutation) SetDiscountRate(f float64) {
+	m.discount_rate = &f
+	m.adddiscount_rate = nil
+}
+
+// DiscountRate returns the value of the "discount_rate" field in the mutation.
+func (m *PromoCodeMutation) DiscountRate() (r float64, exists bool) {
+	v := m.discount_rate
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldDiscountRate returns the old "discount_rate" field's value of the PromoCode entity.
+// If the PromoCode object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *PromoCodeMutation) OldDiscountRate(ctx context.Context) (v *float64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldDiscountRate is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldDiscountRate requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldDiscountRate: %w", err)
+	}
+	return oldValue.DiscountRate, nil
+}
+
+// AddDiscountRate adds f to the "discount_rate" field.
+func (m *PromoCodeMutation) AddDiscountRate(f float64) {
+	if m.adddiscount_rate != nil {
+		*m.adddiscount_rate += f
+	} else {
+		m.adddiscount_rate = &f
+	}
+}
+
+// AddedDiscountRate returns the value that was added to the "discount_rate" field in this mutation.
+func (m *PromoCodeMutation) AddedDiscountRate() (r float64, exists bool) {
+	v := m.adddiscount_rate
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearDiscountRate clears the value of the "discount_rate" field.
+func (m *PromoCodeMutation) ClearDiscountRate() {
+	m.discount_rate = nil
+	m.adddiscount_rate = nil
+	m.clearedFields[promocode.FieldDiscountRate] = struct{}{}
+}
+
+// DiscountRateCleared returns if the "discount_rate" field was cleared in this mutation.
+func (m *PromoCodeMutation) DiscountRateCleared() bool {
+	_, ok := m.clearedFields[promocode.FieldDiscountRate]
+	return ok
+}
+
+// ResetDiscountRate resets all changes to the "discount_rate" field.
+func (m *PromoCodeMutation) ResetDiscountRate() {
+	m.discount_rate = nil
+	m.adddiscount_rate = nil
+	delete(m.clearedFields, promocode.FieldDiscountRate)
 }
 
 // SetBonusAmount sets the "bonus_amount" field.
@@ -36152,9 +36742,15 @@ func (m *PromoCodeMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *PromoCodeMutation) Fields() []string {
-	fields := make([]string, 0, 9)
+	fields := make([]string, 0, 11)
 	if m.code != nil {
 		fields = append(fields, promocode.FieldCode)
+	}
+	if m.purpose != nil {
+		fields = append(fields, promocode.FieldPurpose)
+	}
+	if m.discount_rate != nil {
+		fields = append(fields, promocode.FieldDiscountRate)
 	}
 	if m.bonus_amount != nil {
 		fields = append(fields, promocode.FieldBonusAmount)
@@ -36190,6 +36786,10 @@ func (m *PromoCodeMutation) Field(name string) (ent.Value, bool) {
 	switch name {
 	case promocode.FieldCode:
 		return m.Code()
+	case promocode.FieldPurpose:
+		return m.Purpose()
+	case promocode.FieldDiscountRate:
+		return m.DiscountRate()
 	case promocode.FieldBonusAmount:
 		return m.BonusAmount()
 	case promocode.FieldMaxUses:
@@ -36217,6 +36817,10 @@ func (m *PromoCodeMutation) OldField(ctx context.Context, name string) (ent.Valu
 	switch name {
 	case promocode.FieldCode:
 		return m.OldCode(ctx)
+	case promocode.FieldPurpose:
+		return m.OldPurpose(ctx)
+	case promocode.FieldDiscountRate:
+		return m.OldDiscountRate(ctx)
 	case promocode.FieldBonusAmount:
 		return m.OldBonusAmount(ctx)
 	case promocode.FieldMaxUses:
@@ -36248,6 +36852,20 @@ func (m *PromoCodeMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetCode(v)
+		return nil
+	case promocode.FieldPurpose:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetPurpose(v)
+		return nil
+	case promocode.FieldDiscountRate:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetDiscountRate(v)
 		return nil
 	case promocode.FieldBonusAmount:
 		v, ok := value.(float64)
@@ -36313,6 +36931,9 @@ func (m *PromoCodeMutation) SetField(name string, value ent.Value) error {
 // this mutation.
 func (m *PromoCodeMutation) AddedFields() []string {
 	var fields []string
+	if m.adddiscount_rate != nil {
+		fields = append(fields, promocode.FieldDiscountRate)
+	}
 	if m.addbonus_amount != nil {
 		fields = append(fields, promocode.FieldBonusAmount)
 	}
@@ -36330,6 +36951,8 @@ func (m *PromoCodeMutation) AddedFields() []string {
 // was not set, or was not defined in the schema.
 func (m *PromoCodeMutation) AddedField(name string) (ent.Value, bool) {
 	switch name {
+	case promocode.FieldDiscountRate:
+		return m.AddedDiscountRate()
 	case promocode.FieldBonusAmount:
 		return m.AddedBonusAmount()
 	case promocode.FieldMaxUses:
@@ -36345,6 +36968,13 @@ func (m *PromoCodeMutation) AddedField(name string) (ent.Value, bool) {
 // type.
 func (m *PromoCodeMutation) AddField(name string, value ent.Value) error {
 	switch name {
+	case promocode.FieldDiscountRate:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddDiscountRate(v)
+		return nil
 	case promocode.FieldBonusAmount:
 		v, ok := value.(float64)
 		if !ok {
@@ -36374,6 +37004,9 @@ func (m *PromoCodeMutation) AddField(name string, value ent.Value) error {
 // mutation.
 func (m *PromoCodeMutation) ClearedFields() []string {
 	var fields []string
+	if m.FieldCleared(promocode.FieldDiscountRate) {
+		fields = append(fields, promocode.FieldDiscountRate)
+	}
 	if m.FieldCleared(promocode.FieldExpiresAt) {
 		fields = append(fields, promocode.FieldExpiresAt)
 	}
@@ -36394,6 +37027,9 @@ func (m *PromoCodeMutation) FieldCleared(name string) bool {
 // error if the field is not defined in the schema.
 func (m *PromoCodeMutation) ClearField(name string) error {
 	switch name {
+	case promocode.FieldDiscountRate:
+		m.ClearDiscountRate()
+		return nil
 	case promocode.FieldExpiresAt:
 		m.ClearExpiresAt()
 		return nil
@@ -36410,6 +37046,12 @@ func (m *PromoCodeMutation) ResetField(name string) error {
 	switch name {
 	case promocode.FieldCode:
 		m.ResetCode()
+		return nil
+	case promocode.FieldPurpose:
+		m.ResetPurpose()
+		return nil
+	case promocode.FieldDiscountRate:
+		m.ResetDiscountRate()
 		return nil
 	case promocode.FieldBonusAmount:
 		m.ResetBonusAmount()
@@ -36526,20 +37168,29 @@ func (m *PromoCodeMutation) ResetEdge(name string) error {
 // PromoCodeUsageMutation represents an operation that mutates the PromoCodeUsage nodes in the graph.
 type PromoCodeUsageMutation struct {
 	config
-	op                Op
-	typ               string
-	id                *int64
-	bonus_amount      *float64
-	addbonus_amount   *float64
-	used_at           *time.Time
-	clearedFields     map[string]struct{}
-	promo_code        *int64
-	clearedpromo_code bool
-	user              *int64
-	cleareduser       bool
-	done              bool
-	oldValue          func(context.Context) (*PromoCodeUsage, error)
-	predicates        []predicate.PromoCodeUsage
+	op                  Op
+	typ                 string
+	id                  *int64
+	payment_order_id    *int64
+	addpayment_order_id *int64
+	usage_type          *string
+	status              *string
+	bonus_amount        *float64
+	addbonus_amount     *float64
+	discount_amount     *float64
+	adddiscount_amount  *float64
+	used_at             *time.Time
+	reserved_at         *time.Time
+	consumed_at         *time.Time
+	released_at         *time.Time
+	clearedFields       map[string]struct{}
+	promo_code          *int64
+	clearedpromo_code   bool
+	user                *int64
+	cleareduser         bool
+	done                bool
+	oldValue            func(context.Context) (*PromoCodeUsage, error)
+	predicates          []predicate.PromoCodeUsage
 }
 
 var _ ent.Mutation = (*PromoCodeUsageMutation)(nil)
@@ -36712,6 +37363,148 @@ func (m *PromoCodeUsageMutation) ResetUserID() {
 	m.user = nil
 }
 
+// SetPaymentOrderID sets the "payment_order_id" field.
+func (m *PromoCodeUsageMutation) SetPaymentOrderID(i int64) {
+	m.payment_order_id = &i
+	m.addpayment_order_id = nil
+}
+
+// PaymentOrderID returns the value of the "payment_order_id" field in the mutation.
+func (m *PromoCodeUsageMutation) PaymentOrderID() (r int64, exists bool) {
+	v := m.payment_order_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldPaymentOrderID returns the old "payment_order_id" field's value of the PromoCodeUsage entity.
+// If the PromoCodeUsage object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *PromoCodeUsageMutation) OldPaymentOrderID(ctx context.Context) (v *int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldPaymentOrderID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldPaymentOrderID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldPaymentOrderID: %w", err)
+	}
+	return oldValue.PaymentOrderID, nil
+}
+
+// AddPaymentOrderID adds i to the "payment_order_id" field.
+func (m *PromoCodeUsageMutation) AddPaymentOrderID(i int64) {
+	if m.addpayment_order_id != nil {
+		*m.addpayment_order_id += i
+	} else {
+		m.addpayment_order_id = &i
+	}
+}
+
+// AddedPaymentOrderID returns the value that was added to the "payment_order_id" field in this mutation.
+func (m *PromoCodeUsageMutation) AddedPaymentOrderID() (r int64, exists bool) {
+	v := m.addpayment_order_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearPaymentOrderID clears the value of the "payment_order_id" field.
+func (m *PromoCodeUsageMutation) ClearPaymentOrderID() {
+	m.payment_order_id = nil
+	m.addpayment_order_id = nil
+	m.clearedFields[promocodeusage.FieldPaymentOrderID] = struct{}{}
+}
+
+// PaymentOrderIDCleared returns if the "payment_order_id" field was cleared in this mutation.
+func (m *PromoCodeUsageMutation) PaymentOrderIDCleared() bool {
+	_, ok := m.clearedFields[promocodeusage.FieldPaymentOrderID]
+	return ok
+}
+
+// ResetPaymentOrderID resets all changes to the "payment_order_id" field.
+func (m *PromoCodeUsageMutation) ResetPaymentOrderID() {
+	m.payment_order_id = nil
+	m.addpayment_order_id = nil
+	delete(m.clearedFields, promocodeusage.FieldPaymentOrderID)
+}
+
+// SetUsageType sets the "usage_type" field.
+func (m *PromoCodeUsageMutation) SetUsageType(s string) {
+	m.usage_type = &s
+}
+
+// UsageType returns the value of the "usage_type" field in the mutation.
+func (m *PromoCodeUsageMutation) UsageType() (r string, exists bool) {
+	v := m.usage_type
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUsageType returns the old "usage_type" field's value of the PromoCodeUsage entity.
+// If the PromoCodeUsage object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *PromoCodeUsageMutation) OldUsageType(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUsageType is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUsageType requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUsageType: %w", err)
+	}
+	return oldValue.UsageType, nil
+}
+
+// ResetUsageType resets all changes to the "usage_type" field.
+func (m *PromoCodeUsageMutation) ResetUsageType() {
+	m.usage_type = nil
+}
+
+// SetStatus sets the "status" field.
+func (m *PromoCodeUsageMutation) SetStatus(s string) {
+	m.status = &s
+}
+
+// Status returns the value of the "status" field in the mutation.
+func (m *PromoCodeUsageMutation) Status() (r string, exists bool) {
+	v := m.status
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldStatus returns the old "status" field's value of the PromoCodeUsage entity.
+// If the PromoCodeUsage object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *PromoCodeUsageMutation) OldStatus(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldStatus is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldStatus requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldStatus: %w", err)
+	}
+	return oldValue.Status, nil
+}
+
+// ResetStatus resets all changes to the "status" field.
+func (m *PromoCodeUsageMutation) ResetStatus() {
+	m.status = nil
+}
+
 // SetBonusAmount sets the "bonus_amount" field.
 func (m *PromoCodeUsageMutation) SetBonusAmount(f float64) {
 	m.bonus_amount = &f
@@ -36768,6 +37561,62 @@ func (m *PromoCodeUsageMutation) ResetBonusAmount() {
 	m.addbonus_amount = nil
 }
 
+// SetDiscountAmount sets the "discount_amount" field.
+func (m *PromoCodeUsageMutation) SetDiscountAmount(f float64) {
+	m.discount_amount = &f
+	m.adddiscount_amount = nil
+}
+
+// DiscountAmount returns the value of the "discount_amount" field in the mutation.
+func (m *PromoCodeUsageMutation) DiscountAmount() (r float64, exists bool) {
+	v := m.discount_amount
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldDiscountAmount returns the old "discount_amount" field's value of the PromoCodeUsage entity.
+// If the PromoCodeUsage object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *PromoCodeUsageMutation) OldDiscountAmount(ctx context.Context) (v float64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldDiscountAmount is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldDiscountAmount requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldDiscountAmount: %w", err)
+	}
+	return oldValue.DiscountAmount, nil
+}
+
+// AddDiscountAmount adds f to the "discount_amount" field.
+func (m *PromoCodeUsageMutation) AddDiscountAmount(f float64) {
+	if m.adddiscount_amount != nil {
+		*m.adddiscount_amount += f
+	} else {
+		m.adddiscount_amount = &f
+	}
+}
+
+// AddedDiscountAmount returns the value that was added to the "discount_amount" field in this mutation.
+func (m *PromoCodeUsageMutation) AddedDiscountAmount() (r float64, exists bool) {
+	v := m.adddiscount_amount
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetDiscountAmount resets all changes to the "discount_amount" field.
+func (m *PromoCodeUsageMutation) ResetDiscountAmount() {
+	m.discount_amount = nil
+	m.adddiscount_amount = nil
+}
+
 // SetUsedAt sets the "used_at" field.
 func (m *PromoCodeUsageMutation) SetUsedAt(t time.Time) {
 	m.used_at = &t
@@ -36802,6 +37651,153 @@ func (m *PromoCodeUsageMutation) OldUsedAt(ctx context.Context) (v time.Time, er
 // ResetUsedAt resets all changes to the "used_at" field.
 func (m *PromoCodeUsageMutation) ResetUsedAt() {
 	m.used_at = nil
+}
+
+// SetReservedAt sets the "reserved_at" field.
+func (m *PromoCodeUsageMutation) SetReservedAt(t time.Time) {
+	m.reserved_at = &t
+}
+
+// ReservedAt returns the value of the "reserved_at" field in the mutation.
+func (m *PromoCodeUsageMutation) ReservedAt() (r time.Time, exists bool) {
+	v := m.reserved_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldReservedAt returns the old "reserved_at" field's value of the PromoCodeUsage entity.
+// If the PromoCodeUsage object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *PromoCodeUsageMutation) OldReservedAt(ctx context.Context) (v *time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldReservedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldReservedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldReservedAt: %w", err)
+	}
+	return oldValue.ReservedAt, nil
+}
+
+// ClearReservedAt clears the value of the "reserved_at" field.
+func (m *PromoCodeUsageMutation) ClearReservedAt() {
+	m.reserved_at = nil
+	m.clearedFields[promocodeusage.FieldReservedAt] = struct{}{}
+}
+
+// ReservedAtCleared returns if the "reserved_at" field was cleared in this mutation.
+func (m *PromoCodeUsageMutation) ReservedAtCleared() bool {
+	_, ok := m.clearedFields[promocodeusage.FieldReservedAt]
+	return ok
+}
+
+// ResetReservedAt resets all changes to the "reserved_at" field.
+func (m *PromoCodeUsageMutation) ResetReservedAt() {
+	m.reserved_at = nil
+	delete(m.clearedFields, promocodeusage.FieldReservedAt)
+}
+
+// SetConsumedAt sets the "consumed_at" field.
+func (m *PromoCodeUsageMutation) SetConsumedAt(t time.Time) {
+	m.consumed_at = &t
+}
+
+// ConsumedAt returns the value of the "consumed_at" field in the mutation.
+func (m *PromoCodeUsageMutation) ConsumedAt() (r time.Time, exists bool) {
+	v := m.consumed_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldConsumedAt returns the old "consumed_at" field's value of the PromoCodeUsage entity.
+// If the PromoCodeUsage object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *PromoCodeUsageMutation) OldConsumedAt(ctx context.Context) (v *time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldConsumedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldConsumedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldConsumedAt: %w", err)
+	}
+	return oldValue.ConsumedAt, nil
+}
+
+// ClearConsumedAt clears the value of the "consumed_at" field.
+func (m *PromoCodeUsageMutation) ClearConsumedAt() {
+	m.consumed_at = nil
+	m.clearedFields[promocodeusage.FieldConsumedAt] = struct{}{}
+}
+
+// ConsumedAtCleared returns if the "consumed_at" field was cleared in this mutation.
+func (m *PromoCodeUsageMutation) ConsumedAtCleared() bool {
+	_, ok := m.clearedFields[promocodeusage.FieldConsumedAt]
+	return ok
+}
+
+// ResetConsumedAt resets all changes to the "consumed_at" field.
+func (m *PromoCodeUsageMutation) ResetConsumedAt() {
+	m.consumed_at = nil
+	delete(m.clearedFields, promocodeusage.FieldConsumedAt)
+}
+
+// SetReleasedAt sets the "released_at" field.
+func (m *PromoCodeUsageMutation) SetReleasedAt(t time.Time) {
+	m.released_at = &t
+}
+
+// ReleasedAt returns the value of the "released_at" field in the mutation.
+func (m *PromoCodeUsageMutation) ReleasedAt() (r time.Time, exists bool) {
+	v := m.released_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldReleasedAt returns the old "released_at" field's value of the PromoCodeUsage entity.
+// If the PromoCodeUsage object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *PromoCodeUsageMutation) OldReleasedAt(ctx context.Context) (v *time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldReleasedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldReleasedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldReleasedAt: %w", err)
+	}
+	return oldValue.ReleasedAt, nil
+}
+
+// ClearReleasedAt clears the value of the "released_at" field.
+func (m *PromoCodeUsageMutation) ClearReleasedAt() {
+	m.released_at = nil
+	m.clearedFields[promocodeusage.FieldReleasedAt] = struct{}{}
+}
+
+// ReleasedAtCleared returns if the "released_at" field was cleared in this mutation.
+func (m *PromoCodeUsageMutation) ReleasedAtCleared() bool {
+	_, ok := m.clearedFields[promocodeusage.FieldReleasedAt]
+	return ok
+}
+
+// ResetReleasedAt resets all changes to the "released_at" field.
+func (m *PromoCodeUsageMutation) ResetReleasedAt() {
+	m.released_at = nil
+	delete(m.clearedFields, promocodeusage.FieldReleasedAt)
 }
 
 // ClearPromoCode clears the "promo_code" edge to the PromoCode entity.
@@ -36892,18 +37888,39 @@ func (m *PromoCodeUsageMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *PromoCodeUsageMutation) Fields() []string {
-	fields := make([]string, 0, 4)
+	fields := make([]string, 0, 11)
 	if m.promo_code != nil {
 		fields = append(fields, promocodeusage.FieldPromoCodeID)
 	}
 	if m.user != nil {
 		fields = append(fields, promocodeusage.FieldUserID)
 	}
+	if m.payment_order_id != nil {
+		fields = append(fields, promocodeusage.FieldPaymentOrderID)
+	}
+	if m.usage_type != nil {
+		fields = append(fields, promocodeusage.FieldUsageType)
+	}
+	if m.status != nil {
+		fields = append(fields, promocodeusage.FieldStatus)
+	}
 	if m.bonus_amount != nil {
 		fields = append(fields, promocodeusage.FieldBonusAmount)
 	}
+	if m.discount_amount != nil {
+		fields = append(fields, promocodeusage.FieldDiscountAmount)
+	}
 	if m.used_at != nil {
 		fields = append(fields, promocodeusage.FieldUsedAt)
+	}
+	if m.reserved_at != nil {
+		fields = append(fields, promocodeusage.FieldReservedAt)
+	}
+	if m.consumed_at != nil {
+		fields = append(fields, promocodeusage.FieldConsumedAt)
+	}
+	if m.released_at != nil {
+		fields = append(fields, promocodeusage.FieldReleasedAt)
 	}
 	return fields
 }
@@ -36917,10 +37934,24 @@ func (m *PromoCodeUsageMutation) Field(name string) (ent.Value, bool) {
 		return m.PromoCodeID()
 	case promocodeusage.FieldUserID:
 		return m.UserID()
+	case promocodeusage.FieldPaymentOrderID:
+		return m.PaymentOrderID()
+	case promocodeusage.FieldUsageType:
+		return m.UsageType()
+	case promocodeusage.FieldStatus:
+		return m.Status()
 	case promocodeusage.FieldBonusAmount:
 		return m.BonusAmount()
+	case promocodeusage.FieldDiscountAmount:
+		return m.DiscountAmount()
 	case promocodeusage.FieldUsedAt:
 		return m.UsedAt()
+	case promocodeusage.FieldReservedAt:
+		return m.ReservedAt()
+	case promocodeusage.FieldConsumedAt:
+		return m.ConsumedAt()
+	case promocodeusage.FieldReleasedAt:
+		return m.ReleasedAt()
 	}
 	return nil, false
 }
@@ -36934,10 +37965,24 @@ func (m *PromoCodeUsageMutation) OldField(ctx context.Context, name string) (ent
 		return m.OldPromoCodeID(ctx)
 	case promocodeusage.FieldUserID:
 		return m.OldUserID(ctx)
+	case promocodeusage.FieldPaymentOrderID:
+		return m.OldPaymentOrderID(ctx)
+	case promocodeusage.FieldUsageType:
+		return m.OldUsageType(ctx)
+	case promocodeusage.FieldStatus:
+		return m.OldStatus(ctx)
 	case promocodeusage.FieldBonusAmount:
 		return m.OldBonusAmount(ctx)
+	case promocodeusage.FieldDiscountAmount:
+		return m.OldDiscountAmount(ctx)
 	case promocodeusage.FieldUsedAt:
 		return m.OldUsedAt(ctx)
+	case promocodeusage.FieldReservedAt:
+		return m.OldReservedAt(ctx)
+	case promocodeusage.FieldConsumedAt:
+		return m.OldConsumedAt(ctx)
+	case promocodeusage.FieldReleasedAt:
+		return m.OldReleasedAt(ctx)
 	}
 	return nil, fmt.Errorf("unknown PromoCodeUsage field %s", name)
 }
@@ -36961,6 +38006,27 @@ func (m *PromoCodeUsageMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetUserID(v)
 		return nil
+	case promocodeusage.FieldPaymentOrderID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetPaymentOrderID(v)
+		return nil
+	case promocodeusage.FieldUsageType:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUsageType(v)
+		return nil
+	case promocodeusage.FieldStatus:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetStatus(v)
+		return nil
 	case promocodeusage.FieldBonusAmount:
 		v, ok := value.(float64)
 		if !ok {
@@ -36968,12 +38034,40 @@ func (m *PromoCodeUsageMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetBonusAmount(v)
 		return nil
+	case promocodeusage.FieldDiscountAmount:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetDiscountAmount(v)
+		return nil
 	case promocodeusage.FieldUsedAt:
 		v, ok := value.(time.Time)
 		if !ok {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetUsedAt(v)
+		return nil
+	case promocodeusage.FieldReservedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetReservedAt(v)
+		return nil
+	case promocodeusage.FieldConsumedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetConsumedAt(v)
+		return nil
+	case promocodeusage.FieldReleasedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetReleasedAt(v)
 		return nil
 	}
 	return fmt.Errorf("unknown PromoCodeUsage field %s", name)
@@ -36983,8 +38077,14 @@ func (m *PromoCodeUsageMutation) SetField(name string, value ent.Value) error {
 // this mutation.
 func (m *PromoCodeUsageMutation) AddedFields() []string {
 	var fields []string
+	if m.addpayment_order_id != nil {
+		fields = append(fields, promocodeusage.FieldPaymentOrderID)
+	}
 	if m.addbonus_amount != nil {
 		fields = append(fields, promocodeusage.FieldBonusAmount)
+	}
+	if m.adddiscount_amount != nil {
+		fields = append(fields, promocodeusage.FieldDiscountAmount)
 	}
 	return fields
 }
@@ -36994,8 +38094,12 @@ func (m *PromoCodeUsageMutation) AddedFields() []string {
 // was not set, or was not defined in the schema.
 func (m *PromoCodeUsageMutation) AddedField(name string) (ent.Value, bool) {
 	switch name {
+	case promocodeusage.FieldPaymentOrderID:
+		return m.AddedPaymentOrderID()
 	case promocodeusage.FieldBonusAmount:
 		return m.AddedBonusAmount()
+	case promocodeusage.FieldDiscountAmount:
+		return m.AddedDiscountAmount()
 	}
 	return nil, false
 }
@@ -37005,12 +38109,26 @@ func (m *PromoCodeUsageMutation) AddedField(name string) (ent.Value, bool) {
 // type.
 func (m *PromoCodeUsageMutation) AddField(name string, value ent.Value) error {
 	switch name {
+	case promocodeusage.FieldPaymentOrderID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddPaymentOrderID(v)
+		return nil
 	case promocodeusage.FieldBonusAmount:
 		v, ok := value.(float64)
 		if !ok {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.AddBonusAmount(v)
+		return nil
+	case promocodeusage.FieldDiscountAmount:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddDiscountAmount(v)
 		return nil
 	}
 	return fmt.Errorf("unknown PromoCodeUsage numeric field %s", name)
@@ -37019,7 +38137,20 @@ func (m *PromoCodeUsageMutation) AddField(name string, value ent.Value) error {
 // ClearedFields returns all nullable fields that were cleared during this
 // mutation.
 func (m *PromoCodeUsageMutation) ClearedFields() []string {
-	return nil
+	var fields []string
+	if m.FieldCleared(promocodeusage.FieldPaymentOrderID) {
+		fields = append(fields, promocodeusage.FieldPaymentOrderID)
+	}
+	if m.FieldCleared(promocodeusage.FieldReservedAt) {
+		fields = append(fields, promocodeusage.FieldReservedAt)
+	}
+	if m.FieldCleared(promocodeusage.FieldConsumedAt) {
+		fields = append(fields, promocodeusage.FieldConsumedAt)
+	}
+	if m.FieldCleared(promocodeusage.FieldReleasedAt) {
+		fields = append(fields, promocodeusage.FieldReleasedAt)
+	}
+	return fields
 }
 
 // FieldCleared returns a boolean indicating if a field with the given name was
@@ -37032,6 +38163,20 @@ func (m *PromoCodeUsageMutation) FieldCleared(name string) bool {
 // ClearField clears the value of the field with the given name. It returns an
 // error if the field is not defined in the schema.
 func (m *PromoCodeUsageMutation) ClearField(name string) error {
+	switch name {
+	case promocodeusage.FieldPaymentOrderID:
+		m.ClearPaymentOrderID()
+		return nil
+	case promocodeusage.FieldReservedAt:
+		m.ClearReservedAt()
+		return nil
+	case promocodeusage.FieldConsumedAt:
+		m.ClearConsumedAt()
+		return nil
+	case promocodeusage.FieldReleasedAt:
+		m.ClearReleasedAt()
+		return nil
+	}
 	return fmt.Errorf("unknown PromoCodeUsage nullable field %s", name)
 }
 
@@ -37045,11 +38190,32 @@ func (m *PromoCodeUsageMutation) ResetField(name string) error {
 	case promocodeusage.FieldUserID:
 		m.ResetUserID()
 		return nil
+	case promocodeusage.FieldPaymentOrderID:
+		m.ResetPaymentOrderID()
+		return nil
+	case promocodeusage.FieldUsageType:
+		m.ResetUsageType()
+		return nil
+	case promocodeusage.FieldStatus:
+		m.ResetStatus()
+		return nil
 	case promocodeusage.FieldBonusAmount:
 		m.ResetBonusAmount()
 		return nil
+	case promocodeusage.FieldDiscountAmount:
+		m.ResetDiscountAmount()
+		return nil
 	case promocodeusage.FieldUsedAt:
 		m.ResetUsedAt()
+		return nil
+	case promocodeusage.FieldReservedAt:
+		m.ResetReservedAt()
+		return nil
+	case promocodeusage.FieldConsumedAt:
+		m.ResetConsumedAt()
+		return nil
+	case promocodeusage.FieldReleasedAt:
+		m.ResetReleasedAt()
 		return nil
 	}
 	return fmt.Errorf("unknown PromoCodeUsage field %s", name)

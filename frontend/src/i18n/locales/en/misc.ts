@@ -297,6 +297,15 @@ export default {
     fee: 'Fee',
     actualPay: 'Actual Payment',
     createOrder: 'Confirm Payment',
+    subscriptionPromo: {
+      label: 'Subscription promo code',
+      placeholder: 'Enter promo code',
+      apply: 'Apply',
+      original: 'Original amount',
+      discount: 'Pay {percent}%',
+      discounted: 'Discounted amount',
+      invalid: 'Unable to apply this promo code',
+    },
     methods: {
       easypay: 'EasyPay',
       alipay: 'Alipay',

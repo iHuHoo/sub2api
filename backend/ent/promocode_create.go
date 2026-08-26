@@ -29,6 +29,34 @@ func (_c *PromoCodeCreate) SetCode(v string) *PromoCodeCreate {
 	return _c
 }
 
+// SetPurpose sets the "purpose" field.
+func (_c *PromoCodeCreate) SetPurpose(v string) *PromoCodeCreate {
+	_c.mutation.SetPurpose(v)
+	return _c
+}
+
+// SetNillablePurpose sets the "purpose" field if the given value is not nil.
+func (_c *PromoCodeCreate) SetNillablePurpose(v *string) *PromoCodeCreate {
+	if v != nil {
+		_c.SetPurpose(*v)
+	}
+	return _c
+}
+
+// SetDiscountRate sets the "discount_rate" field.
+func (_c *PromoCodeCreate) SetDiscountRate(v float64) *PromoCodeCreate {
+	_c.mutation.SetDiscountRate(v)
+	return _c
+}
+
+// SetNillableDiscountRate sets the "discount_rate" field if the given value is not nil.
+func (_c *PromoCodeCreate) SetNillableDiscountRate(v *float64) *PromoCodeCreate {
+	if v != nil {
+		_c.SetDiscountRate(*v)
+	}
+	return _c
+}
+
 // SetBonusAmount sets the "bonus_amount" field.
 func (_c *PromoCodeCreate) SetBonusAmount(v float64) *PromoCodeCreate {
 	_c.mutation.SetBonusAmount(v)
@@ -191,6 +219,10 @@ func (_c *PromoCodeCreate) ExecX(ctx context.Context) {
 
 // defaults sets the default values of the builder before save.
 func (_c *PromoCodeCreate) defaults() {
+	if _, ok := _c.mutation.Purpose(); !ok {
+		v := promocode.DefaultPurpose
+		_c.mutation.SetPurpose(v)
+	}
 	if _, ok := _c.mutation.BonusAmount(); !ok {
 		v := promocode.DefaultBonusAmount
 		_c.mutation.SetBonusAmount(v)
@@ -225,6 +257,14 @@ func (_c *PromoCodeCreate) check() error {
 	if v, ok := _c.mutation.Code(); ok {
 		if err := promocode.CodeValidator(v); err != nil {
 			return &ValidationError{Name: "code", err: fmt.Errorf(`ent: validator failed for field "PromoCode.code": %w`, err)}
+		}
+	}
+	if _, ok := _c.mutation.Purpose(); !ok {
+		return &ValidationError{Name: "purpose", err: errors.New(`ent: missing required field "PromoCode.purpose"`)}
+	}
+	if v, ok := _c.mutation.Purpose(); ok {
+		if err := promocode.PurposeValidator(v); err != nil {
+			return &ValidationError{Name: "purpose", err: fmt.Errorf(`ent: validator failed for field "PromoCode.purpose": %w`, err)}
 		}
 	}
 	if _, ok := _c.mutation.BonusAmount(); !ok {
@@ -280,6 +320,14 @@ func (_c *PromoCodeCreate) createSpec() (*PromoCode, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.Code(); ok {
 		_spec.SetField(promocode.FieldCode, field.TypeString, value)
 		_node.Code = value
+	}
+	if value, ok := _c.mutation.Purpose(); ok {
+		_spec.SetField(promocode.FieldPurpose, field.TypeString, value)
+		_node.Purpose = value
+	}
+	if value, ok := _c.mutation.DiscountRate(); ok {
+		_spec.SetField(promocode.FieldDiscountRate, field.TypeFloat64, value)
+		_node.DiscountRate = &value
 	}
 	if value, ok := _c.mutation.BonusAmount(); ok {
 		_spec.SetField(promocode.FieldBonusAmount, field.TypeFloat64, value)
@@ -390,6 +438,42 @@ func (u *PromoCodeUpsert) SetCode(v string) *PromoCodeUpsert {
 // UpdateCode sets the "code" field to the value that was provided on create.
 func (u *PromoCodeUpsert) UpdateCode() *PromoCodeUpsert {
 	u.SetExcluded(promocode.FieldCode)
+	return u
+}
+
+// SetPurpose sets the "purpose" field.
+func (u *PromoCodeUpsert) SetPurpose(v string) *PromoCodeUpsert {
+	u.Set(promocode.FieldPurpose, v)
+	return u
+}
+
+// UpdatePurpose sets the "purpose" field to the value that was provided on create.
+func (u *PromoCodeUpsert) UpdatePurpose() *PromoCodeUpsert {
+	u.SetExcluded(promocode.FieldPurpose)
+	return u
+}
+
+// SetDiscountRate sets the "discount_rate" field.
+func (u *PromoCodeUpsert) SetDiscountRate(v float64) *PromoCodeUpsert {
+	u.Set(promocode.FieldDiscountRate, v)
+	return u
+}
+
+// UpdateDiscountRate sets the "discount_rate" field to the value that was provided on create.
+func (u *PromoCodeUpsert) UpdateDiscountRate() *PromoCodeUpsert {
+	u.SetExcluded(promocode.FieldDiscountRate)
+	return u
+}
+
+// AddDiscountRate adds v to the "discount_rate" field.
+func (u *PromoCodeUpsert) AddDiscountRate(v float64) *PromoCodeUpsert {
+	u.Add(promocode.FieldDiscountRate, v)
+	return u
+}
+
+// ClearDiscountRate clears the value of the "discount_rate" field.
+func (u *PromoCodeUpsert) ClearDiscountRate() *PromoCodeUpsert {
+	u.SetNull(promocode.FieldDiscountRate)
 	return u
 }
 
@@ -563,6 +647,48 @@ func (u *PromoCodeUpsertOne) SetCode(v string) *PromoCodeUpsertOne {
 func (u *PromoCodeUpsertOne) UpdateCode() *PromoCodeUpsertOne {
 	return u.Update(func(s *PromoCodeUpsert) {
 		s.UpdateCode()
+	})
+}
+
+// SetPurpose sets the "purpose" field.
+func (u *PromoCodeUpsertOne) SetPurpose(v string) *PromoCodeUpsertOne {
+	return u.Update(func(s *PromoCodeUpsert) {
+		s.SetPurpose(v)
+	})
+}
+
+// UpdatePurpose sets the "purpose" field to the value that was provided on create.
+func (u *PromoCodeUpsertOne) UpdatePurpose() *PromoCodeUpsertOne {
+	return u.Update(func(s *PromoCodeUpsert) {
+		s.UpdatePurpose()
+	})
+}
+
+// SetDiscountRate sets the "discount_rate" field.
+func (u *PromoCodeUpsertOne) SetDiscountRate(v float64) *PromoCodeUpsertOne {
+	return u.Update(func(s *PromoCodeUpsert) {
+		s.SetDiscountRate(v)
+	})
+}
+
+// AddDiscountRate adds v to the "discount_rate" field.
+func (u *PromoCodeUpsertOne) AddDiscountRate(v float64) *PromoCodeUpsertOne {
+	return u.Update(func(s *PromoCodeUpsert) {
+		s.AddDiscountRate(v)
+	})
+}
+
+// UpdateDiscountRate sets the "discount_rate" field to the value that was provided on create.
+func (u *PromoCodeUpsertOne) UpdateDiscountRate() *PromoCodeUpsertOne {
+	return u.Update(func(s *PromoCodeUpsert) {
+		s.UpdateDiscountRate()
+	})
+}
+
+// ClearDiscountRate clears the value of the "discount_rate" field.
+func (u *PromoCodeUpsertOne) ClearDiscountRate() *PromoCodeUpsertOne {
+	return u.Update(func(s *PromoCodeUpsert) {
+		s.ClearDiscountRate()
 	})
 }
 
@@ -921,6 +1047,48 @@ func (u *PromoCodeUpsertBulk) SetCode(v string) *PromoCodeUpsertBulk {
 func (u *PromoCodeUpsertBulk) UpdateCode() *PromoCodeUpsertBulk {
 	return u.Update(func(s *PromoCodeUpsert) {
 		s.UpdateCode()
+	})
+}
+
+// SetPurpose sets the "purpose" field.
+func (u *PromoCodeUpsertBulk) SetPurpose(v string) *PromoCodeUpsertBulk {
+	return u.Update(func(s *PromoCodeUpsert) {
+		s.SetPurpose(v)
+	})
+}
+
+// UpdatePurpose sets the "purpose" field to the value that was provided on create.
+func (u *PromoCodeUpsertBulk) UpdatePurpose() *PromoCodeUpsertBulk {
+	return u.Update(func(s *PromoCodeUpsert) {
+		s.UpdatePurpose()
+	})
+}
+
+// SetDiscountRate sets the "discount_rate" field.
+func (u *PromoCodeUpsertBulk) SetDiscountRate(v float64) *PromoCodeUpsertBulk {
+	return u.Update(func(s *PromoCodeUpsert) {
+		s.SetDiscountRate(v)
+	})
+}
+
+// AddDiscountRate adds v to the "discount_rate" field.
+func (u *PromoCodeUpsertBulk) AddDiscountRate(v float64) *PromoCodeUpsertBulk {
+	return u.Update(func(s *PromoCodeUpsert) {
+		s.AddDiscountRate(v)
+	})
+}
+
+// UpdateDiscountRate sets the "discount_rate" field to the value that was provided on create.
+func (u *PromoCodeUpsertBulk) UpdateDiscountRate() *PromoCodeUpsertBulk {
+	return u.Update(func(s *PromoCodeUpsert) {
+		s.UpdateDiscountRate()
+	})
+}
+
+// ClearDiscountRate clears the value of the "discount_rate" field.
+func (u *PromoCodeUpsertBulk) ClearDiscountRate() *PromoCodeUpsertBulk {
+	return u.Update(func(s *PromoCodeUpsert) {
+		s.ClearDiscountRate()
 	})
 }
 

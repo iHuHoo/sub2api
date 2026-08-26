@@ -584,6 +584,74 @@ func TestQueryAndFinalizeRefundUnsupportedProviderReturnsClearError(t *testing.T
 	require.Equal(t, "REFUND_QUERY_UNSUPPORTED", infraerrors.Reason(err))
 }
 
+func TestPromoRefundDoesNotRestoreConsumedCode(t *testing.T) {
+	ctx := context.Background()
+	client := newPaymentConfigServiceTestClient(t)
+	user, err := client.User.Create().
+		SetEmail("promo-refund@example.com").
+		SetPasswordHash("hash").
+		Save(ctx)
+	require.NoError(t, err)
+	discountRate := 0.8
+	promo, err := client.PromoCode.Create().
+		SetCode("SAVE20").
+		SetPurpose(PromoCodePurposeSubscriptionDiscount).
+		SetDiscountRate(discountRate).
+		SetMaxUses(1).
+		SetUsedCount(1).
+		Save(ctx)
+	require.NoError(t, err)
+	order, err := client.PaymentOrder.Create().
+		SetUserID(user.ID).
+		SetUserEmail(user.Email).
+		SetUserName("promo-refund").
+		SetAmount(119.20).
+		SetPayAmount(119.20).
+		SetFeeRate(0).
+		SetRechargeCode("PROMO-REFUND").
+		SetOutTradeNo("sub2_promo_refund").
+		SetPaymentType(payment.TypeStripe).
+		SetPaymentTradeNo("pi_promo_refund").
+		SetOrderType(payment.OrderTypeSubscription).
+		SetStatus(OrderStatusCompleted).
+		SetPromoCodeID(promo.ID).
+		SetPromoCode(promo.Code).
+		SetOriginalAmount(149).
+		SetDiscountRate(discountRate).
+		SetDiscountAmount(29.80).
+		SetExpiresAt(time.Now().Add(time.Hour)).
+		SetPaidAt(time.Now()).
+		SetClientIP("127.0.0.1").
+		SetSrcHost("api.example.com").
+		Save(ctx)
+	require.NoError(t, err)
+	now := time.Now()
+	usage, err := client.PromoCodeUsage.Create().
+		SetPromoCodeID(promo.ID).
+		SetUserID(user.ID).
+		SetPaymentOrderID(order.ID).
+		SetUsageType(PromoCodePurposeSubscriptionDiscount).
+		SetStatus(PromoUsageStatusConsumed).
+		SetBonusAmount(0).
+		SetDiscountAmount(29.80).
+		SetConsumedAt(now).
+		Save(ctx)
+	require.NoError(t, err)
+
+	svc := &PaymentService{entClient: client}
+	_, err = svc.markRefundOk(ctx, &RefundPlan{
+		OrderID: order.ID, Order: order, RefundAmount: order.Amount, Reason: "test refund",
+	})
+	require.NoError(t, err)
+
+	reloadedUsage, err := client.PromoCodeUsage.Get(ctx, usage.ID)
+	require.NoError(t, err)
+	require.Equal(t, PromoUsageStatusConsumed, reloadedUsage.Status)
+	reloadedPromo, err := client.PromoCode.Get(ctx, promo.ID)
+	require.NoError(t, err)
+	require.Equal(t, 1, reloadedPromo.UsedCount)
+}
+
 func createPendingRefundOrderForTest(t *testing.T, ctx context.Context, client *dbent.Client, suffix string) *dbent.PaymentOrder {
 	t.Helper()
 
