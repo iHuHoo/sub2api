@@ -264,6 +264,15 @@ func TestCalculateCreateOrderPayAmountForSubscriptionKeepsDirectPriceWhenRateDis
 	}
 }
 
+func TestCalculateSubscriptionOrderAmountConvertsDirectCNYPriceToUSD(t *testing.T) {
+	t.Parallel()
+
+	got := calculateSubscriptionOrderAmountUSD(149, "CNY", 0, 0.14)
+	if got != 20.86 {
+		t.Fatalf("subscription USD order amount = %v, want 20.86", got)
+	}
+}
+
 // 汇率只作用于订阅订单，余额充值订单不受影响。
 func TestCalculateCreateOrderPayAmountForBalanceIgnoresSubscriptionRate(t *testing.T) {
 	t.Parallel()
