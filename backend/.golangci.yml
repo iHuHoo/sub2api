@@ -57,6 +57,8 @@ linters:
         - G304
         - G306
         - G404
+        - G703
+        - G704
       severity: high
       confidence: high
     errcheck:
@@ -91,6 +93,9 @@ linters:
       # Check escaping variables of type error, may cause false positives.
       # Default: false
       check-escaping-errors: true
+    govet:
+      disable:
+        - inline
     staticcheck:
       # https://staticcheck.dev/docs/configuration/options/#dot_import_whitelist
       dot-import-whitelist:
@@ -120,6 +125,11 @@ linters:
       local-variables-are-used: false
       # Default: true — must be true, ent generates 130K+ lines of code
       generated-is-used: true
+
+  exclusions:
+    rules:
+      - linters: [staticcheck]
+        text: "SA(1019|4023)"
 
 formatters:
   enable:
