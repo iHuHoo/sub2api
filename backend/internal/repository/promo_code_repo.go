@@ -25,6 +25,8 @@ func (r *promoCodeRepository) Create(ctx context.Context, code *service.PromoCod
 	client := clientFromContext(ctx, r.client)
 	builder := client.PromoCode.Create().
 		SetCode(code.Code).
+		SetPurpose(code.Purpose).
+		SetNillableDiscountRate(code.DiscountRate).
 		SetBonusAmount(code.BonusAmount).
 		SetMaxUses(code.MaxUses).
 		SetUsedCount(code.UsedCount).
@@ -97,10 +99,16 @@ func (r *promoCodeRepository) Update(ctx context.Context, code *service.PromoCod
 	client := clientFromContext(ctx, r.client)
 	builder := client.PromoCode.UpdateOneID(code.ID).
 		SetCode(code.Code).
+		SetPurpose(code.Purpose).
 		SetBonusAmount(code.BonusAmount).
 		SetMaxUses(code.MaxUses).
 		SetStatus(code.Status).
 		SetNotes(code.Notes)
+	if code.DiscountRate != nil {
+		builder.SetDiscountRate(*code.DiscountRate)
+	} else {
+		builder.ClearDiscountRate()
+	}
 
 	if code.ExpiresAt != nil {
 		builder.SetExpiresAt(*code.ExpiresAt)
@@ -190,18 +198,43 @@ func promoCodeListOrder(params pagination.PaginationParams) []func(*entsql.Selec
 
 func (r *promoCodeRepository) CreateUsage(ctx context.Context, usage *service.PromoCodeUsage) error {
 	client := clientFromContext(ctx, r.client)
-	created, err := client.PromoCodeUsage.Create().
+	builder := client.PromoCodeUsage.Create().
 		SetPromoCodeID(usage.PromoCodeID).
 		SetUserID(usage.UserID).
+		SetNillablePaymentOrderID(usage.PaymentOrderID).
+		SetUsageType(usage.UsageType).
+		SetStatus(usage.Status).
 		SetBonusAmount(usage.BonusAmount).
+		SetDiscountAmount(usage.DiscountAmount).
 		SetUsedAt(usage.UsedAt).
-		Save(ctx)
+		SetNillableReservedAt(usage.ReservedAt).
+		SetNillableConsumedAt(usage.ConsumedAt).
+		SetNillableReleasedAt(usage.ReleasedAt)
+	created, err := builder.Save(ctx)
 	if err != nil {
 		return err
 	}
 
 	usage.ID = created.ID
 	return nil
+}
+
+func (r *promoCodeRepository) GetSubscriptionUsageByStatus(ctx context.Context, promoCodeID int64, status string) (*service.PromoCodeUsage, error) {
+	client := clientFromContext(ctx, r.client)
+	m, err := client.PromoCodeUsage.Query().
+		Where(
+			promocodeusage.PromoCodeIDEQ(promoCodeID),
+			promocodeusage.UsageTypeEQ(service.PromoCodePurposeSubscriptionDiscount),
+			promocodeusage.StatusEQ(status),
+		).
+		Only(ctx)
+	if err != nil {
+		if dbent.IsNotFound(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return promoCodeUsageEntityToService(m), nil
 }
 
 func (r *promoCodeRepository) GetUsageByPromoCodeAndUser(ctx context.Context, promoCodeID, userID int64) (*service.PromoCodeUsage, error) {
@@ -259,16 +292,18 @@ func promoCodeEntityToService(m *dbent.PromoCode) *service.PromoCode {
 		return nil
 	}
 	return &service.PromoCode{
-		ID:          m.ID,
-		Code:        m.Code,
-		BonusAmount: m.BonusAmount,
-		MaxUses:     m.MaxUses,
-		UsedCount:   m.UsedCount,
-		Status:      m.Status,
-		ExpiresAt:   m.ExpiresAt,
-		Notes:       derefString(m.Notes),
-		CreatedAt:   m.CreatedAt,
-		UpdatedAt:   m.UpdatedAt,
+		ID:           m.ID,
+		Code:         m.Code,
+		Purpose:      m.Purpose,
+		DiscountRate: m.DiscountRate,
+		BonusAmount:  m.BonusAmount,
+		MaxUses:      m.MaxUses,
+		UsedCount:    m.UsedCount,
+		Status:       m.Status,
+		ExpiresAt:    m.ExpiresAt,
+		Notes:        derefString(m.Notes),
+		CreatedAt:    m.CreatedAt,
+		UpdatedAt:    m.UpdatedAt,
 	}
 }
 
@@ -287,11 +322,18 @@ func promoCodeUsageEntityToService(m *dbent.PromoCodeUsage) *service.PromoCodeUs
 		return nil
 	}
 	out := &service.PromoCodeUsage{
-		ID:          m.ID,
-		PromoCodeID: m.PromoCodeID,
-		UserID:      m.UserID,
-		BonusAmount: m.BonusAmount,
-		UsedAt:      m.UsedAt,
+		ID:             m.ID,
+		PromoCodeID:    m.PromoCodeID,
+		UserID:         m.UserID,
+		PaymentOrderID: m.PaymentOrderID,
+		UsageType:      m.UsageType,
+		Status:         m.Status,
+		BonusAmount:    m.BonusAmount,
+		DiscountAmount: m.DiscountAmount,
+		UsedAt:         m.UsedAt,
+		ReservedAt:     m.ReservedAt,
+		ConsumedAt:     m.ConsumedAt,
+		ReleasedAt:     m.ReleasedAt,
 	}
 	if m.Edges.User != nil {
 		out.User = userEntityToService(m.Edges.User)

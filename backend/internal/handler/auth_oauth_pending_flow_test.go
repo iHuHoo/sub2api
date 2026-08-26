@@ -2742,6 +2742,10 @@ func (r *oauthPendingFlowPromoRepoStub) GetUsageByPromoCodeAndUser(context.Conte
 	return nil, nil
 }
 
+func (r *oauthPendingFlowPromoRepoStub) GetSubscriptionUsageByStatus(context.Context, int64, string) (*service.PromoCodeUsage, error) {
+	return nil, nil
+}
+
 func (r *oauthPendingFlowPromoRepoStub) ListUsagesByPromoCode(context.Context, int64, pagination.PaginationParams) ([]service.PromoCodeUsage, *pagination.PaginationResult, error) {
 	panic("unexpected ListUsagesByPromoCode call")
 }

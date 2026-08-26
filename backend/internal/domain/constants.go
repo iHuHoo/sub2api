@@ -69,6 +69,13 @@ const (
 const (
 	PromoCodeStatusActive   = "active"
 	PromoCodeStatusDisabled = "disabled"
+
+	PromoCodePurposeRegistrationBonus    = "registration_bonus"
+	PromoCodePurposeSubscriptionDiscount = "subscription_discount"
+
+	PromoUsageStatusReserved = "reserved"
+	PromoUsageStatusConsumed = "consumed"
+	PromoUsageStatusReleased = "released"
 )
 
 // Admin adjustment type constants
