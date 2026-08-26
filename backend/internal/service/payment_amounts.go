@@ -32,6 +32,16 @@ func calculateCreditedBalance(paymentAmount, multiplier float64) float64 {
 		InexactFloat64()
 }
 
+// calculateSubscriptionOrderAmountUSD keeps payment_orders.amount in USD.
+// Legacy CNY-direct plans (subscription rate disabled) reuse the balance
+// recharge multiplier because their plan price is the CNY amount charged.
+func calculateSubscriptionOrderAmountUSD(planPrice float64, currency string, usdToCnyRate, balanceMultiplier float64) float64 {
+	if currency == payment.DefaultPaymentCurrency && normalizeSubscriptionUSDToCNYRate(usdToCnyRate) == 0 {
+		return calculateCreditedBalance(planPrice, balanceMultiplier)
+	}
+	return planPrice
+}
+
 func calculateGatewayRefundAmount(orderAmount, payAmount, refundAmount float64, currency string) float64 {
 	if orderAmount <= 0 || payAmount <= 0 || refundAmount <= 0 {
 		return 0

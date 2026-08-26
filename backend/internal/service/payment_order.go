@@ -90,6 +90,9 @@ func (s *PaymentService) CreateOrder(ctx context.Context, req CreateOrderRequest
 			return nil, err
 		}
 	}
+	if plan != nil {
+		orderAmount = calculateSubscriptionOrderAmountUSD(plan.Price, selectedCurrency, cfg.SubscriptionUSDToCNYRate, cfg.BalanceRechargeMultiplier)
+	}
 	if err := validateSelectedCreateOrderAmountCurrency(payAmountStr, sel); err != nil {
 		return nil, err
 	}
