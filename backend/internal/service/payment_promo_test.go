@@ -24,7 +24,8 @@ import (
 var paymentPromoDBID atomic.Uint64
 
 type paymentPromoLoadBalancer struct {
-	selectedAmount float64
+	selectedAmount        float64
+	invalidProviderConfig bool
 }
 
 func (l *paymentPromoLoadBalancer) GetInstanceConfig(context.Context, int64) (map[string]string, error) {
@@ -33,22 +34,27 @@ func (l *paymentPromoLoadBalancer) GetInstanceConfig(context.Context, int64) (ma
 
 func (l *paymentPromoLoadBalancer) SelectInstance(_ context.Context, _ string, paymentType payment.PaymentType, _ payment.Strategy, amount float64) (*payment.InstanceSelection, error) {
 	l.selectedAmount = amount
+	config := map[string]string{
+		"pid": "1", "pkey": "secret", "apiBase": "https://pay.example.com",
+		"notifyUrl": "https://api.example.com/notify", "returnUrl": "https://app.example.com/payment/result",
+		"paymentMode": "popup",
+	}
+	if l.invalidProviderConfig {
+		delete(config, "pkey")
+	}
 	return &payment.InstanceSelection{
 		InstanceID:     "promo-test",
 		ProviderKey:    payment.TypeEasyPay,
 		SupportedTypes: paymentType,
 		PaymentMode:    "popup",
-		Config: map[string]string{
-			"pid": "1", "pkey": "secret", "apiBase": "https://pay.example.com",
-			"notifyUrl": "https://api.example.com/notify", "returnUrl": "https://app.example.com/payment/result",
-			"paymentMode": "popup",
-		},
+		Config:         config,
 	}, nil
 }
 
 type paymentPromoHarness struct {
 	service *service.PaymentService
 	client  *dbent.Client
+	db      *sql.DB
 	userID  int64
 	planID  int64
 	lb      *paymentPromoLoadBalancer
@@ -61,7 +67,6 @@ func newPaymentPromoHarness(t *testing.T, planPrice, discountRate float64) payme
 	dsn := fmt.Sprintf("file:payment_promo_%d?mode=memory&cache=shared&_fk=1", id)
 	db, err := sql.Open("sqlite", dsn)
 	require.NoError(t, err)
-	db.SetMaxOpenConns(1)
 	t.Cleanup(func() { _ = db.Close() })
 	_, err = db.Exec("PRAGMA foreign_keys = ON")
 	require.NoError(t, err)
@@ -103,11 +108,13 @@ func newPaymentPromoHarness(t *testing.T, planPrice, discountRate float64) payme
 	require.NoError(t, err)
 
 	lb := &paymentPromoLoadBalancer{}
+	groupRepo := repository.NewGroupRepository(client, db)
+	subscriptionService := service.NewSubscriptionService(groupRepo, repository.NewUserSubscriptionRepository(client), nil, client, nil)
 	paymentService := service.NewPaymentService(
-		client, payment.NewRegistry(), lb, nil, nil, configService,
-		repository.NewUserRepository(client, db), repository.NewGroupRepository(client, db), nil, promoService,
+		client, payment.NewRegistry(), lb, nil, subscriptionService, configService,
+		repository.NewUserRepository(client, db), groupRepo, nil, promoService,
 	)
-	return paymentPromoHarness{service: paymentService, client: client, userID: user.ID, planID: plan.ID, lb: lb}
+	return paymentPromoHarness{service: paymentService, client: client, db: db, userID: user.ID, planID: plan.ID, lb: lb}
 }
 
 func (h paymentPromoHarness) order(t *testing.T, orderID int64) *dbent.PaymentOrder {
@@ -173,6 +180,7 @@ func TestBalanceOrderRejectsSubscriptionPromo(t *testing.T) {
 
 func TestConcurrentSubscriptionPromoReservationHasOneWinner(t *testing.T) {
 	h := newPaymentPromoHarness(t, 149, 0.8)
+	h.db.SetMaxOpenConns(1)
 	errs := make(chan error, 2)
 	for range 2 {
 		go func() {

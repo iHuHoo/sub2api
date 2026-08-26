@@ -116,4 +116,15 @@ func (s *PaymentOrderExpiryService) runOnce() {
 	if expired > 0 {
 		slog.Info("[PaymentOrderExpiry] expired timed-out orders", "count", expired)
 	}
+
+	releaseCtx, releaseCancel := context.WithTimeout(context.Background(), expiryCheckTimeout)
+	defer releaseCancel()
+	released, err := s.paymentSvc.ReleaseFinalSubscriptionPromoReservations(releaseCtx, time.Now())
+	if err != nil {
+		slog.Error("[PaymentOrderExpiry] failed to release subscription promo reservations", "error", err)
+		return
+	}
+	if released > 0 {
+		slog.Info("[PaymentOrderExpiry] released subscription promo reservations", "count", released)
+	}
 }

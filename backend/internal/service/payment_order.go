@@ -129,6 +129,12 @@ func (s *PaymentService) CreateOrder(ctx context.Context, req CreateOrderRequest
 		_, _ = s.entClient.PaymentOrder.UpdateOneID(order.ID).
 			SetStatus(OrderStatusFailed).
 			Save(ctx)
+		var notStarted *paymentProviderNotStartedError
+		if errors.As(err, &notStarted) {
+			if _, releaseErr := s.releaseSubscriptionPromoForOrder(ctx, order.ID, time.Now()); releaseErr != nil {
+				return nil, errors.Join(err, releaseErr)
+			}
+		}
 		return nil, err
 	}
 	return resp, nil
@@ -456,16 +462,16 @@ func (s *PaymentService) invokeProvider(ctx context.Context, order *dbent.Paymen
 			for k, v := range appErr.Metadata {
 				md[k] = v
 			}
-			return nil, appErr.WithMetadata(md)
+			return nil, &paymentProviderNotStartedError{err: appErr.WithMetadata(md)}
 		}
-		return nil, infraerrors.ServiceUnavailable("PAYMENT_PROVIDER_MISCONFIGURED", "provider_misconfigured").
-			WithMetadata(map[string]string{"provider": sel.ProviderKey, "instance_id": sel.InstanceID})
+		return nil, &paymentProviderNotStartedError{err: infraerrors.ServiceUnavailable("PAYMENT_PROVIDER_MISCONFIGURED", "provider_misconfigured").
+			WithMetadata(map[string]string{"provider": sel.ProviderKey, "instance_id": sel.InstanceID})}
 	}
 	subject := s.buildPaymentSubject(plan, limitAmount, cfg, sel)
 	outTradeNo := order.OutTradeNo
 	canonicalReturnURL, err := CanonicalizeReturnURL(req.ReturnURL, req.SrcHost, req.SrcURL)
 	if err != nil {
-		return nil, err
+		return nil, &paymentProviderNotStartedError{err: err}
 	}
 	resumeToken := ""
 	if resume := s.paymentResume(); resume != nil {
@@ -479,13 +485,13 @@ func (s *PaymentService) invokeProvider(ctx context.Context, order *dbent.Paymen
 				CanonicalReturnURL: canonicalReturnURL,
 			})
 			if err != nil {
-				return nil, fmt.Errorf("create payment resume token: %w", err)
+				return nil, &paymentProviderNotStartedError{err: fmt.Errorf("create payment resume token: %w", err)}
 			}
 		}
 	}
 	providerReturnURL, err := buildPaymentReturnURL(canonicalReturnURL, order.ID, outTradeNo, resumeToken)
 	if err != nil {
-		return nil, err
+		return nil, &paymentProviderNotStartedError{err: err}
 	}
 	providerReq := buildProviderCreatePaymentRequest(CreateOrderRequest{
 		PaymentType: req.PaymentType,
