@@ -37,6 +37,15 @@ func (PromoCode) Fields() []ent.Field {
 			NotEmpty().
 			Unique().
 			Comment("优惠码"),
+		field.String("purpose").
+			MaxLen(32).
+			Default("registration_bonus").
+			Comment("用途: registration_bonus, subscription_discount"),
+		field.Float("discount_rate").
+			Optional().
+			Nillable().
+			SchemaType(map[string]string{dialect.Postgres: "decimal(10,4)"}).
+			Comment("订阅实付比例，0.9 表示九折"),
 		field.Float("bonus_amount").
 			SchemaType(map[string]string{dialect.Postgres: "decimal(20,8)"}).
 			Default(0).
@@ -82,6 +91,7 @@ func (PromoCode) Indexes() []ent.Index {
 	return []ent.Index{
 		// code 字段已在 Fields() 中声明 Unique()，无需重复索引
 		index.Fields("status"),
+		index.Fields("purpose").StorageKey("idx_promo_codes_purpose"),
 		index.Fields("expires_at"),
 	}
 }

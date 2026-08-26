@@ -1125,6 +1125,11 @@ var (
 		{Name: "pay_amount", Type: field.TypeFloat64, SchemaType: map[string]string{"postgres": "decimal(20,2)"}},
 		{Name: "fee_rate", Type: field.TypeFloat64, Default: 0, SchemaType: map[string]string{"postgres": "decimal(10,4)"}},
 		{Name: "recharge_code", Type: field.TypeString, Size: 64},
+		{Name: "promo_code_id", Type: field.TypeInt64, Nullable: true},
+		{Name: "promo_code", Type: field.TypeString, Nullable: true, Size: 32},
+		{Name: "original_amount", Type: field.TypeFloat64, Nullable: true, SchemaType: map[string]string{"postgres": "decimal(20,2)"}},
+		{Name: "discount_rate", Type: field.TypeFloat64, Nullable: true, SchemaType: map[string]string{"postgres": "decimal(10,4)"}},
+		{Name: "discount_amount", Type: field.TypeFloat64, Default: 0, SchemaType: map[string]string{"postgres": "decimal(20,2)"}},
 		{Name: "out_trade_no", Type: field.TypeString, Size: 64, Default: ""},
 		{Name: "payment_type", Type: field.TypeString, Size: 30},
 		{Name: "payment_trade_no", Type: field.TypeString, Size: 128},
@@ -1166,7 +1171,7 @@ var (
 		ForeignKeys: []*schema.ForeignKey{
 			{
 				Symbol:     "payment_orders_users_payment_orders",
-				Columns:    []*schema.Column{PaymentOrdersColumns[39]},
+				Columns:    []*schema.Column{PaymentOrdersColumns[44]},
 				RefColumns: []*schema.Column{UsersColumns[0]},
 				OnDelete:   schema.NoAction,
 			},
@@ -1175,7 +1180,7 @@ var (
 			{
 				Name:    "paymentorder_out_trade_no",
 				Unique:  true,
-				Columns: []*schema.Column{PaymentOrdersColumns[8]},
+				Columns: []*schema.Column{PaymentOrdersColumns[13]},
 				Annotation: &entsql.IndexAnnotation{
 					Where: "out_trade_no <> ''",
 				},
@@ -1183,37 +1188,42 @@ var (
 			{
 				Name:    "paymentorder_user_id",
 				Unique:  false,
-				Columns: []*schema.Column{PaymentOrdersColumns[39]},
+				Columns: []*schema.Column{PaymentOrdersColumns[44]},
 			},
 			{
 				Name:    "paymentorder_status",
 				Unique:  false,
-				Columns: []*schema.Column{PaymentOrdersColumns[21]},
+				Columns: []*schema.Column{PaymentOrdersColumns[26]},
 			},
 			{
 				Name:    "paymentorder_expires_at",
 				Unique:  false,
-				Columns: []*schema.Column{PaymentOrdersColumns[29]},
+				Columns: []*schema.Column{PaymentOrdersColumns[34]},
 			},
 			{
 				Name:    "paymentorder_created_at",
 				Unique:  false,
-				Columns: []*schema.Column{PaymentOrdersColumns[37]},
+				Columns: []*schema.Column{PaymentOrdersColumns[42]},
 			},
 			{
 				Name:    "paymentorder_paid_at",
 				Unique:  false,
-				Columns: []*schema.Column{PaymentOrdersColumns[30]},
+				Columns: []*schema.Column{PaymentOrdersColumns[35]},
 			},
 			{
 				Name:    "paymentorder_payment_type_paid_at",
 				Unique:  false,
-				Columns: []*schema.Column{PaymentOrdersColumns[9], PaymentOrdersColumns[30]},
+				Columns: []*schema.Column{PaymentOrdersColumns[14], PaymentOrdersColumns[35]},
 			},
 			{
 				Name:    "paymentorder_order_type",
 				Unique:  false,
-				Columns: []*schema.Column{PaymentOrdersColumns[14]},
+				Columns: []*schema.Column{PaymentOrdersColumns[19]},
+			},
+			{
+				Name:    "idx_payment_orders_promo_code_id",
+				Unique:  false,
+				Columns: []*schema.Column{PaymentOrdersColumns[8]},
 			},
 		},
 	}
@@ -1321,6 +1331,8 @@ var (
 	PromoCodesColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt64, Increment: true},
 		{Name: "code", Type: field.TypeString, Unique: true, Size: 32},
+		{Name: "purpose", Type: field.TypeString, Size: 32, Default: "registration_bonus"},
+		{Name: "discount_rate", Type: field.TypeFloat64, Nullable: true, SchemaType: map[string]string{"postgres": "decimal(10,4)"}},
 		{Name: "bonus_amount", Type: field.TypeFloat64, Default: 0, SchemaType: map[string]string{"postgres": "decimal(20,8)"}},
 		{Name: "max_uses", Type: field.TypeInt, Default: 0},
 		{Name: "used_count", Type: field.TypeInt, Default: 0},
@@ -1339,20 +1351,32 @@ var (
 			{
 				Name:    "promocode_status",
 				Unique:  false,
-				Columns: []*schema.Column{PromoCodesColumns[5]},
+				Columns: []*schema.Column{PromoCodesColumns[7]},
+			},
+			{
+				Name:    "idx_promo_codes_purpose",
+				Unique:  false,
+				Columns: []*schema.Column{PromoCodesColumns[2]},
 			},
 			{
 				Name:    "promocode_expires_at",
 				Unique:  false,
-				Columns: []*schema.Column{PromoCodesColumns[6]},
+				Columns: []*schema.Column{PromoCodesColumns[8]},
 			},
 		},
 	}
 	// PromoCodeUsagesColumns holds the columns for the "promo_code_usages" table.
 	PromoCodeUsagesColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt64, Increment: true},
+		{Name: "payment_order_id", Type: field.TypeInt64, Nullable: true},
+		{Name: "usage_type", Type: field.TypeString, Size: 32, Default: "registration_bonus"},
+		{Name: "status", Type: field.TypeString, Size: 20, Default: "consumed"},
 		{Name: "bonus_amount", Type: field.TypeFloat64, SchemaType: map[string]string{"postgres": "decimal(20,8)"}},
+		{Name: "discount_amount", Type: field.TypeFloat64, Default: 0, SchemaType: map[string]string{"postgres": "decimal(20,2)"}},
 		{Name: "used_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "reserved_at", Type: field.TypeTime, Nullable: true, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "consumed_at", Type: field.TypeTime, Nullable: true, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "released_at", Type: field.TypeTime, Nullable: true, SchemaType: map[string]string{"postgres": "timestamptz"}},
 		{Name: "promo_code_id", Type: field.TypeInt64},
 		{Name: "user_id", Type: field.TypeInt64},
 	}
@@ -1364,13 +1388,13 @@ var (
 		ForeignKeys: []*schema.ForeignKey{
 			{
 				Symbol:     "promo_code_usages_promo_codes_usage_records",
-				Columns:    []*schema.Column{PromoCodeUsagesColumns[3]},
+				Columns:    []*schema.Column{PromoCodeUsagesColumns[10]},
 				RefColumns: []*schema.Column{PromoCodesColumns[0]},
 				OnDelete:   schema.NoAction,
 			},
 			{
 				Symbol:     "promo_code_usages_users_promo_code_usages",
-				Columns:    []*schema.Column{PromoCodeUsagesColumns[4]},
+				Columns:    []*schema.Column{PromoCodeUsagesColumns[11]},
 				RefColumns: []*schema.Column{UsersColumns[0]},
 				OnDelete:   schema.NoAction,
 			},
@@ -1379,17 +1403,49 @@ var (
 			{
 				Name:    "promocodeusage_promo_code_id",
 				Unique:  false,
-				Columns: []*schema.Column{PromoCodeUsagesColumns[3]},
+				Columns: []*schema.Column{PromoCodeUsagesColumns[10]},
 			},
 			{
 				Name:    "promocodeusage_user_id",
 				Unique:  false,
-				Columns: []*schema.Column{PromoCodeUsagesColumns[4]},
+				Columns: []*schema.Column{PromoCodeUsagesColumns[11]},
 			},
 			{
-				Name:    "promocodeusage_promo_code_id_user_id",
+				Name:    "idx_promo_code_usages_status",
+				Unique:  false,
+				Columns: []*schema.Column{PromoCodeUsagesColumns[3]},
+			},
+			{
+				Name:    "uq_promo_registration_user",
 				Unique:  true,
-				Columns: []*schema.Column{PromoCodeUsagesColumns[3], PromoCodeUsagesColumns[4]},
+				Columns: []*schema.Column{PromoCodeUsagesColumns[10], PromoCodeUsagesColumns[11]},
+				Annotation: &entsql.IndexAnnotation{
+					Where: "usage_type = 'registration_bonus'",
+				},
+			},
+			{
+				Name:    "uq_promo_subscription_reserved",
+				Unique:  true,
+				Columns: []*schema.Column{PromoCodeUsagesColumns[10]},
+				Annotation: &entsql.IndexAnnotation{
+					Where: "usage_type = 'subscription_discount' AND status = 'reserved'",
+				},
+			},
+			{
+				Name:    "uq_promo_subscription_consumed",
+				Unique:  true,
+				Columns: []*schema.Column{PromoCodeUsagesColumns[10]},
+				Annotation: &entsql.IndexAnnotation{
+					Where: "usage_type = 'subscription_discount' AND status = 'consumed'",
+				},
+			},
+			{
+				Name:    "uq_promo_usage_payment_order",
+				Unique:  true,
+				Columns: []*schema.Column{PromoCodeUsagesColumns[1]},
+				Annotation: &entsql.IndexAnnotation{
+					Where: "payment_order_id IS NOT NULL",
+				},
 			},
 		},
 	}

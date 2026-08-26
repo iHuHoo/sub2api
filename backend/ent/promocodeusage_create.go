@@ -36,9 +36,65 @@ func (_c *PromoCodeUsageCreate) SetUserID(v int64) *PromoCodeUsageCreate {
 	return _c
 }
 
+// SetPaymentOrderID sets the "payment_order_id" field.
+func (_c *PromoCodeUsageCreate) SetPaymentOrderID(v int64) *PromoCodeUsageCreate {
+	_c.mutation.SetPaymentOrderID(v)
+	return _c
+}
+
+// SetNillablePaymentOrderID sets the "payment_order_id" field if the given value is not nil.
+func (_c *PromoCodeUsageCreate) SetNillablePaymentOrderID(v *int64) *PromoCodeUsageCreate {
+	if v != nil {
+		_c.SetPaymentOrderID(*v)
+	}
+	return _c
+}
+
+// SetUsageType sets the "usage_type" field.
+func (_c *PromoCodeUsageCreate) SetUsageType(v string) *PromoCodeUsageCreate {
+	_c.mutation.SetUsageType(v)
+	return _c
+}
+
+// SetNillableUsageType sets the "usage_type" field if the given value is not nil.
+func (_c *PromoCodeUsageCreate) SetNillableUsageType(v *string) *PromoCodeUsageCreate {
+	if v != nil {
+		_c.SetUsageType(*v)
+	}
+	return _c
+}
+
+// SetStatus sets the "status" field.
+func (_c *PromoCodeUsageCreate) SetStatus(v string) *PromoCodeUsageCreate {
+	_c.mutation.SetStatus(v)
+	return _c
+}
+
+// SetNillableStatus sets the "status" field if the given value is not nil.
+func (_c *PromoCodeUsageCreate) SetNillableStatus(v *string) *PromoCodeUsageCreate {
+	if v != nil {
+		_c.SetStatus(*v)
+	}
+	return _c
+}
+
 // SetBonusAmount sets the "bonus_amount" field.
 func (_c *PromoCodeUsageCreate) SetBonusAmount(v float64) *PromoCodeUsageCreate {
 	_c.mutation.SetBonusAmount(v)
+	return _c
+}
+
+// SetDiscountAmount sets the "discount_amount" field.
+func (_c *PromoCodeUsageCreate) SetDiscountAmount(v float64) *PromoCodeUsageCreate {
+	_c.mutation.SetDiscountAmount(v)
+	return _c
+}
+
+// SetNillableDiscountAmount sets the "discount_amount" field if the given value is not nil.
+func (_c *PromoCodeUsageCreate) SetNillableDiscountAmount(v *float64) *PromoCodeUsageCreate {
+	if v != nil {
+		_c.SetDiscountAmount(*v)
+	}
 	return _c
 }
 
@@ -52,6 +108,48 @@ func (_c *PromoCodeUsageCreate) SetUsedAt(v time.Time) *PromoCodeUsageCreate {
 func (_c *PromoCodeUsageCreate) SetNillableUsedAt(v *time.Time) *PromoCodeUsageCreate {
 	if v != nil {
 		_c.SetUsedAt(*v)
+	}
+	return _c
+}
+
+// SetReservedAt sets the "reserved_at" field.
+func (_c *PromoCodeUsageCreate) SetReservedAt(v time.Time) *PromoCodeUsageCreate {
+	_c.mutation.SetReservedAt(v)
+	return _c
+}
+
+// SetNillableReservedAt sets the "reserved_at" field if the given value is not nil.
+func (_c *PromoCodeUsageCreate) SetNillableReservedAt(v *time.Time) *PromoCodeUsageCreate {
+	if v != nil {
+		_c.SetReservedAt(*v)
+	}
+	return _c
+}
+
+// SetConsumedAt sets the "consumed_at" field.
+func (_c *PromoCodeUsageCreate) SetConsumedAt(v time.Time) *PromoCodeUsageCreate {
+	_c.mutation.SetConsumedAt(v)
+	return _c
+}
+
+// SetNillableConsumedAt sets the "consumed_at" field if the given value is not nil.
+func (_c *PromoCodeUsageCreate) SetNillableConsumedAt(v *time.Time) *PromoCodeUsageCreate {
+	if v != nil {
+		_c.SetConsumedAt(*v)
+	}
+	return _c
+}
+
+// SetReleasedAt sets the "released_at" field.
+func (_c *PromoCodeUsageCreate) SetReleasedAt(v time.Time) *PromoCodeUsageCreate {
+	_c.mutation.SetReleasedAt(v)
+	return _c
+}
+
+// SetNillableReleasedAt sets the "released_at" field if the given value is not nil.
+func (_c *PromoCodeUsageCreate) SetNillableReleasedAt(v *time.Time) *PromoCodeUsageCreate {
+	if v != nil {
+		_c.SetReleasedAt(*v)
 	}
 	return _c
 }
@@ -101,6 +199,18 @@ func (_c *PromoCodeUsageCreate) ExecX(ctx context.Context) {
 
 // defaults sets the default values of the builder before save.
 func (_c *PromoCodeUsageCreate) defaults() {
+	if _, ok := _c.mutation.UsageType(); !ok {
+		v := promocodeusage.DefaultUsageType
+		_c.mutation.SetUsageType(v)
+	}
+	if _, ok := _c.mutation.Status(); !ok {
+		v := promocodeusage.DefaultStatus
+		_c.mutation.SetStatus(v)
+	}
+	if _, ok := _c.mutation.DiscountAmount(); !ok {
+		v := promocodeusage.DefaultDiscountAmount
+		_c.mutation.SetDiscountAmount(v)
+	}
 	if _, ok := _c.mutation.UsedAt(); !ok {
 		v := promocodeusage.DefaultUsedAt()
 		_c.mutation.SetUsedAt(v)
@@ -115,8 +225,27 @@ func (_c *PromoCodeUsageCreate) check() error {
 	if _, ok := _c.mutation.UserID(); !ok {
 		return &ValidationError{Name: "user_id", err: errors.New(`ent: missing required field "PromoCodeUsage.user_id"`)}
 	}
+	if _, ok := _c.mutation.UsageType(); !ok {
+		return &ValidationError{Name: "usage_type", err: errors.New(`ent: missing required field "PromoCodeUsage.usage_type"`)}
+	}
+	if v, ok := _c.mutation.UsageType(); ok {
+		if err := promocodeusage.UsageTypeValidator(v); err != nil {
+			return &ValidationError{Name: "usage_type", err: fmt.Errorf(`ent: validator failed for field "PromoCodeUsage.usage_type": %w`, err)}
+		}
+	}
+	if _, ok := _c.mutation.Status(); !ok {
+		return &ValidationError{Name: "status", err: errors.New(`ent: missing required field "PromoCodeUsage.status"`)}
+	}
+	if v, ok := _c.mutation.Status(); ok {
+		if err := promocodeusage.StatusValidator(v); err != nil {
+			return &ValidationError{Name: "status", err: fmt.Errorf(`ent: validator failed for field "PromoCodeUsage.status": %w`, err)}
+		}
+	}
 	if _, ok := _c.mutation.BonusAmount(); !ok {
 		return &ValidationError{Name: "bonus_amount", err: errors.New(`ent: missing required field "PromoCodeUsage.bonus_amount"`)}
+	}
+	if _, ok := _c.mutation.DiscountAmount(); !ok {
+		return &ValidationError{Name: "discount_amount", err: errors.New(`ent: missing required field "PromoCodeUsage.discount_amount"`)}
 	}
 	if _, ok := _c.mutation.UsedAt(); !ok {
 		return &ValidationError{Name: "used_at", err: errors.New(`ent: missing required field "PromoCodeUsage.used_at"`)}
@@ -154,13 +283,41 @@ func (_c *PromoCodeUsageCreate) createSpec() (*PromoCodeUsage, *sqlgraph.CreateS
 		_spec = sqlgraph.NewCreateSpec(promocodeusage.Table, sqlgraph.NewFieldSpec(promocodeusage.FieldID, field.TypeInt64))
 	)
 	_spec.OnConflict = _c.conflict
+	if value, ok := _c.mutation.PaymentOrderID(); ok {
+		_spec.SetField(promocodeusage.FieldPaymentOrderID, field.TypeInt64, value)
+		_node.PaymentOrderID = &value
+	}
+	if value, ok := _c.mutation.UsageType(); ok {
+		_spec.SetField(promocodeusage.FieldUsageType, field.TypeString, value)
+		_node.UsageType = value
+	}
+	if value, ok := _c.mutation.Status(); ok {
+		_spec.SetField(promocodeusage.FieldStatus, field.TypeString, value)
+		_node.Status = value
+	}
 	if value, ok := _c.mutation.BonusAmount(); ok {
 		_spec.SetField(promocodeusage.FieldBonusAmount, field.TypeFloat64, value)
 		_node.BonusAmount = value
 	}
+	if value, ok := _c.mutation.DiscountAmount(); ok {
+		_spec.SetField(promocodeusage.FieldDiscountAmount, field.TypeFloat64, value)
+		_node.DiscountAmount = value
+	}
 	if value, ok := _c.mutation.UsedAt(); ok {
 		_spec.SetField(promocodeusage.FieldUsedAt, field.TypeTime, value)
 		_node.UsedAt = value
+	}
+	if value, ok := _c.mutation.ReservedAt(); ok {
+		_spec.SetField(promocodeusage.FieldReservedAt, field.TypeTime, value)
+		_node.ReservedAt = &value
+	}
+	if value, ok := _c.mutation.ConsumedAt(); ok {
+		_spec.SetField(promocodeusage.FieldConsumedAt, field.TypeTime, value)
+		_node.ConsumedAt = &value
+	}
+	if value, ok := _c.mutation.ReleasedAt(); ok {
+		_spec.SetField(promocodeusage.FieldReleasedAt, field.TypeTime, value)
+		_node.ReleasedAt = &value
 	}
 	if nodes := _c.mutation.PromoCodeIDs(); len(nodes) > 0 {
 		edge := &sqlgraph.EdgeSpec{
@@ -272,6 +429,54 @@ func (u *PromoCodeUsageUpsert) UpdateUserID() *PromoCodeUsageUpsert {
 	return u
 }
 
+// SetPaymentOrderID sets the "payment_order_id" field.
+func (u *PromoCodeUsageUpsert) SetPaymentOrderID(v int64) *PromoCodeUsageUpsert {
+	u.Set(promocodeusage.FieldPaymentOrderID, v)
+	return u
+}
+
+// UpdatePaymentOrderID sets the "payment_order_id" field to the value that was provided on create.
+func (u *PromoCodeUsageUpsert) UpdatePaymentOrderID() *PromoCodeUsageUpsert {
+	u.SetExcluded(promocodeusage.FieldPaymentOrderID)
+	return u
+}
+
+// AddPaymentOrderID adds v to the "payment_order_id" field.
+func (u *PromoCodeUsageUpsert) AddPaymentOrderID(v int64) *PromoCodeUsageUpsert {
+	u.Add(promocodeusage.FieldPaymentOrderID, v)
+	return u
+}
+
+// ClearPaymentOrderID clears the value of the "payment_order_id" field.
+func (u *PromoCodeUsageUpsert) ClearPaymentOrderID() *PromoCodeUsageUpsert {
+	u.SetNull(promocodeusage.FieldPaymentOrderID)
+	return u
+}
+
+// SetUsageType sets the "usage_type" field.
+func (u *PromoCodeUsageUpsert) SetUsageType(v string) *PromoCodeUsageUpsert {
+	u.Set(promocodeusage.FieldUsageType, v)
+	return u
+}
+
+// UpdateUsageType sets the "usage_type" field to the value that was provided on create.
+func (u *PromoCodeUsageUpsert) UpdateUsageType() *PromoCodeUsageUpsert {
+	u.SetExcluded(promocodeusage.FieldUsageType)
+	return u
+}
+
+// SetStatus sets the "status" field.
+func (u *PromoCodeUsageUpsert) SetStatus(v string) *PromoCodeUsageUpsert {
+	u.Set(promocodeusage.FieldStatus, v)
+	return u
+}
+
+// UpdateStatus sets the "status" field to the value that was provided on create.
+func (u *PromoCodeUsageUpsert) UpdateStatus() *PromoCodeUsageUpsert {
+	u.SetExcluded(promocodeusage.FieldStatus)
+	return u
+}
+
 // SetBonusAmount sets the "bonus_amount" field.
 func (u *PromoCodeUsageUpsert) SetBonusAmount(v float64) *PromoCodeUsageUpsert {
 	u.Set(promocodeusage.FieldBonusAmount, v)
@@ -290,6 +495,24 @@ func (u *PromoCodeUsageUpsert) AddBonusAmount(v float64) *PromoCodeUsageUpsert {
 	return u
 }
 
+// SetDiscountAmount sets the "discount_amount" field.
+func (u *PromoCodeUsageUpsert) SetDiscountAmount(v float64) *PromoCodeUsageUpsert {
+	u.Set(promocodeusage.FieldDiscountAmount, v)
+	return u
+}
+
+// UpdateDiscountAmount sets the "discount_amount" field to the value that was provided on create.
+func (u *PromoCodeUsageUpsert) UpdateDiscountAmount() *PromoCodeUsageUpsert {
+	u.SetExcluded(promocodeusage.FieldDiscountAmount)
+	return u
+}
+
+// AddDiscountAmount adds v to the "discount_amount" field.
+func (u *PromoCodeUsageUpsert) AddDiscountAmount(v float64) *PromoCodeUsageUpsert {
+	u.Add(promocodeusage.FieldDiscountAmount, v)
+	return u
+}
+
 // SetUsedAt sets the "used_at" field.
 func (u *PromoCodeUsageUpsert) SetUsedAt(v time.Time) *PromoCodeUsageUpsert {
 	u.Set(promocodeusage.FieldUsedAt, v)
@@ -299,6 +522,60 @@ func (u *PromoCodeUsageUpsert) SetUsedAt(v time.Time) *PromoCodeUsageUpsert {
 // UpdateUsedAt sets the "used_at" field to the value that was provided on create.
 func (u *PromoCodeUsageUpsert) UpdateUsedAt() *PromoCodeUsageUpsert {
 	u.SetExcluded(promocodeusage.FieldUsedAt)
+	return u
+}
+
+// SetReservedAt sets the "reserved_at" field.
+func (u *PromoCodeUsageUpsert) SetReservedAt(v time.Time) *PromoCodeUsageUpsert {
+	u.Set(promocodeusage.FieldReservedAt, v)
+	return u
+}
+
+// UpdateReservedAt sets the "reserved_at" field to the value that was provided on create.
+func (u *PromoCodeUsageUpsert) UpdateReservedAt() *PromoCodeUsageUpsert {
+	u.SetExcluded(promocodeusage.FieldReservedAt)
+	return u
+}
+
+// ClearReservedAt clears the value of the "reserved_at" field.
+func (u *PromoCodeUsageUpsert) ClearReservedAt() *PromoCodeUsageUpsert {
+	u.SetNull(promocodeusage.FieldReservedAt)
+	return u
+}
+
+// SetConsumedAt sets the "consumed_at" field.
+func (u *PromoCodeUsageUpsert) SetConsumedAt(v time.Time) *PromoCodeUsageUpsert {
+	u.Set(promocodeusage.FieldConsumedAt, v)
+	return u
+}
+
+// UpdateConsumedAt sets the "consumed_at" field to the value that was provided on create.
+func (u *PromoCodeUsageUpsert) UpdateConsumedAt() *PromoCodeUsageUpsert {
+	u.SetExcluded(promocodeusage.FieldConsumedAt)
+	return u
+}
+
+// ClearConsumedAt clears the value of the "consumed_at" field.
+func (u *PromoCodeUsageUpsert) ClearConsumedAt() *PromoCodeUsageUpsert {
+	u.SetNull(promocodeusage.FieldConsumedAt)
+	return u
+}
+
+// SetReleasedAt sets the "released_at" field.
+func (u *PromoCodeUsageUpsert) SetReleasedAt(v time.Time) *PromoCodeUsageUpsert {
+	u.Set(promocodeusage.FieldReleasedAt, v)
+	return u
+}
+
+// UpdateReleasedAt sets the "released_at" field to the value that was provided on create.
+func (u *PromoCodeUsageUpsert) UpdateReleasedAt() *PromoCodeUsageUpsert {
+	u.SetExcluded(promocodeusage.FieldReleasedAt)
+	return u
+}
+
+// ClearReleasedAt clears the value of the "released_at" field.
+func (u *PromoCodeUsageUpsert) ClearReleasedAt() *PromoCodeUsageUpsert {
+	u.SetNull(promocodeusage.FieldReleasedAt)
 	return u
 }
 
@@ -370,6 +647,62 @@ func (u *PromoCodeUsageUpsertOne) UpdateUserID() *PromoCodeUsageUpsertOne {
 	})
 }
 
+// SetPaymentOrderID sets the "payment_order_id" field.
+func (u *PromoCodeUsageUpsertOne) SetPaymentOrderID(v int64) *PromoCodeUsageUpsertOne {
+	return u.Update(func(s *PromoCodeUsageUpsert) {
+		s.SetPaymentOrderID(v)
+	})
+}
+
+// AddPaymentOrderID adds v to the "payment_order_id" field.
+func (u *PromoCodeUsageUpsertOne) AddPaymentOrderID(v int64) *PromoCodeUsageUpsertOne {
+	return u.Update(func(s *PromoCodeUsageUpsert) {
+		s.AddPaymentOrderID(v)
+	})
+}
+
+// UpdatePaymentOrderID sets the "payment_order_id" field to the value that was provided on create.
+func (u *PromoCodeUsageUpsertOne) UpdatePaymentOrderID() *PromoCodeUsageUpsertOne {
+	return u.Update(func(s *PromoCodeUsageUpsert) {
+		s.UpdatePaymentOrderID()
+	})
+}
+
+// ClearPaymentOrderID clears the value of the "payment_order_id" field.
+func (u *PromoCodeUsageUpsertOne) ClearPaymentOrderID() *PromoCodeUsageUpsertOne {
+	return u.Update(func(s *PromoCodeUsageUpsert) {
+		s.ClearPaymentOrderID()
+	})
+}
+
+// SetUsageType sets the "usage_type" field.
+func (u *PromoCodeUsageUpsertOne) SetUsageType(v string) *PromoCodeUsageUpsertOne {
+	return u.Update(func(s *PromoCodeUsageUpsert) {
+		s.SetUsageType(v)
+	})
+}
+
+// UpdateUsageType sets the "usage_type" field to the value that was provided on create.
+func (u *PromoCodeUsageUpsertOne) UpdateUsageType() *PromoCodeUsageUpsertOne {
+	return u.Update(func(s *PromoCodeUsageUpsert) {
+		s.UpdateUsageType()
+	})
+}
+
+// SetStatus sets the "status" field.
+func (u *PromoCodeUsageUpsertOne) SetStatus(v string) *PromoCodeUsageUpsertOne {
+	return u.Update(func(s *PromoCodeUsageUpsert) {
+		s.SetStatus(v)
+	})
+}
+
+// UpdateStatus sets the "status" field to the value that was provided on create.
+func (u *PromoCodeUsageUpsertOne) UpdateStatus() *PromoCodeUsageUpsertOne {
+	return u.Update(func(s *PromoCodeUsageUpsert) {
+		s.UpdateStatus()
+	})
+}
+
 // SetBonusAmount sets the "bonus_amount" field.
 func (u *PromoCodeUsageUpsertOne) SetBonusAmount(v float64) *PromoCodeUsageUpsertOne {
 	return u.Update(func(s *PromoCodeUsageUpsert) {
@@ -391,6 +724,27 @@ func (u *PromoCodeUsageUpsertOne) UpdateBonusAmount() *PromoCodeUsageUpsertOne {
 	})
 }
 
+// SetDiscountAmount sets the "discount_amount" field.
+func (u *PromoCodeUsageUpsertOne) SetDiscountAmount(v float64) *PromoCodeUsageUpsertOne {
+	return u.Update(func(s *PromoCodeUsageUpsert) {
+		s.SetDiscountAmount(v)
+	})
+}
+
+// AddDiscountAmount adds v to the "discount_amount" field.
+func (u *PromoCodeUsageUpsertOne) AddDiscountAmount(v float64) *PromoCodeUsageUpsertOne {
+	return u.Update(func(s *PromoCodeUsageUpsert) {
+		s.AddDiscountAmount(v)
+	})
+}
+
+// UpdateDiscountAmount sets the "discount_amount" field to the value that was provided on create.
+func (u *PromoCodeUsageUpsertOne) UpdateDiscountAmount() *PromoCodeUsageUpsertOne {
+	return u.Update(func(s *PromoCodeUsageUpsert) {
+		s.UpdateDiscountAmount()
+	})
+}
+
 // SetUsedAt sets the "used_at" field.
 func (u *PromoCodeUsageUpsertOne) SetUsedAt(v time.Time) *PromoCodeUsageUpsertOne {
 	return u.Update(func(s *PromoCodeUsageUpsert) {
@@ -402,6 +756,69 @@ func (u *PromoCodeUsageUpsertOne) SetUsedAt(v time.Time) *PromoCodeUsageUpsertOn
 func (u *PromoCodeUsageUpsertOne) UpdateUsedAt() *PromoCodeUsageUpsertOne {
 	return u.Update(func(s *PromoCodeUsageUpsert) {
 		s.UpdateUsedAt()
+	})
+}
+
+// SetReservedAt sets the "reserved_at" field.
+func (u *PromoCodeUsageUpsertOne) SetReservedAt(v time.Time) *PromoCodeUsageUpsertOne {
+	return u.Update(func(s *PromoCodeUsageUpsert) {
+		s.SetReservedAt(v)
+	})
+}
+
+// UpdateReservedAt sets the "reserved_at" field to the value that was provided on create.
+func (u *PromoCodeUsageUpsertOne) UpdateReservedAt() *PromoCodeUsageUpsertOne {
+	return u.Update(func(s *PromoCodeUsageUpsert) {
+		s.UpdateReservedAt()
+	})
+}
+
+// ClearReservedAt clears the value of the "reserved_at" field.
+func (u *PromoCodeUsageUpsertOne) ClearReservedAt() *PromoCodeUsageUpsertOne {
+	return u.Update(func(s *PromoCodeUsageUpsert) {
+		s.ClearReservedAt()
+	})
+}
+
+// SetConsumedAt sets the "consumed_at" field.
+func (u *PromoCodeUsageUpsertOne) SetConsumedAt(v time.Time) *PromoCodeUsageUpsertOne {
+	return u.Update(func(s *PromoCodeUsageUpsert) {
+		s.SetConsumedAt(v)
+	})
+}
+
+// UpdateConsumedAt sets the "consumed_at" field to the value that was provided on create.
+func (u *PromoCodeUsageUpsertOne) UpdateConsumedAt() *PromoCodeUsageUpsertOne {
+	return u.Update(func(s *PromoCodeUsageUpsert) {
+		s.UpdateConsumedAt()
+	})
+}
+
+// ClearConsumedAt clears the value of the "consumed_at" field.
+func (u *PromoCodeUsageUpsertOne) ClearConsumedAt() *PromoCodeUsageUpsertOne {
+	return u.Update(func(s *PromoCodeUsageUpsert) {
+		s.ClearConsumedAt()
+	})
+}
+
+// SetReleasedAt sets the "released_at" field.
+func (u *PromoCodeUsageUpsertOne) SetReleasedAt(v time.Time) *PromoCodeUsageUpsertOne {
+	return u.Update(func(s *PromoCodeUsageUpsert) {
+		s.SetReleasedAt(v)
+	})
+}
+
+// UpdateReleasedAt sets the "released_at" field to the value that was provided on create.
+func (u *PromoCodeUsageUpsertOne) UpdateReleasedAt() *PromoCodeUsageUpsertOne {
+	return u.Update(func(s *PromoCodeUsageUpsert) {
+		s.UpdateReleasedAt()
+	})
+}
+
+// ClearReleasedAt clears the value of the "released_at" field.
+func (u *PromoCodeUsageUpsertOne) ClearReleasedAt() *PromoCodeUsageUpsertOne {
+	return u.Update(func(s *PromoCodeUsageUpsert) {
+		s.ClearReleasedAt()
 	})
 }
 
@@ -637,6 +1054,62 @@ func (u *PromoCodeUsageUpsertBulk) UpdateUserID() *PromoCodeUsageUpsertBulk {
 	})
 }
 
+// SetPaymentOrderID sets the "payment_order_id" field.
+func (u *PromoCodeUsageUpsertBulk) SetPaymentOrderID(v int64) *PromoCodeUsageUpsertBulk {
+	return u.Update(func(s *PromoCodeUsageUpsert) {
+		s.SetPaymentOrderID(v)
+	})
+}
+
+// AddPaymentOrderID adds v to the "payment_order_id" field.
+func (u *PromoCodeUsageUpsertBulk) AddPaymentOrderID(v int64) *PromoCodeUsageUpsertBulk {
+	return u.Update(func(s *PromoCodeUsageUpsert) {
+		s.AddPaymentOrderID(v)
+	})
+}
+
+// UpdatePaymentOrderID sets the "payment_order_id" field to the value that was provided on create.
+func (u *PromoCodeUsageUpsertBulk) UpdatePaymentOrderID() *PromoCodeUsageUpsertBulk {
+	return u.Update(func(s *PromoCodeUsageUpsert) {
+		s.UpdatePaymentOrderID()
+	})
+}
+
+// ClearPaymentOrderID clears the value of the "payment_order_id" field.
+func (u *PromoCodeUsageUpsertBulk) ClearPaymentOrderID() *PromoCodeUsageUpsertBulk {
+	return u.Update(func(s *PromoCodeUsageUpsert) {
+		s.ClearPaymentOrderID()
+	})
+}
+
+// SetUsageType sets the "usage_type" field.
+func (u *PromoCodeUsageUpsertBulk) SetUsageType(v string) *PromoCodeUsageUpsertBulk {
+	return u.Update(func(s *PromoCodeUsageUpsert) {
+		s.SetUsageType(v)
+	})
+}
+
+// UpdateUsageType sets the "usage_type" field to the value that was provided on create.
+func (u *PromoCodeUsageUpsertBulk) UpdateUsageType() *PromoCodeUsageUpsertBulk {
+	return u.Update(func(s *PromoCodeUsageUpsert) {
+		s.UpdateUsageType()
+	})
+}
+
+// SetStatus sets the "status" field.
+func (u *PromoCodeUsageUpsertBulk) SetStatus(v string) *PromoCodeUsageUpsertBulk {
+	return u.Update(func(s *PromoCodeUsageUpsert) {
+		s.SetStatus(v)
+	})
+}
+
+// UpdateStatus sets the "status" field to the value that was provided on create.
+func (u *PromoCodeUsageUpsertBulk) UpdateStatus() *PromoCodeUsageUpsertBulk {
+	return u.Update(func(s *PromoCodeUsageUpsert) {
+		s.UpdateStatus()
+	})
+}
+
 // SetBonusAmount sets the "bonus_amount" field.
 func (u *PromoCodeUsageUpsertBulk) SetBonusAmount(v float64) *PromoCodeUsageUpsertBulk {
 	return u.Update(func(s *PromoCodeUsageUpsert) {
@@ -658,6 +1131,27 @@ func (u *PromoCodeUsageUpsertBulk) UpdateBonusAmount() *PromoCodeUsageUpsertBulk
 	})
 }
 
+// SetDiscountAmount sets the "discount_amount" field.
+func (u *PromoCodeUsageUpsertBulk) SetDiscountAmount(v float64) *PromoCodeUsageUpsertBulk {
+	return u.Update(func(s *PromoCodeUsageUpsert) {
+		s.SetDiscountAmount(v)
+	})
+}
+
+// AddDiscountAmount adds v to the "discount_amount" field.
+func (u *PromoCodeUsageUpsertBulk) AddDiscountAmount(v float64) *PromoCodeUsageUpsertBulk {
+	return u.Update(func(s *PromoCodeUsageUpsert) {
+		s.AddDiscountAmount(v)
+	})
+}
+
+// UpdateDiscountAmount sets the "discount_amount" field to the value that was provided on create.
+func (u *PromoCodeUsageUpsertBulk) UpdateDiscountAmount() *PromoCodeUsageUpsertBulk {
+	return u.Update(func(s *PromoCodeUsageUpsert) {
+		s.UpdateDiscountAmount()
+	})
+}
+
 // SetUsedAt sets the "used_at" field.
 func (u *PromoCodeUsageUpsertBulk) SetUsedAt(v time.Time) *PromoCodeUsageUpsertBulk {
 	return u.Update(func(s *PromoCodeUsageUpsert) {
@@ -669,6 +1163,69 @@ func (u *PromoCodeUsageUpsertBulk) SetUsedAt(v time.Time) *PromoCodeUsageUpsertB
 func (u *PromoCodeUsageUpsertBulk) UpdateUsedAt() *PromoCodeUsageUpsertBulk {
 	return u.Update(func(s *PromoCodeUsageUpsert) {
 		s.UpdateUsedAt()
+	})
+}
+
+// SetReservedAt sets the "reserved_at" field.
+func (u *PromoCodeUsageUpsertBulk) SetReservedAt(v time.Time) *PromoCodeUsageUpsertBulk {
+	return u.Update(func(s *PromoCodeUsageUpsert) {
+		s.SetReservedAt(v)
+	})
+}
+
+// UpdateReservedAt sets the "reserved_at" field to the value that was provided on create.
+func (u *PromoCodeUsageUpsertBulk) UpdateReservedAt() *PromoCodeUsageUpsertBulk {
+	return u.Update(func(s *PromoCodeUsageUpsert) {
+		s.UpdateReservedAt()
+	})
+}
+
+// ClearReservedAt clears the value of the "reserved_at" field.
+func (u *PromoCodeUsageUpsertBulk) ClearReservedAt() *PromoCodeUsageUpsertBulk {
+	return u.Update(func(s *PromoCodeUsageUpsert) {
+		s.ClearReservedAt()
+	})
+}
+
+// SetConsumedAt sets the "consumed_at" field.
+func (u *PromoCodeUsageUpsertBulk) SetConsumedAt(v time.Time) *PromoCodeUsageUpsertBulk {
+	return u.Update(func(s *PromoCodeUsageUpsert) {
+		s.SetConsumedAt(v)
+	})
+}
+
+// UpdateConsumedAt sets the "consumed_at" field to the value that was provided on create.
+func (u *PromoCodeUsageUpsertBulk) UpdateConsumedAt() *PromoCodeUsageUpsertBulk {
+	return u.Update(func(s *PromoCodeUsageUpsert) {
+		s.UpdateConsumedAt()
+	})
+}
+
+// ClearConsumedAt clears the value of the "consumed_at" field.
+func (u *PromoCodeUsageUpsertBulk) ClearConsumedAt() *PromoCodeUsageUpsertBulk {
+	return u.Update(func(s *PromoCodeUsageUpsert) {
+		s.ClearConsumedAt()
+	})
+}
+
+// SetReleasedAt sets the "released_at" field.
+func (u *PromoCodeUsageUpsertBulk) SetReleasedAt(v time.Time) *PromoCodeUsageUpsertBulk {
+	return u.Update(func(s *PromoCodeUsageUpsert) {
+		s.SetReleasedAt(v)
+	})
+}
+
+// UpdateReleasedAt sets the "released_at" field to the value that was provided on create.
+func (u *PromoCodeUsageUpsertBulk) UpdateReleasedAt() *PromoCodeUsageUpsertBulk {
+	return u.Update(func(s *PromoCodeUsageUpsert) {
+		s.UpdateReleasedAt()
+	})
+}
+
+// ClearReleasedAt clears the value of the "released_at" field.
+func (u *PromoCodeUsageUpsertBulk) ClearReleasedAt() *PromoCodeUsageUpsertBulk {
+	return u.Update(func(s *PromoCodeUsageUpsert) {
+		s.ClearReleasedAt()
 	})
 }
 

@@ -52,6 +52,24 @@ func (PaymentOrder) Fields() []ent.Field {
 			Default(0),
 		field.String("recharge_code").
 			MaxLen(64),
+		field.Int64("promo_code_id").
+			Optional().
+			Nillable(),
+		field.String("promo_code").
+			Optional().
+			Nillable().
+			MaxLen(32),
+		field.Float("original_amount").
+			Optional().
+			Nillable().
+			SchemaType(map[string]string{dialect.Postgres: "decimal(20,2)"}),
+		field.Float("discount_rate").
+			Optional().
+			Nillable().
+			SchemaType(map[string]string{dialect.Postgres: "decimal(10,4)"}),
+		field.Float("discount_amount").
+			SchemaType(map[string]string{dialect.Postgres: "decimal(20,2)"}).
+			Default(0),
 
 		// 支付信息
 		field.String("out_trade_no").
@@ -195,5 +213,6 @@ func (PaymentOrder) Indexes() []ent.Index {
 		index.Fields("paid_at"),
 		index.Fields("payment_type", "paid_at"),
 		index.Fields("order_type"),
+		index.Fields("promo_code_id").StorageKey("idx_payment_orders_promo_code_id"),
 	}
 }

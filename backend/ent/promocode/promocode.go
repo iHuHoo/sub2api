@@ -16,6 +16,10 @@ const (
 	FieldID = "id"
 	// FieldCode holds the string denoting the code field in the database.
 	FieldCode = "code"
+	// FieldPurpose holds the string denoting the purpose field in the database.
+	FieldPurpose = "purpose"
+	// FieldDiscountRate holds the string denoting the discount_rate field in the database.
+	FieldDiscountRate = "discount_rate"
 	// FieldBonusAmount holds the string denoting the bonus_amount field in the database.
 	FieldBonusAmount = "bonus_amount"
 	// FieldMaxUses holds the string denoting the max_uses field in the database.
@@ -49,6 +53,8 @@ const (
 var Columns = []string{
 	FieldID,
 	FieldCode,
+	FieldPurpose,
+	FieldDiscountRate,
 	FieldBonusAmount,
 	FieldMaxUses,
 	FieldUsedCount,
@@ -72,6 +78,10 @@ func ValidColumn(column string) bool {
 var (
 	// CodeValidator is a validator for the "code" field. It is called by the builders before save.
 	CodeValidator func(string) error
+	// DefaultPurpose holds the default value on creation for the "purpose" field.
+	DefaultPurpose string
+	// PurposeValidator is a validator for the "purpose" field. It is called by the builders before save.
+	PurposeValidator func(string) error
 	// DefaultBonusAmount holds the default value on creation for the "bonus_amount" field.
 	DefaultBonusAmount float64
 	// DefaultMaxUses holds the default value on creation for the "max_uses" field.
@@ -101,6 +111,16 @@ func ByID(opts ...sql.OrderTermOption) OrderOption {
 // ByCode orders the results by the code field.
 func ByCode(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldCode, opts...).ToFunc()
+}
+
+// ByPurpose orders the results by the purpose field.
+func ByPurpose(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldPurpose, opts...).ToFunc()
+}
+
+// ByDiscountRate orders the results by the discount_rate field.
+func ByDiscountRate(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldDiscountRate, opts...).ToFunc()
 }
 
 // ByBonusAmount orders the results by the bonus_amount field.

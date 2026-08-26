@@ -43,6 +43,47 @@ func (_u *PromoCodeUpdate) SetNillableCode(v *string) *PromoCodeUpdate {
 	return _u
 }
 
+// SetPurpose sets the "purpose" field.
+func (_u *PromoCodeUpdate) SetPurpose(v string) *PromoCodeUpdate {
+	_u.mutation.SetPurpose(v)
+	return _u
+}
+
+// SetNillablePurpose sets the "purpose" field if the given value is not nil.
+func (_u *PromoCodeUpdate) SetNillablePurpose(v *string) *PromoCodeUpdate {
+	if v != nil {
+		_u.SetPurpose(*v)
+	}
+	return _u
+}
+
+// SetDiscountRate sets the "discount_rate" field.
+func (_u *PromoCodeUpdate) SetDiscountRate(v float64) *PromoCodeUpdate {
+	_u.mutation.ResetDiscountRate()
+	_u.mutation.SetDiscountRate(v)
+	return _u
+}
+
+// SetNillableDiscountRate sets the "discount_rate" field if the given value is not nil.
+func (_u *PromoCodeUpdate) SetNillableDiscountRate(v *float64) *PromoCodeUpdate {
+	if v != nil {
+		_u.SetDiscountRate(*v)
+	}
+	return _u
+}
+
+// AddDiscountRate adds value to the "discount_rate" field.
+func (_u *PromoCodeUpdate) AddDiscountRate(v float64) *PromoCodeUpdate {
+	_u.mutation.AddDiscountRate(v)
+	return _u
+}
+
+// ClearDiscountRate clears the value of the "discount_rate" field.
+func (_u *PromoCodeUpdate) ClearDiscountRate() *PromoCodeUpdate {
+	_u.mutation.ClearDiscountRate()
+	return _u
+}
+
 // SetBonusAmount sets the "bonus_amount" field.
 func (_u *PromoCodeUpdate) SetBonusAmount(v float64) *PromoCodeUpdate {
 	_u.mutation.ResetBonusAmount()
@@ -250,6 +291,11 @@ func (_u *PromoCodeUpdate) check() error {
 			return &ValidationError{Name: "code", err: fmt.Errorf(`ent: validator failed for field "PromoCode.code": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.Purpose(); ok {
+		if err := promocode.PurposeValidator(v); err != nil {
+			return &ValidationError{Name: "purpose", err: fmt.Errorf(`ent: validator failed for field "PromoCode.purpose": %w`, err)}
+		}
+	}
 	if v, ok := _u.mutation.Status(); ok {
 		if err := promocode.StatusValidator(v); err != nil {
 			return &ValidationError{Name: "status", err: fmt.Errorf(`ent: validator failed for field "PromoCode.status": %w`, err)}
@@ -272,6 +318,18 @@ func (_u *PromoCodeUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if value, ok := _u.mutation.Code(); ok {
 		_spec.SetField(promocode.FieldCode, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.Purpose(); ok {
+		_spec.SetField(promocode.FieldPurpose, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.DiscountRate(); ok {
+		_spec.SetField(promocode.FieldDiscountRate, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedDiscountRate(); ok {
+		_spec.AddField(promocode.FieldDiscountRate, field.TypeFloat64, value)
+	}
+	if _u.mutation.DiscountRateCleared() {
+		_spec.ClearField(promocode.FieldDiscountRate, field.TypeFloat64)
 	}
 	if value, ok := _u.mutation.BonusAmount(); ok {
 		_spec.SetField(promocode.FieldBonusAmount, field.TypeFloat64, value)
@@ -385,6 +443,47 @@ func (_u *PromoCodeUpdateOne) SetNillableCode(v *string) *PromoCodeUpdateOne {
 	if v != nil {
 		_u.SetCode(*v)
 	}
+	return _u
+}
+
+// SetPurpose sets the "purpose" field.
+func (_u *PromoCodeUpdateOne) SetPurpose(v string) *PromoCodeUpdateOne {
+	_u.mutation.SetPurpose(v)
+	return _u
+}
+
+// SetNillablePurpose sets the "purpose" field if the given value is not nil.
+func (_u *PromoCodeUpdateOne) SetNillablePurpose(v *string) *PromoCodeUpdateOne {
+	if v != nil {
+		_u.SetPurpose(*v)
+	}
+	return _u
+}
+
+// SetDiscountRate sets the "discount_rate" field.
+func (_u *PromoCodeUpdateOne) SetDiscountRate(v float64) *PromoCodeUpdateOne {
+	_u.mutation.ResetDiscountRate()
+	_u.mutation.SetDiscountRate(v)
+	return _u
+}
+
+// SetNillableDiscountRate sets the "discount_rate" field if the given value is not nil.
+func (_u *PromoCodeUpdateOne) SetNillableDiscountRate(v *float64) *PromoCodeUpdateOne {
+	if v != nil {
+		_u.SetDiscountRate(*v)
+	}
+	return _u
+}
+
+// AddDiscountRate adds value to the "discount_rate" field.
+func (_u *PromoCodeUpdateOne) AddDiscountRate(v float64) *PromoCodeUpdateOne {
+	_u.mutation.AddDiscountRate(v)
+	return _u
+}
+
+// ClearDiscountRate clears the value of the "discount_rate" field.
+func (_u *PromoCodeUpdateOne) ClearDiscountRate() *PromoCodeUpdateOne {
+	_u.mutation.ClearDiscountRate()
 	return _u
 }
 
@@ -608,6 +707,11 @@ func (_u *PromoCodeUpdateOne) check() error {
 			return &ValidationError{Name: "code", err: fmt.Errorf(`ent: validator failed for field "PromoCode.code": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.Purpose(); ok {
+		if err := promocode.PurposeValidator(v); err != nil {
+			return &ValidationError{Name: "purpose", err: fmt.Errorf(`ent: validator failed for field "PromoCode.purpose": %w`, err)}
+		}
+	}
 	if v, ok := _u.mutation.Status(); ok {
 		if err := promocode.StatusValidator(v); err != nil {
 			return &ValidationError{Name: "status", err: fmt.Errorf(`ent: validator failed for field "PromoCode.status": %w`, err)}
@@ -647,6 +751,18 @@ func (_u *PromoCodeUpdateOne) sqlSave(ctx context.Context) (_node *PromoCode, er
 	}
 	if value, ok := _u.mutation.Code(); ok {
 		_spec.SetField(promocode.FieldCode, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.Purpose(); ok {
+		_spec.SetField(promocode.FieldPurpose, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.DiscountRate(); ok {
+		_spec.SetField(promocode.FieldDiscountRate, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedDiscountRate(); ok {
+		_spec.AddField(promocode.FieldDiscountRate, field.TypeFloat64, value)
+	}
+	if _u.mutation.DiscountRateCleared() {
+		_spec.ClearField(promocode.FieldDiscountRate, field.TypeFloat64)
 	}
 	if value, ok := _u.mutation.BonusAmount(); ok {
 		_spec.SetField(promocode.FieldBonusAmount, field.TypeFloat64, value)
