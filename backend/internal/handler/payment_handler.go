@@ -354,6 +354,11 @@ func applyWeChatPaymentResumeClaims(req *CreateOrderRequest, claims *service.WeC
 	if claims.PlanID > 0 {
 		req.PlanID = claims.PlanID
 	}
+	requestPromoCode := strings.TrimSpace(req.PromoCode)
+	if requestPromoCode != "" && !strings.EqualFold(requestPromoCode, claims.PromoCode) {
+		return infraerrors.BadRequest("INVALID_WECHAT_PAYMENT_RESUME_TOKEN", "wechat payment resume token promo code mismatch")
+	}
+	req.PromoCode = claims.PromoCode
 	return nil
 }
 

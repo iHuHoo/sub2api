@@ -39,6 +39,7 @@ func TestApplyWeChatPaymentResumeClaims(t *testing.T) {
 		Amount:      "12.50",
 		OrderType:   payment.OrderTypeSubscription,
 		PlanID:      7,
+		PromoCode:   "SAVE20",
 	})
 	if err != nil {
 		t.Fatalf("applyWeChatPaymentResumeClaims returned error: %v", err)
@@ -54,6 +55,20 @@ func TestApplyWeChatPaymentResumeClaims(t *testing.T) {
 	}
 	if req.PlanID != 7 {
 		t.Fatalf("plan_id = %d, want 7", req.PlanID)
+	}
+	if req.PromoCode != "SAVE20" {
+		t.Fatalf("promo_code = %q, want SAVE20", req.PromoCode)
+	}
+}
+
+func TestApplyWeChatPaymentResumeClaimsRejectsPromoCodeMismatch(t *testing.T) {
+	t.Parallel()
+	req := CreateOrderRequest{PaymentType: payment.TypeWxpay, PromoCode: "SAVE10"}
+	err := applyWeChatPaymentResumeClaims(&req, &service.WeChatPaymentResumeClaims{
+		OpenID: payment.TypeWxpay, PaymentType: payment.TypeWxpay, PromoCode: "SAVE20",
+	})
+	if err == nil {
+		t.Fatal("applyWeChatPaymentResumeClaims should reject mismatched promo codes")
 	}
 }
 

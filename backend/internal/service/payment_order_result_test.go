@@ -451,6 +451,22 @@ func TestMaybeBuildWeChatOAuthRequiredResponseRequiresMPConfigInWeChat(t *testin
 	}
 }
 
+func TestBuildWeChatPaymentOAuthStartURLPreservesPromoCode(t *testing.T) {
+	got, err := buildWeChatPaymentOAuthStartURL(CreateOrderRequest{
+		PaymentType: payment.TypeWxpay,
+		OrderType:   payment.OrderTypeSubscription,
+		PlanID:      7,
+		PromoCode:   " SAVE20 ",
+	}, "snsapi_base")
+	if err != nil {
+		t.Fatalf("buildWeChatPaymentOAuthStartURL returned error: %v", err)
+	}
+	want := "/api/v1/auth/oauth/wechat/payment/start?order_type=subscription&payment_type=wxpay&plan_id=7&promo_code=SAVE20&redirect=%2Fpurchase&scope=snsapi_base"
+	if got != want {
+		t.Fatalf("authorize URL = %q, want %q", got, want)
+	}
+}
+
 func TestMaybeBuildWeChatOAuthRequiredResponseRequiresResumeSigningKey(t *testing.T) {
 	t.Parallel()
 
