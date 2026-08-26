@@ -161,7 +161,11 @@ func (s *PaymentService) createOrderInTx(ctx context.Context, req CreateOrderReq
 	if err := s.checkPendingLimit(ctx, tx, req.UserID, cfg.MaxPendingOrders); err != nil {
 		return nil, err
 	}
-	if err := s.checkDailyLimit(ctx, tx, req.UserID, limitAmount, cfg.DailyLimit); err != nil {
+	dailyLimitAmount := limitAmount
+	if req.OrderType == payment.OrderTypeSubscription {
+		dailyLimitAmount = orderAmount
+	}
+	if err := s.checkDailyLimit(ctx, tx, req.UserID, dailyLimitAmount, cfg.DailyLimit); err != nil {
 		return nil, err
 	}
 	tm := cfg.OrderTimeoutMin

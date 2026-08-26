@@ -57,8 +57,6 @@ linters:
         - G304
         - G306
         - G404
-        - G703
-        - G704
       severity: high
       confidence: high
     errcheck:
@@ -93,9 +91,6 @@ linters:
       # Check escaping variables of type error, may cause false positives.
       # Default: false
       check-escaping-errors: true
-    govet:
-      disable:
-        - inline
     staticcheck:
       # https://staticcheck.dev/docs/configuration/options/#dot_import_whitelist
       dot-import-whitelist:
@@ -128,7 +123,17 @@ linters:
 
   exclusions:
     rules:
+      - linters: [gosec]
+        path: '^internal/(pkg/servertiming/http\.go|repository/github_release_service_test\.go|server/middleware/openai_fast_policy_forwarding_test\.go)$'
+        text: "G704"
+      - linters: [gosec]
+        path: '^internal/service/(gateway_service|pricing_service)\.go$'
+        text: "G703"
+      - linters: [govet]
+        path: '^internal/repository/usage_log_repo_request_type_test\.go$'
+        text: "inline:"
       - linters: [staticcheck]
+        path: '^internal/(handler/admin/grok_oauth_handler\.go|handler/auth_oidc_oauth\.go|server/router\.go)$'
         text: "SA(1019|4023)"
 
 formatters:
