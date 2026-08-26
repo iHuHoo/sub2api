@@ -1,4 +1,4 @@
-package handler
+package integration_test
 
 import (
 	"bytes"
@@ -15,6 +15,7 @@ import (
 	entsql "entgo.io/ent/dialect/sql"
 	dbent "github.com/Wei-Shaw/sub2api/ent"
 	"github.com/Wei-Shaw/sub2api/ent/enttest"
+	"github.com/Wei-Shaw/sub2api/internal/handler"
 	"github.com/Wei-Shaw/sub2api/internal/payment"
 	"github.com/Wei-Shaw/sub2api/internal/repository"
 	servermiddleware "github.com/Wei-Shaw/sub2api/internal/server/middleware"
@@ -41,7 +42,7 @@ func TestCreateOrderPassesSubscriptionPromoCode(t *testing.T) {
 	require.NoError(t, settings.Set(context.Background(), service.SettingPaymentEnabled, "true"))
 	configService := service.NewPaymentConfigService(client, settings, nil)
 	paymentService := service.NewPaymentService(client, payment.NewRegistry(), nil, nil, nil, configService, nil, nil, nil, nil)
-	handler := NewPaymentHandler(paymentService, configService)
+	paymentHandler := handler.NewPaymentHandler(paymentService, configService)
 
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
@@ -51,7 +52,7 @@ func TestCreateOrderPassesSubscriptionPromoCode(t *testing.T) {
 	c.Request.Header.Set("Content-Type", "application/json")
 	c.Set(string(servermiddleware.ContextKeyUser), servermiddleware.AuthSubject{UserID: 7})
 
-	handler.CreateOrder(c)
+	paymentHandler.CreateOrder(c)
 
 	require.Equal(t, http.StatusBadRequest, recorder.Code)
 	var response struct {
