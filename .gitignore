@@ -148,6 +148,9 @@ docs/superpowers/specs/*
 !docs/PLUGIN_DEVELOPMENT.md
 !docs/channel-monitor-v2-safe-defaults.md
 !docs/legal/
+!docs/upstream/
+docs/upstream/*
+!docs/upstream/v0.1.183-aox-review.md
 !docs/legal/*.md
 !docs/screenshots/
 docs/screenshots/*
