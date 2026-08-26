@@ -321,6 +321,15 @@ export default {
     fee: '手续费',
     actualPay: '实付金额',
     createOrder: '确认支付',
+    subscriptionPromo: {
+      label: '订阅优惠码',
+      placeholder: '输入优惠码',
+      apply: '使用',
+      original: '原价',
+      discount: '按原价 {percent}% 支付',
+      discounted: '优惠后金额',
+      invalid: '该优惠码暂时无法使用',
+    },
     methods: {
       easypay: '易支付',
       alipay: '支付宝',

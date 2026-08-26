@@ -21,6 +21,7 @@ const showError = vi.hoisted(() => vi.fn())
 const showInfo = vi.hoisted(() => vi.fn())
 const showWarning = vi.hoisted(() => vi.fn())
 const getCheckoutInfo = vi.hoisted(() => vi.fn())
+const previewSubscriptionPromo = vi.hoisted(() => vi.fn())
 const bridgeInvoke = vi.hoisted(() => vi.fn())
 const deviceState = vi.hoisted(() => ({ mobile: true }))
 
@@ -81,6 +82,7 @@ vi.mock('@/stores', () => ({
 vi.mock('@/api/payment', () => ({
   paymentAPI: {
     getCheckoutInfo,
+    previewSubscriptionPromo,
   },
 }))
 
@@ -219,6 +221,7 @@ async function mountSubscriptionConfirm(options: Parameters<typeof checkoutInfoW
   showInfo.mockReset()
   showWarning.mockReset()
   getCheckoutInfo.mockReset().mockResolvedValue(checkoutInfoWithPlansFixture(options))
+  previewSubscriptionPromo.mockReset()
   bridgeInvoke.mockReset()
   window.localStorage.clear()
   ;(window as Window & { WeixinJSBridge?: { invoke: typeof bridgeInvoke } }).WeixinJSBridge = undefined
@@ -269,6 +272,7 @@ async function mountRecharge(options: {
       },
     },
   })
+  previewSubscriptionPromo.mockReset()
   bridgeInvoke.mockReset()
   window.localStorage.clear()
   ;(window as Window & { WeixinJSBridge?: { invoke: typeof bridgeInvoke } }).WeixinJSBridge = undefined
@@ -309,6 +313,7 @@ async function mountSubscriptionPlanList(planCount: number) {
     name: `Plan ${index + 1}`,
   }))
   getCheckoutInfo.mockReset().mockResolvedValue(checkoutInfoFixture({ plans }))
+  previewSubscriptionPromo.mockReset()
   bridgeInvoke.mockReset()
   window.localStorage.clear()
   ;(window as Window & { WeixinJSBridge?: { invoke: typeof bridgeInvoke } }).WeixinJSBridge = undefined
@@ -520,6 +525,75 @@ describe('PaymentView subscription confirmation amounts', () => {
     expect(text).toContain(fee)
     expect(text).toContain(total)
     expect(wrapper.findAll('button').some(button => button.text().includes(total))).toBe(true)
+  })
+})
+
+describe('PaymentView subscription promo', () => {
+  it('applies the server preview and submits only its normalized code', async () => {
+    const wrapper = await mountSubscriptionConfirm({ plan: { price: 149 } })
+    previewSubscriptionPromo.mockResolvedValue({ data: {
+      code: 'SAVE20',
+      discount_rate: 0.8,
+      original_amount: 149,
+      discount_amount: 29.8,
+      discounted_amount: 119.2,
+    } })
+    createOrder.mockResolvedValue({
+      order_id: 42,
+      amount: 119.2,
+      pay_amount: 119.2,
+      fee_rate: 0,
+      expires_at: '2099-01-01T00:10:00.000Z',
+      qr_code: 'promo-qr',
+    })
+
+    await wrapper.get('[data-testid="subscription-promo-input"]').setValue(' save20 ')
+    await wrapper.get('[data-testid="subscription-promo-apply"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.text()).toContain(formatPaymentAmount(119.2, 'CNY'))
+    await wrapper.get('[data-testid="subscription-submit"]').trigger('click')
+    await flushPromises()
+
+    expect(previewSubscriptionPromo).toHaveBeenCalledWith({ code: 'save20', plan_id: 7 })
+    expect(createOrder).toHaveBeenCalledWith(expect.objectContaining({ promo_code: 'SAVE20' }))
+    expect(createOrder.mock.calls[0][0]).not.toHaveProperty('discount_rate')
+    expect(createOrder.mock.calls[0][0]).not.toHaveProperty('discount_amount')
+  })
+
+  it('uses the discounted amount for payment-method limits', async () => {
+    const wrapper = await mountSubscriptionConfirm({
+      method: { single_min: 120 },
+      plan: { price: 149 },
+    })
+    previewSubscriptionPromo.mockResolvedValue({ data: {
+      code: 'SAVE20', discount_rate: 0.8, original_amount: 149,
+      discount_amount: 29.8, discounted_amount: 119.2,
+    } })
+
+    await wrapper.get('[data-testid="subscription-promo-input"]').setValue('SAVE20')
+    await wrapper.get('[data-testid="subscription-promo-apply"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.findComponent({ name: 'PaymentMethodSelector' }).props('methods')[0].available).toBe(false)
+    expect(wrapper.get('[data-testid="subscription-submit"]').attributes('disabled')).toBeDefined()
+  })
+
+  it('shows preview errors and never sends a promo on balance checkout', async () => {
+    const wrapper = await mountSubscriptionConfirm()
+    previewSubscriptionPromo.mockRejectedValue(new Error('PROMO_CODE_RESERVED'))
+    await wrapper.get('[data-testid="subscription-promo-input"]').setValue('USED')
+    await wrapper.get('[data-testid="subscription-promo-apply"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.text()).toContain('PROMO_CODE_RESERVED')
+
+    const recharge = await mountRecharge()
+    createOrder.mockResolvedValue({ order_id: 1, amount: 100, pay_amount: 100, fee_rate: 0, expires_at: '2099-01-01', qr_code: 'qr' })
+    const amountInput = recharge.findComponent({ name: 'AmountInput' })
+    amountInput.vm.$emit('update:modelValue', 100)
+    await recharge.vm.$nextTick()
+    await recharge.findAll('button').find(button => button.text().includes('payment.createOrder'))!.trigger('click')
+    await flushPromises()
+    expect(createOrder.mock.calls[0][0]).not.toHaveProperty('promo_code')
   })
 })
 
