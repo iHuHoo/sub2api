@@ -1,0 +1,50 @@
+name: Upstream Release Monitor
+
+on:
+  pull_request:
+    paths:
+      - '.github/upstream-baseline.json'
+      - '.github/upstream-release-monitor.js'
+      - '.github/upstream-release-monitor.test.js'
+      - '.github/workflows/upstream-release-monitor.yml'
+  schedule:
+    # 10:17 Asia/Singapore. The offset avoids the busiest top-of-hour window.
+    - cron: '17 2 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: upstream-release-monitor
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout forx baseline
+        uses: actions/checkout@v6
+
+      - name: Test monitor behavior
+        run: node --test .github/upstream-release-monitor.test.js
+
+  monitor:
+    if: github.event_name != 'pull_request'
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Checkout forx baseline
+        uses: actions/checkout@v6
+
+      - name: Compare stable upstream releases and tags
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const { run } = require(`${process.env.GITHUB_WORKSPACE}/.github/upstream-release-monitor.js`)
+            await run({ github, context, core, workspace: process.env.GITHUB_WORKSPACE })
