@@ -152,6 +152,7 @@ docs/superpowers/specs/*
 docs/upstream/*
 !docs/upstream/v0.1.183-aox-review.md
 !docs/upstream/v0.1.184-aox-review.md
+!docs/upstream/v0.1.185-aox-review.md
 !docs/legal/*.md
 !docs/screenshots/
 docs/screenshots/*
