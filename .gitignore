@@ -154,6 +154,7 @@ docs/upstream/*
 !docs/upstream/v0.1.184-aox-review.md
 !docs/upstream/v0.1.185-aox-review.md
 !docs/upstream/v0.2.0-aox-review.md
+!docs/upstream/v0.2.1-aox-review.md
 !docs/legal/*.md
 !docs/screenshots/
 docs/screenshots/*
