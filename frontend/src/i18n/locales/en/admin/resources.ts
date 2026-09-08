@@ -255,8 +255,6 @@ export default {
       used: 'Used',
       columns: {
         code: 'Code',
-        purpose: 'Purpose',
-        benefit: 'Benefit',
         type: 'Type',
         value: 'Value',
         status: 'Status',
@@ -462,6 +460,8 @@ export default {
       allStatus: 'All Status',
       columns: {
         code: 'Code',
+        purpose: 'Purpose',
+        benefit: 'Benefit',
         bonusAmount: 'Bonus Amount',
         maxUses: 'Max Uses',
         usedCount: 'Used',
