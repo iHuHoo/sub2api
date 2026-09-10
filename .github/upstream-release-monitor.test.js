@@ -4,7 +4,7 @@ const test = require('node:test')
 const {
   analyzeVersions,
   classifyRiskFiles,
-  reconcileTrackingIssue,
+  reconcileTrackingIssues,
 } = require('./upstream-release-monitor')
 
 test('selects the newest stable upstream version and counts every missed version', () => {
@@ -41,50 +41,83 @@ test('classifies payment and billing changes as high risk', () => {
   ])
 })
 
-test('creates one rolling issue, leaves unchanged state quiet, and closes it when caught up', async () => {
+test('creates a separate issue for every missed version', async () => {
   const calls = []
-  const github = fakeGithub(calls)
+  const github = fakeGithub(calls, [])
   const context = { repo: { owner: 'iHuHoo', repo: 'sub2api' } }
-  const state = {
-    marker: '<!-- upstream-sync:base=v0.1.183;latest=v0.1.185 -->',
-    body: 'tracking body',
-    caughtUpBody: 'caught up body',
-  }
+  const states = [trackingState('v0.2.4'), trackingState('v0.2.5')]
 
-  await reconcileTrackingIssue({ github, context, state, behind: true })
+  await reconcileTrackingIssues({ github, context, baselineTag: 'v0.2.3', states })
   assert.deepEqual(calls, [
     ['create', {
       owner: 'iHuHoo',
       repo: 'sub2api',
-      title: '[Upstream Sync] Tracking',
-      body: `tracking body\n\n${state.marker}`,
+      title: '[Upstream Sync] v0.2.4',
+      body: 'tracking v0.2.4\n\n<!-- upstream-sync:version=v0.2.4 -->',
     }],
-  ])
-
-  calls.length = 0
-  github.setIssue({
-    number: 12,
-    state: 'open',
-    title: '[Upstream Sync] Tracking',
-    body: `tracking body\n\n${state.marker}`,
-  })
-  await reconcileTrackingIssue({ github, context, state, behind: true })
-  assert.deepEqual(calls, [])
-
-  await reconcileTrackingIssue({ github, context, state, behind: false })
-  assert.deepEqual(calls, [
-    ['comment', { owner: 'iHuHoo', repo: 'sub2api', issue_number: 12, body: 'caught up body' }],
-    ['update', { owner: 'iHuHoo', repo: 'sub2api', issue_number: 12, state: 'closed' }],
+    ['create', {
+      owner: 'iHuHoo',
+      repo: 'sub2api',
+      title: '[Upstream Sync] v0.2.5',
+      body: 'tracking v0.2.5\n\n<!-- upstream-sync:version=v0.2.5 -->',
+    }],
   ])
 })
 
-function fakeGithub(calls) {
-  let issue = null
+test('does not reopen a closed version issue', async () => {
+  const calls = []
+  const github = fakeGithub(calls, [{
+    number: 24,
+    state: 'closed',
+    title: 'manually renamed v0.2.4 sync',
+    body: 'tracking v0.2.4\n\n<!-- upstream-sync:version=v0.2.4 -->',
+  }])
+
+  await reconcileTrackingIssues({
+    github,
+    context: { repo: { owner: 'iHuHoo', repo: 'sub2api' } },
+    baselineTag: 'v0.2.3',
+    states: [trackingState('v0.2.4')],
+  })
+  assert.deepEqual(calls, [])
+})
+
+test('closes only version issues covered by the baseline', async () => {
+  const calls = []
+  const github = fakeGithub(calls, [
+    { number: 24, state: 'open', title: '[Upstream Sync] v0.2.4', body: '' },
+    { number: 25, state: 'open', title: '[Upstream Sync] v0.2.5', body: '' },
+  ])
+
+  await reconcileTrackingIssues({
+    github,
+    context: { repo: { owner: 'iHuHoo', repo: 'sub2api' } },
+    baselineTag: 'v0.2.4',
+    states: [],
+  })
+  assert.deepEqual(calls, [
+    ['comment', {
+      owner: 'iHuHoo',
+      repo: 'sub2api',
+      issue_number: 24,
+      body: 'forx 上游基线已追平至 `v0.2.4`，自动关闭此版本的跟踪 issue。',
+    }],
+    ['update', { owner: 'iHuHoo', repo: 'sub2api', issue_number: 24, state: 'closed' }],
+  ])
+})
+
+function trackingState(version) {
   return {
-    setIssue(value) {
-      issue = value
-    },
-    paginate: async () => (issue ? [issue] : []),
+    version,
+    title: `[Upstream Sync] ${version}`,
+    marker: `<!-- upstream-sync:version=${version} -->`,
+    body: `tracking ${version}`,
+  }
+}
+
+function fakeGithub(calls, issues) {
+  return {
+    paginate: async () => issues,
     rest: {
       issues: {
         listForRepo: Symbol('listForRepo'),

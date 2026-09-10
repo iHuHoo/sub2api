@@ -14,19 +14,19 @@ forx 持续跟随 `Wei-Shaw/sub2api` 的稳定版本，避免跨越过多版本�
 
 ## 自动监控
 
-`.github/workflows/upstream-release-monitor.yml` 每天 10:17（Asia/Singapore）运行一次，也可以手动执行。它读取 `.github/upstream-baseline.json`，检查上游 release 和 tag，并维护一个固定标题的滚动 issue：
+`.github/workflows/upstream-release-monitor.yml` 每天 10:17（Asia/Singapore）运行一次，也可以手动执行。它读取 `.github/upstream-baseline.json`，检查上游 release 和 tag，并为每个版本维护独立 issue：
 
 ```text
-[Upstream Sync] Tracking
+[Upstream Sync] v0.2.4
 ```
 
 监控行为：
 
 - 只接受 `vX.Y.Z` 稳定版本，忽略预发布版本和 aox tag。
-- 列出当前基线、最新版本、遗漏版本、落后提交和上游差异链接。
+- 每个遗漏版本只创建一个 issue，列出当前基线、跟踪版本、落后提交和上游差异链接。
 - 标出支付、计费、余额、配额、订阅、返利、退款、兑换码、认证和安全相关文件。
-- 状态未变化时不重复更新 issue。
-- 基线追平后自动评论并关闭该 issue。
+- 状态未变化时不重复更新 issue；已关闭的版本 issue 永不重新打开。
+- 基线覆盖对应版本后自动评论并关闭该版本 issue。
 - 不自动创建同步 PR，不自动合并、打 tag、发布或部署。
 
 工作流只拥有仓库内容读取和 issue 写入权限。上游 API 或比较请求失败时，工作流直接失败，不把未知状态报告成“已追平”。
@@ -45,11 +45,11 @@ forx 持续跟随 `Wei-Shaw/sub2api` 的稳定版本，避免跨越过多版本�
 
 1. 从最新 forx `main` 创建独立升级分支。
 2. 一次只同步一个上游稳定版本；只有相邻版本无法独立获取时才合并处理，并在 PR 中说明。
-3. 检查滚动 issue 列出的高风险文件。
+3. 检查该版本 issue 列出的高风险文件。
 4. 运行项目 CI 和 forx 专属回归测试。
 5. 在 PR 中记录上游 tag、commit SHA、迁移、冲突处理和回滚注意事项。
 6. 合并同步 PR 时更新 `.github/upstream-baseline.json` 的 `tag` 和解析后的 commit SHA。
-7. 等待次日监控或手动执行 workflow，确认滚动 issue 自动关闭。
+7. 等待次日监控或手动执行 workflow，确认该版本 issue 自动关闭。
 
 禁止仅修改基线文件来消除告警；基线代表已经合并并验证的上游代码。
 
