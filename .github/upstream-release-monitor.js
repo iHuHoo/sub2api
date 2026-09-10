@@ -1,7 +1,8 @@
 const fs = require('node:fs')
 const path = require('node:path')
 
-const ISSUE_TITLE = '[Upstream Sync] Tracking'
+const ISSUE_TITLE_PREFIX = '[Upstream Sync] '
+const ISSUE_TITLE_PATTERN = /^\[Upstream Sync\] (v\d+\.\d+\.\d+)$/
 const UPSTREAM_OWNER = 'Wei-Shaw'
 const UPSTREAM_REPO = 'sub2api'
 const STABLE_VERSION = /^v(\d+)\.(\d+)\.(\d+)$/
@@ -43,48 +44,56 @@ function classifyRiskFiles(files) {
   return files.filter((file) => RISK_PATH.test(file))
 }
 
-async function reconcileTrackingIssue({ github, context, state, behind }) {
+async function reconcileTrackingIssues({ github, context, baselineTag, states }) {
   const repo = context.repo
   const issues = await github.paginate(github.rest.issues.listForRepo, {
     ...repo,
     state: 'all',
     per_page: 100,
   })
-  const issue = issues.find((item) => !item.pull_request && item.title === ISSUE_TITLE)
 
-  if (!behind) {
-    if (issue?.state === 'open') {
-      await github.rest.issues.createComment({ ...repo, issue_number: issue.number, body: state.caughtUpBody })
-      await github.rest.issues.update({ ...repo, issue_number: issue.number, state: 'closed' })
+  for (const state of states) {
+    const body = `${state.body}\n\n${state.marker}`
+    const issue = issues.find((item) => !item.pull_request && (
+      item.title === state.title || item.body?.includes(state.marker)
+    ))
+    if (!issue) {
+      await github.rest.issues.create({ ...repo, title: state.title, body })
+    } else if (issue.state === 'open' && issue.body !== body) {
+      await github.rest.issues.update({ ...repo, issue_number: issue.number, body })
     }
-    return
   }
 
-  const body = `${state.body}\n\n${state.marker}`
-  if (!issue) {
-    await github.rest.issues.create({ ...repo, title: ISSUE_TITLE, body })
-  } else if (issue.state !== 'open' || !issue.body?.includes(state.marker)) {
-    await github.rest.issues.update({ ...repo, issue_number: issue.number, state: 'open', body })
+  for (const issue of issues) {
+    const version = !issue.pull_request && issue.state === 'open'
+      ? ISSUE_TITLE_PATTERN.exec(issue.title)?.[1]
+      : null
+    if (version && compareVersions(version, baselineTag) <= 0) {
+      const body = `forx 上游基线已追平至 \`${baselineTag}\`，自动关闭此版本的跟踪 issue。`
+      await github.rest.issues.createComment({ ...repo, issue_number: issue.number, body })
+      await github.rest.issues.update({ ...repo, issue_number: issue.number, state: 'closed' })
+    }
   }
 }
 
-function buildTrackingState({ baseline, analysis, comparison }) {
+function buildTrackingState({ baseline, targetTag, targetIsRelease, versionsBehind, comparison }) {
   const files = comparison.files?.map((file) => file.filename) ?? []
   const riskFiles = classifyRiskFiles(files)
-  const level = analysis.versionsBehind >= 3 ? '阻断新功能发布' : analysis.versionsBehind === 2 ? '高优先级' : '普通提醒'
-  const compareURL = `https://github.com/${UPSTREAM_OWNER}/${UPSTREAM_REPO}/compare/${baseline.sha}...${analysis.latestTag}`
+  const level = versionsBehind >= 3 ? '阻断新功能发布' : versionsBehind === 2 ? '高优先级' : '普通提醒'
+  const compareURL = `https://github.com/${UPSTREAM_OWNER}/${UPSTREAM_REPO}/compare/${baseline.sha}...${targetTag}`
   const riskSection = riskFiles.length > 0
     ? riskFiles.slice(0, 50).map((file) => `- \`${file}\``).join('\n')
     : '未发现预设的支付、计费、余额、配额、认证或安全高风险文件。'
 
   return {
-    marker: `<!-- upstream-sync:base=${baseline.tag};latest=${analysis.latestTag} -->`,
+    version: targetTag,
+    title: `${ISSUE_TITLE_PREFIX}${targetTag}`,
+    marker: `<!-- upstream-sync:version=${targetTag} -->`,
     body: [
       '上游发布了新的稳定版本，forx 代码基线需要同步。此 issue 只跟踪代码同步，不代表需要发布或部署。',
       '',
       `- 当前基线：\`${baseline.tag}\`（\`${baseline.sha}\`）`,
-      `- 上游最新：\`${analysis.latestTag}\`（${analysis.latestIsRelease ? 'release' : 'tag'}）`,
-      `- 落后版本：${analysis.versionsBehind}（${analysis.missedTags.map((tag) => `\`${tag}\``).join('、')}）`,
+      `- 跟踪版本：\`${targetTag}\`（${targetIsRelease ? 'release' : 'tag'}）`,
       `- 落后提交：${comparison.ahead_by ?? comparison.total_commits ?? '未知'}`,
       `- 告警等级：**${level}**`,
       `- [查看上游差异](${compareURL})`,
@@ -99,7 +108,6 @@ function buildTrackingState({ baseline, analysis, comparison }) {
       '- 默认不打 aox tag、不发布、不部署。',
       '- 同步完成时更新 `.github/upstream-baseline.json`；监控会自动关闭本 issue。',
     ].join('\n'),
-    caughtUpBody: `forx 上游基线已追平至 \`${analysis.latestTag}\`，自动关闭跟踪 issue。`,
   }
 }
 
@@ -111,31 +119,36 @@ async function run({ github, context, core, workspace = process.cwd() }) {
     github.paginate(github.rest.repos.listTags, { owner: UPSTREAM_OWNER, repo: UPSTREAM_REPO, per_page: 100 }),
     github.paginate(github.rest.repos.listReleases, { owner: UPSTREAM_OWNER, repo: UPSTREAM_REPO, per_page: 100 }),
   ])
+  const releases = releaseRows.filter((row) => !row.draft && !row.prerelease).map((row) => row.tag_name)
   const analysis = analyzeVersions({
     baselineTag: baseline.tag,
     tags: tagRows.map((row) => row.name),
-    releases: releaseRows.filter((row) => !row.draft && !row.prerelease).map((row) => row.tag_name),
+    releases,
   })
 
-  if (analysis.versionsBehind === 0) {
-    await reconcileTrackingIssue({
-      github,
-      context,
-      behind: false,
-      state: { caughtUpBody: `forx 上游基线已追平至 \`${baseline.tag}\`，自动关闭跟踪 issue。` },
+  const states = await Promise.all(analysis.missedTags.map(async (targetTag) => {
+    const { data: comparison } = await github.rest.repos.compareCommitsWithBasehead({
+      owner: UPSTREAM_OWNER,
+      repo: UPSTREAM_REPO,
+      basehead: `${baseline.sha}...${targetTag}`,
+      per_page: 100,
     })
+    return buildTrackingState({
+      baseline,
+      targetTag,
+      targetIsRelease: releases.includes(targetTag),
+      versionsBehind: analysis.versionsBehind,
+      comparison,
+    })
+  }))
+
+  await reconcileTrackingIssues({ github, context, baselineTag: baseline.tag, states })
+
+  if (analysis.versionsBehind === 0) {
     core.info(`Up to date with ${baseline.tag}`)
     return
   }
 
-  const { data: comparison } = await github.rest.repos.compareCommitsWithBasehead({
-    owner: UPSTREAM_OWNER,
-    repo: UPSTREAM_REPO,
-    basehead: `${baseline.sha}...${analysis.latestTag}`,
-    per_page: 100,
-  })
-  const state = buildTrackingState({ baseline, analysis, comparison })
-  await reconcileTrackingIssue({ github, context, state, behind: true })
   core.warning(`Upstream ${analysis.latestTag} is ${analysis.versionsBehind} version(s) ahead`)
 }
 
@@ -143,6 +156,6 @@ module.exports = {
   analyzeVersions,
   buildTrackingState,
   classifyRiskFiles,
-  reconcileTrackingIssue,
+  reconcileTrackingIssues,
   run,
 }
