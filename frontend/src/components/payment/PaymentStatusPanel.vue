@@ -29,7 +29,12 @@
               </div>
               <div class="flex justify-between">
                 <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.amount') }}</span>
-                <span class="font-medium text-gray-900 dark:text-white">{{ formatPurchasedAmount(paidOrder.amount) }}</span>
+                <span class="font-medium text-gray-900 dark:text-white">
+                  {{ formatPurchasedAmount(paidOrder.amount) }}
+                  <span v-if="(paidOrder.bonus_amount ?? 0) > 0" class="ml-1 text-xs font-normal text-amber-600 dark:text-amber-400">
+                    ({{ t('payment.orders.bonusIncluded', { amount: formatPurchasedAmount(paidOrder.bonus_amount ?? 0) }) }})
+                  </span>
+                </span>
               </div>
               <div class="flex justify-between">
                 <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.payAmount') }}</span>
