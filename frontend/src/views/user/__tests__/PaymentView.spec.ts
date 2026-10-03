@@ -354,6 +354,29 @@ async function mountSubscriptionPlanList(planCount: number) {
 }
 
 describe('PaymentView recharge presentation', () => {
+  it.each([
+    ['bonus', '12.00 Credits', 'recharge-bonus-row'],
+    ['discount', '10.00 Credits', 'recharge-discount-row'],
+  ] as const)('combines %s tiers with the payment currency and Credits preview', async (mode, credited, row) => {
+    const wrapper = await mountRecharge({
+      checkout: {
+        balance_recharge_multiplier: 0.1,
+        recharge_bonus_mode: mode,
+        recharge_bonus_tiers: [{ min_amount: 100, bonus_percent: 20 }],
+      },
+      method: { currency: 'CNY' },
+    })
+    const amountInput = wrapper.getComponent(AmountInput)
+    expect(amountInput.props('currency')).toBe('CNY')
+    expect(amountInput.props('bonusMode')).toBe(mode)
+    amountInput.vm.$emit('update:modelValue', 100)
+    await flushPromises()
+    expect(wrapper.get('[data-testid="recharge-credited-row"]').text()).toContain(credited)
+    expect(wrapper.find(`[data-testid="${row}"]`).exists()).toBe(true)
+    if (mode === 'bonus') expect(wrapper.get('[data-testid="recharge-bonus-row"]').text()).toContain('2.00 Credits')
+    else expect(wrapper.get('[data-testid="recharge-discount-row"]').text()).toContain('20.00')
+  })
+
   it('uses CNY payment shortcuts and labels the converted product as Credits', async () => {
     const wrapper = await mountRecharge({
       checkout: {

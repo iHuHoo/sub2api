@@ -24,7 +24,7 @@ func TestCreateOrderInTx_SubscriptionDailyLimitUsesStoredUSDAmount(t *testing.T)
 	svc := &PaymentService{entClient: client}
 	req := CreateOrderRequest{UserID: user.ID, PaymentType: payment.TypeAlipay, OrderType: payment.OrderTypeSubscription}
 	serviceUser := &User{ID: user.ID, Email: user.Email, Username: user.Username}
-	first, err := svc.createOrderInTx(ctx, req, serviceUser, nil, &PaymentConfig{MaxPendingOrders: 3}, 20.86, 149, 0, 149, nil)
+	first, err := svc.createOrderInTx(ctx, req, serviceUser, nil, &PaymentConfig{MaxPendingOrders: 3}, 20.86, 149, 0, 149, 0, nil)
 	require.NoError(t, err)
 	_, err = client.PaymentOrder.UpdateOneID(first.ID).
 		SetStatus(OrderStatusCompleted).
@@ -32,6 +32,6 @@ func TestCreateOrderInTx_SubscriptionDailyLimitUsesStoredUSDAmount(t *testing.T)
 		Save(ctx)
 	require.NoError(t, err)
 
-	_, err = svc.createOrderInTx(ctx, req, serviceUser, nil, &PaymentConfig{MaxPendingOrders: 3, DailyLimit: 50}, 20.86, 149, 0, 149, nil)
+	_, err = svc.createOrderInTx(ctx, req, serviceUser, nil, &PaymentConfig{MaxPendingOrders: 3, DailyLimit: 50}, 20.86, 149, 0, 149, 0, nil)
 	require.NoError(t, err)
 }
