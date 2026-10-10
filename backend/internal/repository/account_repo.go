@@ -1650,6 +1650,37 @@ func (r *accountRepository) UpdateGrokOAuthCredentialsIfUnchanged(
 	return true, nil
 }
 
+// UpdateOAuthCredentialsIfUnchanged protects supplier rotation from an earlier
+// upstream refresh. Credential generation and outbox publication are atomic.
+func (r *accountRepository) UpdateOAuthCredentialsIfUnchanged(ctx context.Context, id int64, expected, credentials map[string]any) (bool, error) {
+	expectedJSON, err := json.Marshal(normalizeJSONMap(expected))
+	if err != nil {
+		return false, err
+	}
+	credentialsJSON, err := json.Marshal(normalizeJSONMap(credentials))
+	if err != nil {
+		return false, err
+	}
+	result, err := r.sql.ExecContext(ctx, `
+ WITH updated AS (
+ UPDATE accounts
+ SET credentials=$1::jsonb||jsonb_build_object('_token_version',GREATEST(COALESCE((accounts.credentials->>'_token_version')::bigint,0)+1,(EXTRACT(EPOCH FROM clock_timestamp())*1000)::bigint)), updated_at=NOW()
+ WHERE id=$2 AND deleted_at IS NULL AND type IN ($3,$4) AND credentials=$5::jsonb
+ RETURNING id
+ )
+ INSERT INTO scheduler_outbox (event_type,account_id,group_id,payload)
+ SELECT $6,id,NULL,NULL FROM updated`, string(credentialsJSON), id, service.AccountTypeOAuth, service.AccountTypeSetupToken, string(expectedJSON), service.SchedulerOutboxEventAccountChanged)
+	if err != nil {
+		return false, err
+	}
+	count, err := result.RowsAffected()
+	if err != nil || count == 0 {
+		return false, err
+	}
+	r.syncSchedulerAccountSnapshotDetached(ctx, id)
+	return true, nil
+}
+
 // SetGrokOAuthRefreshErrorIfCredentialsUnchanged is the background-refresh
 // counterpart to reconciliation's stricter missing-refresh-token mutation. It
 // matches the complete credential document used by the failed upstream attempt

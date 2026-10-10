@@ -22,3 +22,9 @@ func tokenVersionCacheKey(key string, account *Account) string {
 	}
 	return key
 }
+
+// OAuthRefreshLockKey is stable across credential generations. Different snapshots
+// must serialize before rereading the latest DB credentials and using a refresh token.
+func OAuthRefreshLockKey(account *Account) string {
+	return "oauth_refresh:account:" + strconv.FormatInt(account.ID, 10)
+}

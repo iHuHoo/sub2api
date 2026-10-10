@@ -92,9 +92,9 @@ func (p *GeminiTokenProvider) GetAccessToken(ctx context.Context, account *Accou
 		}
 	} else if needsRefresh && p.tokenCache != nil {
 		// Backward-compatible test path when refreshAPI is not injected.
-		locked, lockErr := p.tokenCache.AcquireRefreshLock(ctx, cacheKey, 30*time.Second)
+		locked, lockErr := p.tokenCache.AcquireRefreshLock(ctx, OAuthRefreshLockKey(account), 30*time.Second)
 		if lockErr == nil && locked {
-			defer func() { _ = p.tokenCache.ReleaseRefreshLock(ctx, cacheKey) }()
+			defer func() { _ = p.tokenCache.ReleaseRefreshLock(ctx, OAuthRefreshLockKey(account)) }()
 		} else if lockErr != nil {
 			slog.Warn("gemini_token_lock_failed", "account_id", account.ID, "error", lockErr)
 		}
@@ -123,6 +123,7 @@ func (p *GeminiTokenProvider) GetAccessToken(ctx context.Context, account *Accou
 			}
 		}
 
+		observedCredentials := shallowCopyMap(account.Credentials)
 		detected, tierID, err := p.geminiOAuthService.fetchProjectID(ctx, accessToken, proxyURL)
 		if err != nil {
 			log.Printf("[GeminiTokenProvider] Auto-detect project_id failed: %v, fallback to AI Studio API mode", err)
@@ -138,7 +139,8 @@ func (p *GeminiTokenProvider) GetAccessToken(ctx context.Context, account *Accou
 			if tierID != "" {
 				account.Credentials["tier_id"] = tierID
 			}
-			_ = persistAccountCredentials(ctx, p.accountRepo, account, account.Credentials)
+			_, _ = persistOAuthRefreshCredentials(ctx, p.accountRepo, account, observedCredentials, account.Credentials)
+			accessToken = account.GetCredential("access_token")
 		}
 	}
 

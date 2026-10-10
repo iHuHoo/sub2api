@@ -206,9 +206,9 @@ func (p *OpenAITokenProvider) GetAccessToken(ctx context.Context, account *Accou
 		// Backward-compatible test path when refreshAPI is not injected.
 		p.metrics.refreshRequests.Add(1)
 		p.metrics.touchNow()
-		locked, lockErr := p.tokenCache.AcquireRefreshLock(ctx, cacheKey, 30*time.Second)
+		locked, lockErr := p.tokenCache.AcquireRefreshLock(ctx, OAuthRefreshLockKey(account), 30*time.Second)
 		if lockErr == nil && locked {
-			defer func() { _ = p.tokenCache.ReleaseRefreshLock(ctx, cacheKey) }()
+			defer func() { _ = p.tokenCache.ReleaseRefreshLock(ctx, OAuthRefreshLockKey(account)) }()
 		} else if lockErr != nil {
 			p.metrics.lockAcquireFailure.Add(1)
 			p.metrics.touchNow()

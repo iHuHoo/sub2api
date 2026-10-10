@@ -224,3 +224,56 @@ func TestSupplierLiveProxyGuardPreservesHistoryAndIsIdempotent(t *testing.T) {
 	_, err = tx.ExecContext(ctx, `ROLLBACK TO SAVEPOINT backup_restoration`)
 	require.NoError(t, err)
 }
+
+func TestSupplierRotationRejectsDurableStaleOAuthRefresh(t *testing.T) {
+	ctx := context.Background()
+	tx := testEntTx(t)
+	client := tx.Client()
+	owner := int64(11)
+	r := newSupplierRepository(client, tx, nil)
+	ar := newAccountRepositoryWithSQL(client, tx, nil)
+	a := &service.Account{Name: "refresh", Platform: service.PlatformOpenAI, Type: service.AccountTypeOAuth, Status: "active", SupplierUserID: &owner, Priority: 99, Credentials: map[string]any{"access_token": "old", "refresh_token": "old-refresh", "_token_version": time.Now().Add(time.Hour).UnixMilli()}}
+	require.NoError(t, ar.Create(ctx, a))
+	observed := a.Credentials
+	rotated, err := r.UpdateAccount(ctx, owner, a.ID, service.SupplierAccountUpdate{Credentials: map[string]any{"access_token": "supplier-new", "refresh_token": "supplier-refresh"}})
+	require.NoError(t, err)
+	applied, err := ar.UpdateOAuthCredentialsIfUnchanged(ctx, a.ID, observed, map[string]any{"access_token": "stale-upstream", "refresh_token": "stale-refresh"})
+	require.NoError(t, err)
+	require.False(t, applied)
+	got, err := r.GetAccount(ctx, owner, a.ID)
+	require.NoError(t, err)
+	require.Equal(t, "supplier-new", got.GetCredential("access_token"))
+	require.Equal(t, rotated.GetCredentialAsInt64("_token_version"), got.GetCredentialAsInt64("_token_version"))
+	require.Equal(t, 99, got.Priority)
+	// The current generation can refresh and advances monotonically even ahead of server time.
+	applied, err = ar.UpdateOAuthCredentialsIfUnchanged(ctx, a.ID, got.Credentials, map[string]any{"access_token": "valid-refresh", "refresh_token": "valid-refresh", "_token_version": int64(1)})
+	require.NoError(t, err)
+	require.True(t, applied)
+	got, err = r.GetAccount(ctx, owner, a.ID)
+	require.NoError(t, err)
+	require.Equal(t, "valid-refresh", got.GetCredential("access_token"))
+	require.Equal(t, rotated.GetCredentialAsInt64("_token_version")+1, got.GetCredentialAsInt64("_token_version"))
+	require.Equal(t, 99, got.Priority)
+	var count int
+	rows, err := tx.QueryContext(ctx, `SELECT count(*) FROM scheduler_outbox WHERE account_id=$1`, a.ID)
+	require.NoError(t, err)
+	require.True(t, rows.Next())
+	require.NoError(t, rows.Scan(&count))
+	require.NoError(t, rows.Close())
+	require.Equal(t, 2, count, "stale refresh must not publish outbox")
+}
+
+func TestSupplierSetupTokenConditionalRefreshCompatibility(t *testing.T) {
+	ctx := context.Background()
+	tx := testEntTx(t)
+	ar := newAccountRepositoryWithSQL(tx.Client(), tx, nil)
+	a := &service.Account{Name: "setup", Platform: service.PlatformAnthropic, Type: service.AccountTypeSetupToken, Status: "active", Credentials: map[string]any{"access_token": "old", "_token_version": int64(10)}}
+	require.NoError(t, ar.Create(ctx, a))
+	applied, err := ar.UpdateOAuthCredentialsIfUnchanged(ctx, a.ID, a.Credentials, map[string]any{"access_token": "new"})
+	require.NoError(t, err)
+	require.True(t, applied)
+	got, err := ar.GetByID(ctx, a.ID)
+	require.NoError(t, err)
+	require.Equal(t, "new", got.GetCredential("access_token"))
+	require.Greater(t, got.GetCredentialAsInt64("_token_version"), int64(10))
+}

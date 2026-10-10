@@ -894,6 +894,7 @@ func (s *TokenRefreshService) refreshWithRetryWithRateGate(
 			}
 		} else {
 			// 降级：直接调用 refresher（兼容旧路径）
+			observedCredentials := shallowCopyMap(account.Credentials)
 			releaseRate := func() {}
 			if acquireRate != nil {
 				releaseRate, err = acquireRate(attemptCtx)
@@ -906,9 +907,13 @@ func (s *TokenRefreshService) refreshWithRetryWithRateGate(
 			}
 			attemptTimedOut := errors.Is(attemptCtx.Err(), context.DeadlineExceeded) && ctx.Err() == nil
 			if err == nil && newCredentials != nil && !attemptTimedOut {
-				newCredentials["_token_version"] = time.Now().UnixMilli()
-				if saveErr := persistAccountCredentials(attemptCtx, s.accountRepo, account, newCredentials); saveErr != nil {
+				newCredentials["_token_version"] = nextOAuthTokenVersion(&Account{Credentials: observedCredentials})
+				if applied, saveErr := persistOAuthRefreshCredentials(attemptCtx, s.accountRepo, account, observedCredentials, newCredentials); saveErr != nil {
 					err = fmt.Errorf("failed to save credentials: %w", saveErr)
+				} else if !applied {
+					cancelAttempt()
+					releaseAttempt()
+					return nil
 				} else {
 					credentialsPersisted = true
 				}
