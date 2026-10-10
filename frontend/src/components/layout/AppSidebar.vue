@@ -127,7 +127,7 @@
       </template>
 
       <!-- Regular User View -->
-      <template v-else-if="!appStore.backendModeEnabled">
+      <template v-else-if="authStore.isSupplier || !appStore.backendModeEnabled">
         <div class="sidebar-section">
           <router-link
             v-for="item in userNavItems"
