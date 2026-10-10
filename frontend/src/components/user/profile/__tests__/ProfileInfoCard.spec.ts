@@ -209,3 +209,14 @@ describe('ProfileInfoCard', () => {
     expect(wrapper.get('[data-testid="profile-auth-bindings-panel"]').exists()).toBe(true)
   })
 })
+
+
+it('omits supplier consumer metrics and identity-binding actions while retaining profile basics', () => {
+  const wrapper = mount(ProfileInfoCard, { props: { user: createUser({ role: 'supplier' }) }, global: { stubs: {
+    Icon: true, ProfileAvatarCard: true, ProfileEditForm: true, ProfileIdentityBindingsSection: true
+  } } })
+  expect(wrapper.find('[data-testid="profile-overview-metric-balance"]').exists()).toBe(false)
+  expect(wrapper.find('[data-testid="profile-overview-metric-concurrency"]').exists()).toBe(false)
+  expect(wrapper.find('[data-testid="profile-auth-bindings-panel"]').exists()).toBe(false)
+  expect(wrapper.find('[data-testid="profile-basics-panel"]').exists()).toBe(true)
+})

@@ -243,6 +243,9 @@
                 </template>
               </HelpTooltip>
               <span v-else class="font-medium text-gray-900 dark:text-white">{{ value }}</span>
+              <span data-testid="account-provenance" class="text-xs text-gray-500 dark:text-gray-400">
+                {{ row.supplier_user_id == null ? t('supplier.platformAccount') : t('supplier.provenance', { name: row.supplier_name || t('supplier.role'), id: row.supplier_user_id }) }}
+              </span>
               <span
                 v-if="accountDisplayEmail(row)"
                 class="text-xs text-gray-500 dark:text-gray-400 truncate max-w-[200px]"

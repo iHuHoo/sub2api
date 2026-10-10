@@ -25,7 +25,7 @@
                   {{ displayName }}
                 </h2>
                 <span :class="['badge', user?.role === 'admin' ? 'badge-primary' : 'badge-gray']">
-                  {{ user?.role === 'admin' ? t('profile.administrator') : t('profile.user') }}
+                  {{ user?.role === 'supplier' ? t('supplier.role') : user?.role === 'admin' ? t('profile.administrator') : t('profile.user') }}
                 </span>
                 <span
                   :class="['badge', user?.status === 'active' ? 'badge-success' : 'badge-danger']"
@@ -60,6 +60,7 @@
 
             <div class="grid gap-3 sm:grid-cols-3">
               <div
+                v-if="user?.role !== 'supplier'"
                 data-testid="profile-overview-metric-balance"
                 class="rounded-2xl bg-white/85 px-4 py-3 shadow-sm ring-1 ring-white/70 dark:bg-dark-900/60 dark:ring-dark-700"
               >
@@ -71,6 +72,7 @@
                 </p>
               </div>
               <div
+                v-if="user?.role !== 'supplier'"
                 data-testid="profile-overview-metric-concurrency"
                 class="rounded-2xl bg-white/85 px-4 py-3 shadow-sm ring-1 ring-white/70 dark:bg-dark-900/60 dark:ring-dark-700"
               >
@@ -133,6 +135,7 @@
         </section>
 
         <section
+          v-if="user?.role !== 'supplier'"
           data-testid="profile-auth-bindings-panel"
           class="card border border-gray-100 bg-white/90 p-6 dark:border-dark-700 dark:bg-dark-900/50"
         >

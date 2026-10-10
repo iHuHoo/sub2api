@@ -15,6 +15,8 @@ const { appStore, authStore } = vi.hoisted(() => ({
   authStore: {
     isAuthenticated: false,
     isAdmin: false,
+    isSupplier: false,
+    get homePath() { return this.isSupplier ? '/supplier/accounts' : this.isAdmin ? '/admin/dashboard' : '/dashboard' },
     user: null as { email?: string } | null,
     checkAuth: vi.fn(),
   },
@@ -70,6 +72,7 @@ describe('HomeView compact mode', () => {
   beforeEach(() => {
     authStore.isAuthenticated = false
     authStore.isAdmin = false
+    authStore.isSupplier = false
     authStore.user = null
     authStore.checkAuth.mockClear()
     appStore.fetchPublicSettings.mockClear()
@@ -119,6 +122,12 @@ describe('HomeView compact mode', () => {
     authStore.isAuthenticated = true
 
     expect(compactDestination(mountHome({ compact_home_enabled: true }))).toBe('/dashboard')
+  })
+
+  it('links suppliers to their upstream accounts', () => {
+    authStore.isAuthenticated = true
+    authStore.isSupplier = true
+    expect(compactDestination(mountHome({ compact_home_enabled: true }))).toBe('/supplier/accounts')
   })
 
   it('links administrators to the admin dashboard', () => {

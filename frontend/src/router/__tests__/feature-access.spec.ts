@@ -14,6 +14,8 @@ const authStore = vi.hoisted(() => ({
   checkAuth: vi.fn(),
   isAuthenticated: true,
   isAdmin: false,
+  isSupplier: false,
+  homePath: "/dashboard",
   isSimpleMode: false,
   hasPendingAuthSession: false,
 }))
@@ -114,6 +116,8 @@ describe('feature route guard', () => {
   beforeEach(() => {
     authStore.isAuthenticated = true
     authStore.isAdmin = false
+    authStore.isSupplier = false
+    authStore.homePath = "/dashboard"
     authStore.isSimpleMode = false
     appStore.publicSettingsLoaded = false
     appStore.cachedPublicSettings = null
@@ -208,5 +212,46 @@ describe('subscription route guard (opt-out flag)', () => {
     await navigation
 
     expect(next).toHaveBeenCalledWith('/admin/dashboard')
+  })
+})
+
+
+describe('supplier route isolation', () => {
+  beforeEach(() => {
+    authStore.isAuthenticated = true
+    authStore.isAdmin = false
+    authStore.isSupplier = true
+    authStore.homePath = '/supplier/accounts'
+    appStore.backendModeEnabled = false
+    appStore.fetchPublicSettings.mockClear()
+  })
+
+  it.each(['/dashboard', '/keys', '/usage', '/redeem', '/affiliate', '/subscriptions', '/purchase', '/orders', '/custom/1', '/admin/accounts', '/payment/stripe', '/payment/result', '/auth/wechat/payment/callback'])('redirects supplier away from %s before loading consumer settings', async (path) => {
+    const { navigation, next } = runGuard({ requiresPayment: path.includes('payment'), requiresAuth: !path.includes('payment') }, path)
+    await navigation
+    expect(next).toHaveBeenCalledWith('/supplier/accounts')
+    expect(appStore.fetchPublicSettings).not.toHaveBeenCalled()
+  })
+
+  it.each(['/supplier/accounts', '/supplier/proxies', '/supplier/usage', '/profile'])('allows supplier %s even in backend mode', async (path) => {
+    appStore.backendModeEnabled = true
+    const { navigation, next } = runGuard({}, path)
+    await navigation
+    expect(next).toHaveBeenCalledWith()
+  })
+
+  it.each([false, true])('rejects consumer/admin direct supplier access (admin=%s)', async (isAdmin) => {
+    authStore.isSupplier = false
+    authStore.isAdmin = isAdmin
+    authStore.homePath = isAdmin ? '/admin/dashboard' : '/dashboard'
+    const { navigation, next } = runGuard({ requiresSupplier: true }, '/supplier/accounts')
+    await navigation
+    expect(next).toHaveBeenCalledWith(authStore.homePath)
+  })
+
+  it.each(['/auth/callback', '/legal/terms', '/home'])('preserves public auth/legal/home %s', async (path) => {
+    const { navigation, next } = runGuard({ requiresAuth: false }, path)
+    await navigation
+    expect(next).toHaveBeenCalledWith()
   })
 })

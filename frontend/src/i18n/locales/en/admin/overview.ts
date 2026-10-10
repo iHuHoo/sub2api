@@ -741,6 +741,7 @@ export default {
       createdAt: 'Created',
       totalRecharged: 'Total Recharged',
       roles: {
+        supplier: 'Supplier',
         admin: 'Admin',
         user: 'User'
       },

@@ -2,9 +2,10 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import LoginView from '@/views/auth/LoginView.vue'
 
-const { getPublicSettingsMock, pushMock } = vi.hoisted(() => ({
+const { getPublicSettingsMock, pushMock, authMock } = vi.hoisted(() => ({
   getPublicSettingsMock: vi.fn(),
-  pushMock: vi.fn()
+  pushMock: vi.fn(),
+  authMock: { homePath: '/dashboard', login: vi.fn(), loginWithPasskey: vi.fn(), login2FA: vi.fn() }
 }))
 
 const publicSettings = {
@@ -49,11 +50,7 @@ vi.mock('vue-i18n', () => ({
 }))
 
 vi.mock('@/stores', () => ({
-  useAuthStore: () => ({
-    login: vi.fn(),
-    loginWithPasskey: vi.fn(),
-    login2FA: vi.fn()
-  }),
+  useAuthStore: () => authMock,
   useAppStore: () => ({
     showError: vi.fn(),
     showSuccess: vi.fn(),
@@ -115,4 +112,20 @@ describe('LoginView registration entry', () => {
 
     expect(wrapper.text()).not.toContain('auth.signUp')
   })
+})
+
+
+it('submits supplier password login and uses the role-aware home fallback', async () => {
+  getPublicSettingsMock.mockResolvedValue(publicSettings)
+  authMock.homePath = '/supplier/accounts'
+  authMock.login.mockResolvedValue({ user: { role: 'supplier' }, access_token: 'synthetic' })
+  pushMock.mockClear()
+  const wrapper = mountLogin()
+  await flushPromises()
+  await wrapper.get('#email').setValue('supply@example.test')
+  await wrapper.get('#password').setValue('synthetic-password')
+  await wrapper.get('form').trigger('submit')
+  await flushPromises()
+  expect(pushMock).toHaveBeenCalledWith('/supplier/accounts')
+  wrapper.unmount()
 })

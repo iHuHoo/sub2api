@@ -35,7 +35,7 @@
       <ProfilePasswordForm />
 
       <ProfileBalanceNotifyCard
-        v-if="user && balanceLowNotifyEnabled"
+        v-if="user && !authStore.isSupplier && balanceLowNotifyEnabled"
         :enabled="user.balance_notify_enabled ?? true"
         :threshold="user.balance_notify_threshold"
         :extra-emails="user.balance_notify_extra_emails ?? []"

@@ -8,6 +8,7 @@
  * - 只在实际需要预加载时才执行
  */
 import { ref, readonly } from 'vue'
+import { useAuthStore } from '@/stores/auth'
 import type { RouteLocationNormalized, Router } from 'vue-router'
 
 /**
@@ -26,6 +27,9 @@ const PREFETCH_ADJACENCY: Record<string, string[]> = {
   '/admin/users': ['/admin/groups', '/admin/dashboard'],
   '/admin/groups': ['/admin/subscriptions', '/admin/users'],
   '/admin/subscriptions': ['/admin/groups', '/admin/redeem'],
+  '/supplier/accounts': ['/supplier/proxies', '/supplier/usage'],
+  '/supplier/proxies': ['/supplier/accounts'],
+  '/supplier/usage': ['/supplier/accounts'],
   // User routes
   '/dashboard': ['/keys', '/usage'],
   '/keys': ['/dashboard', '/usage'],
@@ -97,6 +101,7 @@ export function useRoutePrefetch(router?: Router) {
    * 获取当前路由应该预加载的路由路径列表
    */
   const getPrefetchPaths = (route: RouteLocationNormalized): string[] => {
+    if (useAuthStore().isSupplier && route.path === '/profile') return ['/supplier/accounts']
     return PREFETCH_ADJACENCY[route.path] || []
   }
 

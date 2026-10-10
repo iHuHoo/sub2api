@@ -60,7 +60,7 @@ watch(
 
 // Watch for authentication state and manage subscription data + announcements
 function onVisibilityChange() {
-  if (document.visibilityState === 'visible' && authStore.isAuthenticated) {
+  if (document.visibilityState === 'visible' && authStore.isAuthenticated && !authStore.isSupplier) {
     announcementStore.fetchAnnouncements()
   }
 }
@@ -81,7 +81,7 @@ function startSubscriptionSync() {
 }
 
 watch(subscriptionFeatureEnabled, (enabled) => {
-  if (!authStore.isAuthenticated) return
+  if (!authStore.isAuthenticated || authStore.isSupplier) return
   if (enabled) {
     startSubscriptionSync()
   } else {
@@ -90,9 +90,11 @@ watch(subscriptionFeatureEnabled, (enabled) => {
 })
 
 watch(
-  () => authStore.isAuthenticated,
-  (isAuthenticated, oldValue) => {
-    if (isAuthenticated) {
+  [() => authStore.isAuthenticated, () => authStore.isSupplier, () => authStore.user?.id],
+  ([isAuthenticated, isSupplier], oldValue) => {
+    subscriptionStore.clear()
+    announcementStore.reset()
+    if (isAuthenticated && !isSupplier) {
       if (authStore.isAdmin) {
         adminComplianceStore.fetchStatus().catch((error) => {
           console.error('Failed to fetch admin compliance status:', error)
@@ -106,9 +108,11 @@ watch(
       }
 
       // Announcements: new login vs page refresh restore
-      if (oldValue === false) {
+      if (oldValue?.[0] === false) {
         // New login: delay 3s then force fetch
-        setTimeout(() => announcementStore.fetchAnnouncements(true), 3000)
+        setTimeout(() => {
+          if (authStore.isAuthenticated && !authStore.isSupplier) announcementStore.fetchAnnouncements(true)
+        }, 3000)
       } else {
         // Page refresh restore (oldValue was undefined)
         announcementStore.fetchAnnouncements()
@@ -118,8 +122,6 @@ watch(
       document.addEventListener('visibilitychange', onVisibilityChange)
     } else {
       // User logged out: clear data and stop polling
-      subscriptionStore.clear()
-      announcementStore.reset()
       adminComplianceStore.reset()
       document.removeEventListener('visibilitychange', onVisibilityChange)
     }
@@ -129,7 +131,7 @@ watch(
 
 // Route change trigger (throttled by store)
 router.afterEach(() => {
-  if (authStore.isAuthenticated) {
+  if (authStore.isAuthenticated && !authStore.isSupplier) {
     announcementStore.fetchAnnouncements()
   }
 })
@@ -165,6 +167,6 @@ onMounted(async () => {
   <NavigationProgress />
   <RouterView />
   <Toast />
-  <AnnouncementPopup />
+  <AnnouncementPopup v-if="!authStore.isSupplier" />
   <AdminComplianceDialog />
 </template>

@@ -1,3 +1,4 @@
+import supplier from './supplier'
 import landing from './landing'
 import common from './common'
 import dashboard from './dashboard'
@@ -13,5 +14,6 @@ export default {
   ...channelMonitorV2,
   ...batchImage,
   admin,
+  supplier,
   ...misc,
 }
