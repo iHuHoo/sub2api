@@ -181,9 +181,5 @@ func GeminiTokenCacheKey(account *Account) string {
 			return vertexServiceAccountCacheKey(account, key)
 		}
 	}
-	projectID := strings.TrimSpace(account.GetCredential("project_id"))
-	if projectID != "" {
-		return "gemini:" + projectID
-	}
-	return "gemini:account:" + strconv.FormatInt(account.ID, 10)
+	return tokenVersionCacheKey("gemini:account:"+strconv.FormatInt(account.ID, 10), account)
 }

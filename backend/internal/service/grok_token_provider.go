@@ -341,5 +341,5 @@ func GrokTokenCacheKey(account *Account) string {
 	if account == nil {
 		return "grok:account:0"
 	}
-	return "grok:account:" + strconv.FormatInt(account.ID, 10)
+	return tokenVersionCacheKey("grok:account:"+strconv.FormatInt(account.ID, 10), account)
 }

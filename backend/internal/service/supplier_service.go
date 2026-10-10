@@ -113,10 +113,13 @@ type SupplierRepository interface {
 	Usage(context.Context, int64, time.Time, time.Time, *int64) (*SupplierUsage, error)
 }
 
-type SupplierService struct{ repo SupplierRepository }
+type SupplierService struct {
+	repo             SupplierRepository
+	tokenInvalidator TokenCacheInvalidator
+}
 
-func NewSupplierService(repo SupplierRepository) *SupplierService {
-	return &SupplierService{repo: repo}
+func NewSupplierService(repo SupplierRepository, tokenInvalidator TokenCacheInvalidator) *SupplierService {
+	return &SupplierService{repo: repo, tokenInvalidator: tokenInvalidator}
 }
 
 func supplierAccountView(a *Account, owner int64) SupplierAccount {
@@ -187,9 +190,16 @@ func (s *SupplierService) UpdateAccount(ctx context.Context, owner, id int64, in
 		}
 
 	}
+	previous := a
 	a, err = s.repo.UpdateAccount(ctx, owner, id, in)
 	if err != nil {
 		return nil, err
+	}
+	// The repository has committed before returning. Clear both old and new namespaces;
+	// versions prevent an in-flight old reader from repopulating the current namespace.
+	if in.Credentials != nil && s.tokenInvalidator != nil {
+		_ = s.tokenInvalidator.InvalidateToken(ctx, previous)
+		_ = s.tokenInvalidator.InvalidateToken(ctx, a)
 	}
 	out := supplierAccountView(a, owner)
 	return &out, nil
@@ -312,7 +322,7 @@ func validateSupplierProxy(p *Proxy) error {
 	default:
 		return ErrSupplierInvalid
 	}
-	if p.Status != StatusActive && p.Status != StatusDisabled {
+	if p.Status != StatusActive && p.Status != "inactive" {
 		return ErrSupplierInvalid
 	}
 	return nil

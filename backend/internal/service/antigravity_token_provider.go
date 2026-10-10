@@ -231,5 +231,5 @@ func (p *AntigravityTokenProvider) markBackfillAttempted(accountID int64) {
 }
 
 func AntigravityTokenCacheKey(account *Account) string {
-	return "ag:account:" + strconv.FormatInt(account.ID, 10)
+	return tokenVersionCacheKey("ag:account:"+strconv.FormatInt(account.ID, 10), account)
 }

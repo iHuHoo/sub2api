@@ -22,7 +22,7 @@ func TestGeminiTokenCacheKey(t *testing.T) {
 					"project_id": "my-project-123",
 				},
 			},
-			expected: "gemini:my-project-123",
+			expected: "gemini:account:100",
 		},
 		{
 			name: "project_id_with_whitespace",
@@ -32,7 +32,7 @@ func TestGeminiTokenCacheKey(t *testing.T) {
 					"project_id": "  project-with-spaces  ",
 				},
 			},
-			expected: "gemini:project-with-spaces",
+			expected: "gemini:account:101",
 		},
 		{
 			name: "empty_project_id_fallback_to_account_id",

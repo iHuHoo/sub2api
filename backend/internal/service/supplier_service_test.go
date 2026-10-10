@@ -82,7 +82,7 @@ func (r *supplierEditTestRepo) UpdateAccount(_ context.Context, _ int64, _ int64
 func TestSupplierCredentialEditPreservesAdministratorEndpoint(t *testing.T) {
 	owner := int64(11)
 	repo := &supplierEditTestRepo{a: &Account{ID: 1, SupplierUserID: &owner, Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Credentials: map[string]any{"api_key": "old", "base_url": "https://admin-configured.example/v1", "header_overrides": map[string]any{"x": "admin"}}}}
-	s := NewSupplierService(repo)
+	s := NewSupplierService(repo, nil)
 	_, err := s.UpdateAccount(context.Background(), owner, 1, SupplierAccountUpdate{Credentials: map[string]any{"api_key": "new"}})
 	require.NoError(t, err)
 	require.Equal(t, "https://admin-configured.example/v1", repo.a.Credentials["base_url"])

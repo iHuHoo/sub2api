@@ -15,6 +15,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/schema/mixins"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
 	"github.com/Wei-Shaw/sub2api/internal/service"
+	"github.com/lib/pq"
 )
 
 type supplierRepository struct {
@@ -85,7 +86,13 @@ func (r *supplierRepository) GetAccount(ctx context.Context, owner, id int64) (*
 	return &out[0], nil
 }
 
-func (r *supplierRepository) transaction(ctx context.Context, fn func(*supplierRepository) error) error {
+func (r *supplierRepository) transaction(ctx context.Context, fn func(*supplierRepository) error) (err error) {
+	defer func() {
+		var constraint *pq.Error
+		if errors.As(err, &constraint) && constraint.Code == "23503" && constraint.Constraint == "live_proxy_reference" {
+			err = service.ErrSupplierUnavailable
+		}
+	}()
 	tx, err := r.client.Tx(ctx)
 	if errors.Is(err, dbent.ErrTxStarted) {
 		return fn(r)
@@ -227,7 +234,7 @@ func (r *supplierRepository) UpdateAccount(ctx context.Context, owner, id int64,
 				return service.ErrSupplierInvalid
 			}
 			args = append(args, string(raw))
-			sets = append(sets, fmt.Sprintf("credentials=COALESCE(credentials,'{}'::jsonb)||$%d::jsonb", len(args)))
+			sets = append(sets, fmt.Sprintf("credentials=COALESCE(credentials,'{}'::jsonb)||$%d::jsonb||jsonb_build_object('_token_version',GREATEST(COALESCE((credentials->>'_token_version')::bigint,0)+1,(EXTRACT(EPOCH FROM clock_timestamp())*1000)::bigint))", len(args)))
 		}
 		if in.ProxyID != nil {
 			if *in.ProxyID == 0 {
@@ -248,6 +255,17 @@ func (r *supplierRepository) UpdateAccount(ctx context.Context, owner, id int64,
 		}
 		if _, err := tr.sql.ExecContext(ctx, "UPDATE accounts SET "+strings.Join(sets, ",")+" WHERE id=$1 AND supplier_user_id=$2 AND deleted_at IS NULL", args...); err != nil {
 			return err
+		}
+		if in.ProxyID != nil {
+			var binding any
+			if *in.ProxyID != 0 {
+				binding = *in.ProxyID
+			}
+			// Credentials are inherited from the parent; the gateway uses the selected
+			// shadow's proxy. Update only that binding, preserving administrator fields.
+			if _, err := tr.sql.ExecContext(ctx, `UPDATE accounts SET proxy_id=$3,updated_at=NOW(),extra=COALESCE(extra,'{}'::jsonb)-'upstream_billing_probe'-'ollama_cloud_usage_snapshot'-'opencode_go_usage_snapshot' WHERE parent_account_id=$1 AND supplier_user_id=$2 AND deleted_at IS NULL`, id, owner, binding); err != nil {
+				return err
+			}
 		}
 		var err error
 		changed, err = tr.accountChanges(ctx, id)
@@ -378,7 +396,8 @@ func (r *supplierRepository) DeleteProxy(ctx context.Context, owner, id int64) e
 		return err
 	}
 	return r.transaction(ctx, func(tr *supplierRepository) error {
-		// Soft deletion has no FK enforcement; serialize reference writes during this rare operation.
+		// Serialize reference writes and count them under the same deletion transaction.
+		// Migration 244 revalidates queued writers after this lock is released.
 		if _, err := tr.sql.ExecContext(ctx, `SET LOCAL lock_timeout = '2s'`); err != nil {
 			return err
 		}
