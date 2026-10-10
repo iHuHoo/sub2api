@@ -210,6 +210,12 @@ func TestSupplierCommittedTransactionsAndBoundedProxyDelete(t *testing.T) {
 	owner := int64(990011)
 	a, err := s.CreateAccount(ctx, owner, service.SupplierAccountCreate{Name: "committed", Platform: service.PlatformOpenAI, Type: service.AccountTypeAPIKey, Credentials: map[string]any{"api_key": "test"}})
 	require.NoError(t, err)
+	t.Cleanup(func() {
+		_, err := integrationDB.Exec(`DELETE FROM scheduler_outbox WHERE account_id=$1 OR payload @> jsonb_build_object('account_ids',jsonb_build_array($1::bigint))`, a.ID)
+		require.NoError(t, err)
+		_, err = integrationDB.Exec(`DELETE FROM accounts WHERE id=$1`, a.ID)
+		require.NoError(t, err)
+	})
 	_, err = s.PauseAccount(ctx, owner, a.ID, true)
 	require.NoError(t, err)
 	stored, err := repo.GetAccount(ctx, owner, a.ID)
@@ -222,6 +228,10 @@ func TestSupplierCommittedTransactionsAndBoundedProxyDelete(t *testing.T) {
 	require.Equal(t, "committed", stored.Name, "failed sparse mutation rolled back")
 	p, err := s.CreateProxy(ctx, owner, service.SupplierProxyInput{Name: supplierPtr("bounded"), Protocol: supplierPtr("http"), Host: supplierPtr("8.8.8.8"), Port: supplierPtr(80)})
 	require.NoError(t, err)
+	t.Cleanup(func() {
+		_, err := integrationDB.Exec(`DELETE FROM proxies WHERE id=$1`, p.ID)
+		require.NoError(t, err)
+	})
 	blocker := testTx(t)
 	_, err = blocker.ExecContext(ctx, `LOCK TABLE accounts IN SHARE ROW EXCLUSIVE MODE`)
 	require.NoError(t, err)

@@ -162,8 +162,10 @@ func TestSupplierConcurrentCredentialVersions(t *testing.T) {
 	a := &service.Account{Name: "version", Platform: service.PlatformOpenAI, Type: service.AccountTypeOAuth, Status: "active", SupplierUserID: &owner, Priority: 99, Credentials: map[string]any{"access_token": "initial", "_token_version": initial}}
 	require.NoError(t, ar.Create(ctx, a))
 	t.Cleanup(func() {
-		_, _ = integrationDB.Exec(`DELETE FROM scheduler_outbox WHERE account_id=$1`, a.ID)
-		_, _ = integrationDB.Exec(`DELETE FROM accounts WHERE id=$1`, a.ID)
+		_, err := integrationDB.Exec(`DELETE FROM scheduler_outbox WHERE account_id=$1 OR payload @> jsonb_build_object('account_ids',jsonb_build_array($1::bigint))`, a.ID)
+		require.NoError(t, err)
+		_, err = integrationDB.Exec(`DELETE FROM accounts WHERE id=$1`, a.ID)
+		require.NoError(t, err)
 	})
 	result := make(chan error, 2)
 	for _, token := range []string{"one", "two"} {
