@@ -32,6 +32,9 @@ func (s *adminServiceImpl) ListAccounts(ctx context.Context, page, pageSize int,
 	if err != nil {
 		return nil, 0, err
 	}
+	if err := s.loadSupplierNames(ctx, accounts); err != nil {
+		return nil, 0, err
+	}
 	return accounts, result.Total, nil
 }
 
@@ -53,7 +56,16 @@ func (s *adminServiceImpl) ListOpenAISchedulableAccountsForSchedulerScore(ctx co
 }
 
 func (s *adminServiceImpl) GetAccount(ctx context.Context, id int64) (*Account, error) {
-	return s.accountRepo.GetByID(ctx, id)
+	account, err := s.accountRepo.GetByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	accounts := []Account{*account}
+	if err := s.loadSupplierNames(ctx, accounts); err != nil {
+		return nil, err
+	}
+	account.SupplierName = accounts[0].SupplierName
+	return account, nil
 }
 
 func (s *adminServiceImpl) GetAccountsByIDs(ctx context.Context, ids []int64) ([]*Account, error) {
@@ -66,7 +78,55 @@ func (s *adminServiceImpl) GetAccountsByIDs(ctx context.Context, ids []int64) ([
 		return nil, fmt.Errorf("failed to get accounts by IDs: %w", err)
 	}
 
+	values := make([]Account, len(accounts))
+	for i, account := range accounts {
+		values[i] = *account
+	}
+	if err := s.loadSupplierNames(ctx, values); err != nil {
+		return nil, err
+	}
+	for i := range accounts {
+		accounts[i].SupplierName = values[i].SupplierName
+	}
 	return accounts, nil
+}
+
+type supplierNameReader interface {
+	GetSupplierNames(context.Context, []int64) (map[int64]string, error)
+}
+
+func (s *adminServiceImpl) loadSupplierNames(ctx context.Context, accounts []Account) error {
+	ids := make([]int64, 0)
+	seen := make(map[int64]bool)
+	for _, account := range accounts {
+		if account.SupplierUserID != nil && !seen[*account.SupplierUserID] {
+			id := *account.SupplierUserID
+			seen[id] = true
+			ids = append(ids, id)
+		}
+	}
+	if len(ids) == 0 {
+		return nil
+	}
+	names := map[int64]string{}
+	if reader, ok := s.userRepo.(supplierNameReader); ok {
+		var err error
+		names, err = reader.GetSupplierNames(ctx, ids)
+		if err != nil {
+			return fmt.Errorf("load supplier names: %w", err)
+		}
+	}
+	for i := range accounts {
+		if accounts[i].SupplierUserID == nil {
+			continue
+		}
+		id := *accounts[i].SupplierUserID
+		accounts[i].SupplierName = names[id]
+		if accounts[i].SupplierName == "" {
+			accounts[i].SupplierName = fmt.Sprintf("#%d", id)
+		}
+	}
+	return nil
 }
 
 const maxAccountNameRunes = 100
@@ -425,17 +485,18 @@ func buildAccountForCreate(input *CreateAccountInput, accountExtra map[string]an
 	delete(accountExtra, OpenCodeGoUsageSnapshotExtraKey)
 	accountExtra = prepareCodexFingerprintExtraForCreate(input.Platform, input.Type, accountExtra)
 	account := &Account{
-		Name:        input.Name,
-		Notes:       normalizeAccountNotes(input.Notes),
-		Platform:    input.Platform,
-		Type:        input.Type,
-		Credentials: input.Credentials,
-		Extra:       accountExtra,
-		ProxyID:     input.ProxyID,
-		Concurrency: normalizeAccountConcurrency(input.Platform, input.Type, input.Concurrency),
-		Priority:    input.Priority,
-		Status:      StatusActive,
-		Schedulable: true,
+		SupplierUserID: input.SupplierUserID,
+		Name:           input.Name,
+		Notes:          normalizeAccountNotes(input.Notes),
+		Platform:       input.Platform,
+		Type:           input.Type,
+		Credentials:    input.Credentials,
+		Extra:          accountExtra,
+		ProxyID:        input.ProxyID,
+		Concurrency:    normalizeAccountConcurrency(input.Platform, input.Type, input.Concurrency),
+		Priority:       input.Priority,
+		Status:         StatusActive,
+		Schedulable:    true,
 	}
 	if input.ProbeEnabled != nil && *input.ProbeEnabled {
 		if !isUpstreamBillingProbeAccount(account) {
@@ -498,7 +559,7 @@ func (s *adminServiceImpl) CreateAccount(ctx context.Context, input *CreateAccou
 	// 绑定分组
 	groupIDs := input.GroupIDs
 	// 如果没有指定分组,自动绑定对应平台的默认分组
-	if len(groupIDs) == 0 && !input.SkipDefaultGroupBind {
+	if len(groupIDs) == 0 && !input.SkipDefaultGroupBind && input.SupplierUserID == nil {
 		defaultGroupName := input.Platform + "-default"
 		groups, err := s.groupRepo.ListActiveByPlatform(ctx, input.Platform)
 		if err == nil {
@@ -1327,7 +1388,7 @@ func (s *adminServiceImpl) ClearAccountError(ctx context.Context, id int64) (*Ac
 	if s.runtimeBlocker != nil {
 		s.runtimeBlocker.ClearAccountSchedulingBlock(id)
 	}
-	return s.accountRepo.GetByID(ctx, id)
+	return s.GetAccount(ctx, id)
 }
 
 func (s *adminServiceImpl) SetAccountError(ctx context.Context, id int64, errorMsg string) error {
@@ -1438,6 +1499,7 @@ func (s *adminServiceImpl) CreateShadow(ctx context.Context, parentID int64, opt
 		priority = parent.Priority
 	}
 	shadow := &Account{
+		SupplierUserID:  parent.SupplierUserID,
 		Name:            name,
 		Platform:        PlatformOpenAI,
 		Type:            AccountTypeOAuth,

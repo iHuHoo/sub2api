@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 
 	"github.com/gin-gonic/gin"
@@ -82,5 +83,23 @@ func TestCreateRegularUserSkipsStepUp(t *testing.T) {
 	rec := doJSON(t, router, http.MethodPost, "/api/v1/admin/users", map[string]any{
 		"email": "new-user@example.com", "password": "pass123", "role": "user",
 	})
+	require.Equal(t, http.StatusOK, rec.Code)
+}
+
+func TestSupplierRoleCannotSelfDemoteAdmin(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	adminSvc := newStubAdminService()
+	h := NewUserHandler(adminSvc, nil, nil, nil, nil, nil, nil)
+	r := gin.New()
+	r.Use(func(c *gin.Context) { c.Set("user", middleware.AuthSubject{UserID: 1}) })
+	r.PUT("/api/v1/admin/users/:id", h.Update)
+	rec := doJSON(t, r, http.MethodPut, "/api/v1/admin/users/1", map[string]any{"role": "supplier"})
+	require.Equal(t, http.StatusBadRequest, rec.Code)
+	require.Contains(t, rec.Body.String(), "cannot demote yourself")
+}
+
+func TestSupplierRoleAcceptedByAdminHandler(t *testing.T) {
+	r, _ := setupRoleStepUpRouter(t)
+	rec := doJSON(t, r, http.MethodPost, "/api/v1/admin/users", map[string]any{"email": "supplier@test.com", "password": "pass123", "role": "supplier"})
 	require.Equal(t, http.StatusOK, rec.Code)
 }

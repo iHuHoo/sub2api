@@ -50,6 +50,9 @@ func (Account) Mixin() []ent.Mixin {
 // Fields 定义账户实体的所有字段。
 func (Account) Fields() []ent.Field {
 	return []ent.Field{
+		field.Int64("supplier_user_id").Optional().Nillable().Immutable(),
+		field.Bool("supplier_paused").Default(false),
+		field.String("supplier_notes").Optional().Nillable(),
 		// name: 账户显示名称，用于在界面中标识账户
 		field.String("name").
 			MaxLen(100).
@@ -234,6 +237,7 @@ func (Account) Edges() []ent.Edge {
 // 每个索引对应一个常用的查询条件。
 func (Account) Indexes() []ent.Index {
 	return []ent.Index{
+		index.Fields("supplier_user_id"),
 		index.Fields("platform"),            // 按平台筛选
 		index.Fields("type"),                // 按认证类型筛选
 		index.Fields("status"),              // 按状态筛选

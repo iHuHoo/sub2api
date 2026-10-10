@@ -438,6 +438,9 @@ func (_u *ProxyUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	if _u.mutation.DeletedAtCleared() {
 		_spec.ClearField(proxy.FieldDeletedAt, field.TypeTime)
 	}
+	if _u.mutation.SupplierUserIDCleared() {
+		_spec.ClearField(proxy.FieldSupplierUserID, field.TypeInt64)
+	}
 	if value, ok := _u.mutation.Name(); ok {
 		_spec.SetField(proxy.FieldName, field.TypeString, value)
 	}
@@ -1060,6 +1063,9 @@ func (_u *ProxyUpdateOne) sqlSave(ctx context.Context) (_node *Proxy, err error)
 	}
 	if _u.mutation.DeletedAtCleared() {
 		_spec.ClearField(proxy.FieldDeletedAt, field.TypeTime)
+	}
+	if _u.mutation.SupplierUserIDCleared() {
+		_spec.ClearField(proxy.FieldSupplierUserID, field.TypeInt64)
 	}
 	if value, ok := _u.mutation.Name(); ok {
 		_spec.SetField(proxy.FieldName, field.TypeString, value)

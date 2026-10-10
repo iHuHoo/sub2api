@@ -70,6 +70,21 @@ func DeletedAt(v time.Time) predicate.Account {
 	return predicate.Account(sql.FieldEQ(FieldDeletedAt, v))
 }
 
+// SupplierUserID applies equality check predicate on the "supplier_user_id" field. It's identical to SupplierUserIDEQ.
+func SupplierUserID(v int64) predicate.Account {
+	return predicate.Account(sql.FieldEQ(FieldSupplierUserID, v))
+}
+
+// SupplierPaused applies equality check predicate on the "supplier_paused" field. It's identical to SupplierPausedEQ.
+func SupplierPaused(v bool) predicate.Account {
+	return predicate.Account(sql.FieldEQ(FieldSupplierPaused, v))
+}
+
+// SupplierNotes applies equality check predicate on the "supplier_notes" field. It's identical to SupplierNotesEQ.
+func SupplierNotes(v string) predicate.Account {
+	return predicate.Account(sql.FieldEQ(FieldSupplierNotes, v))
+}
+
 // Name applies equality check predicate on the "name" field. It's identical to NameEQ.
 func Name(v string) predicate.Account {
 	return predicate.Account(sql.FieldEQ(FieldName, v))
@@ -323,6 +338,141 @@ func DeletedAtIsNil() predicate.Account {
 // DeletedAtNotNil applies the NotNil predicate on the "deleted_at" field.
 func DeletedAtNotNil() predicate.Account {
 	return predicate.Account(sql.FieldNotNull(FieldDeletedAt))
+}
+
+// SupplierUserIDEQ applies the EQ predicate on the "supplier_user_id" field.
+func SupplierUserIDEQ(v int64) predicate.Account {
+	return predicate.Account(sql.FieldEQ(FieldSupplierUserID, v))
+}
+
+// SupplierUserIDNEQ applies the NEQ predicate on the "supplier_user_id" field.
+func SupplierUserIDNEQ(v int64) predicate.Account {
+	return predicate.Account(sql.FieldNEQ(FieldSupplierUserID, v))
+}
+
+// SupplierUserIDIn applies the In predicate on the "supplier_user_id" field.
+func SupplierUserIDIn(vs ...int64) predicate.Account {
+	return predicate.Account(sql.FieldIn(FieldSupplierUserID, vs...))
+}
+
+// SupplierUserIDNotIn applies the NotIn predicate on the "supplier_user_id" field.
+func SupplierUserIDNotIn(vs ...int64) predicate.Account {
+	return predicate.Account(sql.FieldNotIn(FieldSupplierUserID, vs...))
+}
+
+// SupplierUserIDGT applies the GT predicate on the "supplier_user_id" field.
+func SupplierUserIDGT(v int64) predicate.Account {
+	return predicate.Account(sql.FieldGT(FieldSupplierUserID, v))
+}
+
+// SupplierUserIDGTE applies the GTE predicate on the "supplier_user_id" field.
+func SupplierUserIDGTE(v int64) predicate.Account {
+	return predicate.Account(sql.FieldGTE(FieldSupplierUserID, v))
+}
+
+// SupplierUserIDLT applies the LT predicate on the "supplier_user_id" field.
+func SupplierUserIDLT(v int64) predicate.Account {
+	return predicate.Account(sql.FieldLT(FieldSupplierUserID, v))
+}
+
+// SupplierUserIDLTE applies the LTE predicate on the "supplier_user_id" field.
+func SupplierUserIDLTE(v int64) predicate.Account {
+	return predicate.Account(sql.FieldLTE(FieldSupplierUserID, v))
+}
+
+// SupplierUserIDIsNil applies the IsNil predicate on the "supplier_user_id" field.
+func SupplierUserIDIsNil() predicate.Account {
+	return predicate.Account(sql.FieldIsNull(FieldSupplierUserID))
+}
+
+// SupplierUserIDNotNil applies the NotNil predicate on the "supplier_user_id" field.
+func SupplierUserIDNotNil() predicate.Account {
+	return predicate.Account(sql.FieldNotNull(FieldSupplierUserID))
+}
+
+// SupplierPausedEQ applies the EQ predicate on the "supplier_paused" field.
+func SupplierPausedEQ(v bool) predicate.Account {
+	return predicate.Account(sql.FieldEQ(FieldSupplierPaused, v))
+}
+
+// SupplierPausedNEQ applies the NEQ predicate on the "supplier_paused" field.
+func SupplierPausedNEQ(v bool) predicate.Account {
+	return predicate.Account(sql.FieldNEQ(FieldSupplierPaused, v))
+}
+
+// SupplierNotesEQ applies the EQ predicate on the "supplier_notes" field.
+func SupplierNotesEQ(v string) predicate.Account {
+	return predicate.Account(sql.FieldEQ(FieldSupplierNotes, v))
+}
+
+// SupplierNotesNEQ applies the NEQ predicate on the "supplier_notes" field.
+func SupplierNotesNEQ(v string) predicate.Account {
+	return predicate.Account(sql.FieldNEQ(FieldSupplierNotes, v))
+}
+
+// SupplierNotesIn applies the In predicate on the "supplier_notes" field.
+func SupplierNotesIn(vs ...string) predicate.Account {
+	return predicate.Account(sql.FieldIn(FieldSupplierNotes, vs...))
+}
+
+// SupplierNotesNotIn applies the NotIn predicate on the "supplier_notes" field.
+func SupplierNotesNotIn(vs ...string) predicate.Account {
+	return predicate.Account(sql.FieldNotIn(FieldSupplierNotes, vs...))
+}
+
+// SupplierNotesGT applies the GT predicate on the "supplier_notes" field.
+func SupplierNotesGT(v string) predicate.Account {
+	return predicate.Account(sql.FieldGT(FieldSupplierNotes, v))
+}
+
+// SupplierNotesGTE applies the GTE predicate on the "supplier_notes" field.
+func SupplierNotesGTE(v string) predicate.Account {
+	return predicate.Account(sql.FieldGTE(FieldSupplierNotes, v))
+}
+
+// SupplierNotesLT applies the LT predicate on the "supplier_notes" field.
+func SupplierNotesLT(v string) predicate.Account {
+	return predicate.Account(sql.FieldLT(FieldSupplierNotes, v))
+}
+
+// SupplierNotesLTE applies the LTE predicate on the "supplier_notes" field.
+func SupplierNotesLTE(v string) predicate.Account {
+	return predicate.Account(sql.FieldLTE(FieldSupplierNotes, v))
+}
+
+// SupplierNotesContains applies the Contains predicate on the "supplier_notes" field.
+func SupplierNotesContains(v string) predicate.Account {
+	return predicate.Account(sql.FieldContains(FieldSupplierNotes, v))
+}
+
+// SupplierNotesHasPrefix applies the HasPrefix predicate on the "supplier_notes" field.
+func SupplierNotesHasPrefix(v string) predicate.Account {
+	return predicate.Account(sql.FieldHasPrefix(FieldSupplierNotes, v))
+}
+
+// SupplierNotesHasSuffix applies the HasSuffix predicate on the "supplier_notes" field.
+func SupplierNotesHasSuffix(v string) predicate.Account {
+	return predicate.Account(sql.FieldHasSuffix(FieldSupplierNotes, v))
+}
+
+// SupplierNotesIsNil applies the IsNil predicate on the "supplier_notes" field.
+func SupplierNotesIsNil() predicate.Account {
+	return predicate.Account(sql.FieldIsNull(FieldSupplierNotes))
+}
+
+// SupplierNotesNotNil applies the NotNil predicate on the "supplier_notes" field.
+func SupplierNotesNotNil() predicate.Account {
+	return predicate.Account(sql.FieldNotNull(FieldSupplierNotes))
+}
+
+// SupplierNotesEqualFold applies the EqualFold predicate on the "supplier_notes" field.
+func SupplierNotesEqualFold(v string) predicate.Account {
+	return predicate.Account(sql.FieldEqualFold(FieldSupplierNotes, v))
+}
+
+// SupplierNotesContainsFold applies the ContainsFold predicate on the "supplier_notes" field.
+func SupplierNotesContainsFold(v string) predicate.Account {
+	return predicate.Account(sql.FieldContainsFold(FieldSupplierNotes, v))
 }
 
 // NameEQ applies the EQ predicate on the "name" field.

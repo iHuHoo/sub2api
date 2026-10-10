@@ -286,13 +286,20 @@ func (r *userRepository) Update(ctx context.Context, userIn *service.User, field
 		}
 	}
 
-	existing, err := clientFromContext(txCtx, txClient).User.Get(txCtx, userIn.ID)
+	existingQuery := clientFromContext(txCtx, txClient).User.Query().Where(dbuser.IDEQ(userIn.ID))
+	if fields.Role || fields.Status {
+		existingQuery = existingQuery.ForUpdate()
+	}
+	existing, err := existingQuery.Only(txCtx)
 	if err != nil {
 		return translatePersistenceError(err, service.ErrUserNotFound, nil)
 	}
 	oldEmail := existing.Email
 
 	updateOp := txClient.User.UpdateOneID(userIn.ID)
+	if (fields.Role && userIn.Role != existing.Role) || (fields.Status && userIn.Status != existing.Status) {
+		updateOp = updateOp.AddAuthVersion(1)
+	}
 	if fields.Email {
 		updateOp = updateOp.SetEmail(userIn.Email)
 	}
@@ -364,6 +371,9 @@ func (r *userRepository) Update(ctx context.Context, userIn *service.User, field
 	}
 
 	userIn.UpdatedAt = updated.UpdatedAt
+	userIn.AuthVersion = updated.AuthVersion
+	userIn.TokenVersion = 0
+	userIn.TokenVersionResolved = false
 	return nil
 }
 
@@ -1532,6 +1542,9 @@ func applyUserEntityToService(dst *service.User, src *dbent.User) {
 		return
 	}
 	dst.ID = src.ID
+	dst.AuthVersion = src.AuthVersion
+	dst.TokenVersion = 0
+	dst.TokenVersionResolved = false
 	dst.SignupSource = src.SignupSource
 	dst.LastLoginAt = src.LastLoginAt
 	dst.LastActiveAt = src.LastActiveAt
@@ -1596,4 +1609,27 @@ func (r *userRepository) DisableTotp(ctx context.Context, userID int64) error {
 		return translatePersistenceError(err, service.ErrUserNotFound, nil)
 	}
 	return nil
+}
+
+// GetSupplierNames preserves provenance after a supplier is soft-deleted or changes role.
+func (r *userRepository) GetSupplierNames(ctx context.Context, ids []int64) (map[int64]string, error) {
+	names := make(map[int64]string, len(ids))
+	if len(ids) == 0 {
+		return names, nil
+	}
+	users, err := r.client.User.Query().Where(dbuser.IDIn(ids...)).Select(dbuser.FieldID, dbuser.FieldUsername, dbuser.FieldEmail).All(mixins.SkipSoftDelete(ctx))
+	if err != nil {
+		return nil, err
+	}
+	for _, user := range users {
+		name := strings.TrimSpace(user.Username)
+		if name == "" {
+			name = strings.TrimSpace(user.Email)
+		}
+		if name == "" {
+			name = fmt.Sprintf("#%d", user.ID)
+		}
+		names[user.ID] = name
+	}
+	return names, nil
 }

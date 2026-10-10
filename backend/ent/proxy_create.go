@@ -65,6 +65,20 @@ func (_c *ProxyCreate) SetNillableDeletedAt(v *time.Time) *ProxyCreate {
 	return _c
 }
 
+// SetSupplierUserID sets the "supplier_user_id" field.
+func (_c *ProxyCreate) SetSupplierUserID(v int64) *ProxyCreate {
+	_c.mutation.SetSupplierUserID(v)
+	return _c
+}
+
+// SetNillableSupplierUserID sets the "supplier_user_id" field if the given value is not nil.
+func (_c *ProxyCreate) SetNillableSupplierUserID(v *int64) *ProxyCreate {
+	if v != nil {
+		_c.SetSupplierUserID(*v)
+	}
+	return _c
+}
+
 // SetName sets the "name" field.
 func (_c *ProxyCreate) SetName(v string) *ProxyCreate {
 	_c.mutation.SetName(v)
@@ -390,6 +404,10 @@ func (_c *ProxyCreate) createSpec() (*Proxy, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.DeletedAt(); ok {
 		_spec.SetField(proxy.FieldDeletedAt, field.TypeTime, value)
 		_node.DeletedAt = &value
+	}
+	if value, ok := _c.mutation.SupplierUserID(); ok {
+		_spec.SetField(proxy.FieldSupplierUserID, field.TypeInt64, value)
+		_node.SupplierUserID = &value
 	}
 	if value, ok := _c.mutation.Name(); ok {
 		_spec.SetField(proxy.FieldName, field.TypeString, value)
@@ -743,6 +761,9 @@ func (u *ProxyUpsertOne) UpdateNewValues() *ProxyUpsertOne {
 	u.create.conflict = append(u.create.conflict, sql.ResolveWith(func(s *sql.UpdateSet) {
 		if _, exists := u.create.mutation.CreatedAt(); exists {
 			s.SetIgnore(proxy.FieldCreatedAt)
+		}
+		if _, exists := u.create.mutation.SupplierUserID(); exists {
+			s.SetIgnore(proxy.FieldSupplierUserID)
 		}
 	}))
 	return u
@@ -1184,6 +1205,9 @@ func (u *ProxyUpsertBulk) UpdateNewValues() *ProxyUpsertBulk {
 		for _, b := range u.create.builders {
 			if _, exists := b.mutation.CreatedAt(); exists {
 				s.SetIgnore(proxy.FieldCreatedAt)
+			}
+			if _, exists := b.mutation.SupplierUserID(); exists {
+				s.SetIgnore(proxy.FieldSupplierUserID)
 			}
 		}
 	}))

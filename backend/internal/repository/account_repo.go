@@ -150,6 +150,9 @@ func createAccountRecord(ctx context.Context, client *dbent.Client, account *ser
 		SetPriority(account.Priority).
 		SetStatus(account.Status).
 		SetErrorMessage(account.ErrorMessage).
+		SetNillableSupplierUserID(account.SupplierUserID).
+		SetSupplierPaused(account.SupplierPaused).
+		SetNillableSupplierNotes(account.SupplierNotes).
 		SetSchedulable(account.Schedulable).
 		SetAutoPauseOnExpired(account.AutoPauseOnExpired)
 
@@ -1018,6 +1021,7 @@ func (r *accountRepository) accountListFilteredQuery(platform, accountType, stat
 			q = q.Where(
 				dbaccount.StatusEQ(status),
 				dbaccount.SchedulableEQ(true),
+				supplierAvailablePredicate(),
 				dbaccount.Or(
 					dbaccount.RateLimitResetAtIsNil(),
 					dbaccount.RateLimitResetAtLTE(time.Now()),
@@ -1056,7 +1060,7 @@ func (r *accountRepository) accountListFilteredQuery(platform, accountType, stat
 		case "unschedulable":
 			q = q.Where(
 				dbaccount.StatusEQ(service.StatusActive),
-				dbaccount.SchedulableEQ(false),
+				dbaccount.Or(dbaccount.SchedulableEQ(false), dbaccount.Not(supplierAvailablePredicate())),
 				dbaccount.Or(
 					dbaccount.RateLimitResetAtIsNil(),
 					dbaccount.RateLimitResetAtLTE(time.Now()),
@@ -1160,6 +1164,7 @@ func (r *accountRepository) ListOpsAccountsForStats(ctx context.Context, platfor
 			dbaccount.FieldStatus,
 			dbaccount.FieldErrorMessage,
 			dbaccount.FieldSchedulable,
+			dbaccount.FieldSupplierPaused,
 			dbaccount.FieldRateLimitResetAt,
 			dbaccount.FieldOverloadUntil,
 			dbaccount.FieldTempUnschedulableUntil,
@@ -2027,6 +2032,7 @@ func (r *accountRepository) schedulableAccountsQuery(now time.Time) *dbent.Accou
 		Where(
 			dbaccount.StatusEQ(service.StatusActive),
 			dbaccount.SchedulableEQ(true),
+			supplierAvailablePredicate(),
 			tempUnschedulablePredicate(),
 			notExpiredPredicate(now),
 			dbaccount.Or(dbaccount.OverloadUntilIsNil(), dbaccount.OverloadUntilLTE(now)),
@@ -2085,6 +2091,8 @@ func (r *accountRepository) ListSchedulableCapacityByGroupIDs(ctx context.Contex
 			AND a.deleted_at IS NULL
 			AND a.status = $2
 			AND a.schedulable = TRUE
+			AND a.supplier_paused = FALSE
+			AND (a.parent_account_id IS NULL OR EXISTS (SELECT 1 FROM accounts parent WHERE parent.id = a.parent_account_id AND parent.deleted_at IS NULL AND parent.supplier_paused = FALSE))
 			AND (a.temp_unschedulable_until IS NULL OR a.temp_unschedulable_until <= $3)
 			AND (a.expires_at IS NULL OR a.expires_at > $3 OR a.auto_pause_on_expired = FALSE)
 			AND (a.overload_until IS NULL OR a.overload_until <= $3)
@@ -2133,6 +2141,7 @@ func (r *accountRepository) ListSchedulableByPlatform(ctx context.Context, platf
 			dbaccount.PlatformEQ(platform),
 			dbaccount.StatusEQ(service.StatusActive),
 			dbaccount.SchedulableEQ(true),
+			supplierAvailablePredicate(),
 			tempUnschedulablePredicate(),
 			notExpiredPredicate(now),
 			dbaccount.Or(dbaccount.OverloadUntilIsNil(), dbaccount.OverloadUntilLTE(now)),
@@ -2167,6 +2176,7 @@ func (r *accountRepository) ListSchedulableByPlatforms(ctx context.Context, plat
 			dbaccount.PlatformIn(platforms...),
 			dbaccount.StatusEQ(service.StatusActive),
 			dbaccount.SchedulableEQ(true),
+			supplierAvailablePredicate(),
 			tempUnschedulablePredicate(),
 			notExpiredPredicate(now),
 			dbaccount.Or(dbaccount.OverloadUntilIsNil(), dbaccount.OverloadUntilLTE(now)),
@@ -2187,6 +2197,7 @@ func (r *accountRepository) ListSchedulableUngroupedByPlatform(ctx context.Conte
 			dbaccount.PlatformEQ(platform),
 			dbaccount.StatusEQ(service.StatusActive),
 			dbaccount.SchedulableEQ(true),
+			supplierAvailablePredicate(),
 			dbaccount.Not(dbaccount.HasAccountGroups()),
 			tempUnschedulablePredicate(),
 			notExpiredPredicate(now),
@@ -2211,6 +2222,7 @@ func (r *accountRepository) ListSchedulableUngroupedByPlatforms(ctx context.Cont
 			dbaccount.PlatformIn(platforms...),
 			dbaccount.StatusEQ(service.StatusActive),
 			dbaccount.SchedulableEQ(true),
+			supplierAvailablePredicate(),
 			dbaccount.Not(dbaccount.HasAccountGroups()),
 			tempUnschedulablePredicate(),
 			notExpiredPredicate(now),
@@ -2262,6 +2274,7 @@ func (r *accountRepository) ListModelAvailabilityCandidates(
 	preds := []dbpredicate.Account{
 		dbaccount.StatusEQ(service.StatusActive),
 		dbaccount.SchedulableEQ(true),
+		supplierAvailablePredicate(),
 		dbaccount.PlatformIn(platforms...),
 	}
 	if !includeGrouped {
@@ -3317,7 +3330,7 @@ func (r *accountRepository) queryAccountsByGroup(ctx context.Context, groupID in
 		preds = append(preds, dbaccount.PlatformIn(opts.platforms...))
 	}
 	if opts.schedulable {
-		preds = append(preds, dbaccount.SchedulableEQ(true))
+		preds = append(preds, dbaccount.SchedulableEQ(true), supplierAvailablePredicate())
 		if !opts.ignoreTransientState {
 			now := time.Now()
 			preds = append(preds,
@@ -3424,6 +3437,10 @@ func (r *accountRepository) accountsToService(ctx context.Context, accounts []*d
 	}
 
 	return outAccounts, nil
+}
+
+func supplierAvailablePredicate() dbpredicate.Account {
+	return dbaccount.And(dbaccount.SupplierPausedEQ(false), dbaccount.Or(dbaccount.ParentAccountIDIsNil(), dbaccount.HasParentWith(dbaccount.DeletedAtIsNil(), dbaccount.SupplierPausedEQ(false))))
 }
 
 func tempUnschedulablePredicate() dbpredicate.Account {
@@ -3623,6 +3640,9 @@ func accountEntityToService(m *dbent.Account) *service.Account {
 		ID:                      m.ID,
 		Name:                    m.Name,
 		Notes:                   m.Notes,
+		SupplierUserID:          m.SupplierUserID,
+		SupplierPaused:          m.SupplierPaused,
+		SupplierNotes:           m.SupplierNotes,
 		Platform:                m.Platform,
 		Type:                    m.Type,
 		Credentials:             copyJSONMap(m.Credentials),

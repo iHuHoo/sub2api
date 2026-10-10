@@ -24,6 +24,7 @@ func RegisterModelPlazaRoutes(
 	plaza.Use(panelRateLimiter.PublicIP())
 	plaza.Use(gin.HandlerFunc(optionalJWT))
 	plaza.Use(middleware.BackendModeUserGuard(settingService))
+	plaza.Use(middleware.SupplierSelfServiceGuard())
 	{
 		plaza.GET("", h.ModelPlaza.Get)
 	}

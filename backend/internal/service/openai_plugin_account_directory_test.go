@@ -92,11 +92,12 @@ func TestAccountReadableSnapshot_DenylistTripwire(t *testing.T) {
 	// = relational graphs with back-references that would cycle under encoding/json.
 	stripped := map[string]struct{}{
 		"Credentials": {}, "Groups": {}, "AccountGroups": {},
+		"SupplierUserID": {}, "SupplierName": {}, "SupplierNotes": {},
 	}
 	// Fields intentionally exposed as readable metadata (incl. Extra and Proxy —
 	// the proxy password is already handed out via ResolveOutboundIdentity's URL).
 	safeToExpose := map[string]struct{}{
-		"ID": {}, "Name": {}, "Notes": {}, "Platform": {}, "Type": {}, "Extra": {},
+		"ID": {}, "Name": {}, "Notes": {}, "Platform": {}, "Type": {}, "Extra": {}, "SupplierPaused": {},
 		"Proxy": {}, "ProxyID": {}, "ProxyFallbackOriginID": {}, "ProxyFallbackOriginName": {},
 		"Concurrency": {}, "Priority": {}, "RateMultiplier": {}, "LoadFactor": {},
 		"Status": {}, "ErrorMessage": {}, "LastUsedAt": {}, "ExpiresAt": {},
@@ -178,4 +179,22 @@ func TestListPluginAccounts_EmptyScopeReturnsNothing(t *testing.T) {
 	infos, err := svc.ListPluginAccounts(context.Background(), PluginAccountScope{}, "", "")
 	require.NoError(t, err)
 	assert.Empty(t, infos, "an empty scope must never enumerate accounts")
+}
+
+func TestSupplierProvenanceExcludedFromPluginSnapshot(t *testing.T) {
+	owner := int64(79871)
+	note := "supplier-private-note"
+	account := &Account{SupplierUserID: &owner, SupplierName: "supplier-private-name", SupplierNotes: &note, SupplierPaused: true, Proxy: &Proxy{SupplierUserID: &owner}}
+	raw := accountReadableSnapshotJSON(account)
+	var got map[string]any
+	require.NoError(t, json.Unmarshal(raw, &got))
+	require.Nil(t, got["SupplierUserID"])
+	require.Empty(t, got["SupplierName"])
+	require.Nil(t, got["SupplierNotes"])
+	proxy, ok := got["Proxy"].(map[string]any)
+	require.True(t, ok)
+	require.Nil(t, proxy["SupplierUserID"])
+	require.Equal(t, true, got["SupplierPaused"])
+	require.Equal(t, &owner, account.SupplierUserID, "redaction does not mutate the live account")
+	require.Equal(t, &owner, account.Proxy.SupplierUserID, "redaction does not mutate the live proxy")
 }

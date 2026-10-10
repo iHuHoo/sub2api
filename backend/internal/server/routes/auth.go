@@ -251,6 +251,7 @@ func RegisterAuthRoutes(
 	authenticated := v1.Group("")
 	authenticated.Use(gin.HandlerFunc(jwtAuth))
 	authenticated.Use(servermiddleware.BackendModeUserGuard(settingService))
+	authenticated.Use(servermiddleware.SupplierSelfServiceGuard())
 	// 面板全局按用户限流
 	authenticated.Use(panelRateLimiter.Global())
 	{

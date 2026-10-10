@@ -76,6 +76,20 @@ func (_c *UserCreate) SetNillableDeletedAt(v *time.Time) *UserCreate {
 	return _c
 }
 
+// SetAuthVersion sets the "auth_version" field.
+func (_c *UserCreate) SetAuthVersion(v int64) *UserCreate {
+	_c.mutation.SetAuthVersion(v)
+	return _c
+}
+
+// SetNillableAuthVersion sets the "auth_version" field if the given value is not nil.
+func (_c *UserCreate) SetNillableAuthVersion(v *int64) *UserCreate {
+	if v != nil {
+		_c.SetAuthVersion(*v)
+	}
+	return _c
+}
+
 // SetEmail sets the "email" field.
 func (_c *UserCreate) SetEmail(v string) *UserCreate {
 	_c.mutation.SetEmail(v)
@@ -614,6 +628,10 @@ func (_c *UserCreate) defaults() error {
 		v := user.DefaultUpdatedAt()
 		_c.mutation.SetUpdatedAt(v)
 	}
+	if _, ok := _c.mutation.AuthVersion(); !ok {
+		v := user.DefaultAuthVersion
+		_c.mutation.SetAuthVersion(v)
+	}
 	if _, ok := _c.mutation.Role(); !ok {
 		v := user.DefaultRole
 		_c.mutation.SetRole(v)
@@ -684,6 +702,9 @@ func (_c *UserCreate) check() error {
 	}
 	if _, ok := _c.mutation.UpdatedAt(); !ok {
 		return &ValidationError{Name: "updated_at", err: errors.New(`ent: missing required field "User.updated_at"`)}
+	}
+	if _, ok := _c.mutation.AuthVersion(); !ok {
+		return &ValidationError{Name: "auth_version", err: errors.New(`ent: missing required field "User.auth_version"`)}
 	}
 	if _, ok := _c.mutation.Email(); !ok {
 		return &ValidationError{Name: "email", err: errors.New(`ent: missing required field "User.email"`)}
@@ -804,6 +825,10 @@ func (_c *UserCreate) createSpec() (*User, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.DeletedAt(); ok {
 		_spec.SetField(user.FieldDeletedAt, field.TypeTime, value)
 		_node.DeletedAt = &value
+	}
+	if value, ok := _c.mutation.AuthVersion(); ok {
+		_spec.SetField(user.FieldAuthVersion, field.TypeInt64, value)
+		_node.AuthVersion = value
 	}
 	if value, ok := _c.mutation.Email(); ok {
 		_spec.SetField(user.FieldEmail, field.TypeString, value)
@@ -1184,6 +1209,24 @@ func (u *UserUpsert) UpdateDeletedAt() *UserUpsert {
 // ClearDeletedAt clears the value of the "deleted_at" field.
 func (u *UserUpsert) ClearDeletedAt() *UserUpsert {
 	u.SetNull(user.FieldDeletedAt)
+	return u
+}
+
+// SetAuthVersion sets the "auth_version" field.
+func (u *UserUpsert) SetAuthVersion(v int64) *UserUpsert {
+	u.Set(user.FieldAuthVersion, v)
+	return u
+}
+
+// UpdateAuthVersion sets the "auth_version" field to the value that was provided on create.
+func (u *UserUpsert) UpdateAuthVersion() *UserUpsert {
+	u.SetExcluded(user.FieldAuthVersion)
+	return u
+}
+
+// AddAuthVersion adds v to the "auth_version" field.
+func (u *UserUpsert) AddAuthVersion(v int64) *UserUpsert {
+	u.Add(user.FieldAuthVersion, v)
 	return u
 }
 
@@ -1594,6 +1637,27 @@ func (u *UserUpsertOne) UpdateDeletedAt() *UserUpsertOne {
 func (u *UserUpsertOne) ClearDeletedAt() *UserUpsertOne {
 	return u.Update(func(s *UserUpsert) {
 		s.ClearDeletedAt()
+	})
+}
+
+// SetAuthVersion sets the "auth_version" field.
+func (u *UserUpsertOne) SetAuthVersion(v int64) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.SetAuthVersion(v)
+	})
+}
+
+// AddAuthVersion adds v to the "auth_version" field.
+func (u *UserUpsertOne) AddAuthVersion(v int64) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.AddAuthVersion(v)
+	})
+}
+
+// UpdateAuthVersion sets the "auth_version" field to the value that was provided on create.
+func (u *UserUpsertOne) UpdateAuthVersion() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateAuthVersion()
 	})
 }
 
@@ -2225,6 +2289,27 @@ func (u *UserUpsertBulk) UpdateDeletedAt() *UserUpsertBulk {
 func (u *UserUpsertBulk) ClearDeletedAt() *UserUpsertBulk {
 	return u.Update(func(s *UserUpsert) {
 		s.ClearDeletedAt()
+	})
+}
+
+// SetAuthVersion sets the "auth_version" field.
+func (u *UserUpsertBulk) SetAuthVersion(v int64) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.SetAuthVersion(v)
+	})
+}
+
+// AddAuthVersion adds v to the "auth_version" field.
+func (u *UserUpsertBulk) AddAuthVersion(v int64) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.AddAuthVersion(v)
+	})
+}
+
+// UpdateAuthVersion sets the "auth_version" field to the value that was provided on create.
+func (u *UserUpsertBulk) UpdateAuthVersion() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateAuthVersion()
 	})
 }
 

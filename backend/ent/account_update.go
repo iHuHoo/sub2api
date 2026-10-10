@@ -57,6 +57,40 @@ func (_u *AccountUpdate) ClearDeletedAt() *AccountUpdate {
 	return _u
 }
 
+// SetSupplierPaused sets the "supplier_paused" field.
+func (_u *AccountUpdate) SetSupplierPaused(v bool) *AccountUpdate {
+	_u.mutation.SetSupplierPaused(v)
+	return _u
+}
+
+// SetNillableSupplierPaused sets the "supplier_paused" field if the given value is not nil.
+func (_u *AccountUpdate) SetNillableSupplierPaused(v *bool) *AccountUpdate {
+	if v != nil {
+		_u.SetSupplierPaused(*v)
+	}
+	return _u
+}
+
+// SetSupplierNotes sets the "supplier_notes" field.
+func (_u *AccountUpdate) SetSupplierNotes(v string) *AccountUpdate {
+	_u.mutation.SetSupplierNotes(v)
+	return _u
+}
+
+// SetNillableSupplierNotes sets the "supplier_notes" field if the given value is not nil.
+func (_u *AccountUpdate) SetNillableSupplierNotes(v *string) *AccountUpdate {
+	if v != nil {
+		_u.SetSupplierNotes(*v)
+	}
+	return _u
+}
+
+// ClearSupplierNotes clears the value of the "supplier_notes" field.
+func (_u *AccountUpdate) ClearSupplierNotes() *AccountUpdate {
+	_u.mutation.ClearSupplierNotes()
+	return _u
+}
+
 // SetName sets the "name" field.
 func (_u *AccountUpdate) SetName(v string) *AccountUpdate {
 	_u.mutation.SetName(v)
@@ -811,6 +845,18 @@ func (_u *AccountUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	if _u.mutation.DeletedAtCleared() {
 		_spec.ClearField(account.FieldDeletedAt, field.TypeTime)
 	}
+	if _u.mutation.SupplierUserIDCleared() {
+		_spec.ClearField(account.FieldSupplierUserID, field.TypeInt64)
+	}
+	if value, ok := _u.mutation.SupplierPaused(); ok {
+		_spec.SetField(account.FieldSupplierPaused, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.SupplierNotes(); ok {
+		_spec.SetField(account.FieldSupplierNotes, field.TypeString, value)
+	}
+	if _u.mutation.SupplierNotesCleared() {
+		_spec.ClearField(account.FieldSupplierNotes, field.TypeString)
+	}
 	if value, ok := _u.mutation.Name(); ok {
 		_spec.SetField(account.FieldName, field.TypeString, value)
 	}
@@ -1194,6 +1240,40 @@ func (_u *AccountUpdateOne) SetNillableDeletedAt(v *time.Time) *AccountUpdateOne
 // ClearDeletedAt clears the value of the "deleted_at" field.
 func (_u *AccountUpdateOne) ClearDeletedAt() *AccountUpdateOne {
 	_u.mutation.ClearDeletedAt()
+	return _u
+}
+
+// SetSupplierPaused sets the "supplier_paused" field.
+func (_u *AccountUpdateOne) SetSupplierPaused(v bool) *AccountUpdateOne {
+	_u.mutation.SetSupplierPaused(v)
+	return _u
+}
+
+// SetNillableSupplierPaused sets the "supplier_paused" field if the given value is not nil.
+func (_u *AccountUpdateOne) SetNillableSupplierPaused(v *bool) *AccountUpdateOne {
+	if v != nil {
+		_u.SetSupplierPaused(*v)
+	}
+	return _u
+}
+
+// SetSupplierNotes sets the "supplier_notes" field.
+func (_u *AccountUpdateOne) SetSupplierNotes(v string) *AccountUpdateOne {
+	_u.mutation.SetSupplierNotes(v)
+	return _u
+}
+
+// SetNillableSupplierNotes sets the "supplier_notes" field if the given value is not nil.
+func (_u *AccountUpdateOne) SetNillableSupplierNotes(v *string) *AccountUpdateOne {
+	if v != nil {
+		_u.SetSupplierNotes(*v)
+	}
+	return _u
+}
+
+// ClearSupplierNotes clears the value of the "supplier_notes" field.
+func (_u *AccountUpdateOne) ClearSupplierNotes() *AccountUpdateOne {
+	_u.mutation.ClearSupplierNotes()
 	return _u
 }
 
@@ -1980,6 +2060,18 @@ func (_u *AccountUpdateOne) sqlSave(ctx context.Context) (_node *Account, err er
 	}
 	if _u.mutation.DeletedAtCleared() {
 		_spec.ClearField(account.FieldDeletedAt, field.TypeTime)
+	}
+	if _u.mutation.SupplierUserIDCleared() {
+		_spec.ClearField(account.FieldSupplierUserID, field.TypeInt64)
+	}
+	if value, ok := _u.mutation.SupplierPaused(); ok {
+		_spec.SetField(account.FieldSupplierPaused, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.SupplierNotes(); ok {
+		_spec.SetField(account.FieldSupplierNotes, field.TypeString, value)
+	}
+	if _u.mutation.SupplierNotesCleared() {
+		_spec.ClearField(account.FieldSupplierNotes, field.TypeString)
 	}
 	if value, ok := _u.mutation.Name(); ok {
 		_spec.SetField(account.FieldName, field.TypeString, value)
