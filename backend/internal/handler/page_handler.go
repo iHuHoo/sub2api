@@ -264,6 +264,7 @@ func RegisterPageRoutes(v1 *gin.RouterGroup, dataDir string, jwtAuth gin.Handler
 	// Authenticated page content (JWT required + visibility check)
 	pages := v1.Group("/pages")
 	pages.Use(jwtAuth)
+	pages.Use(middleware2.SupplierSelfServiceGuard())
 	{
 		pages.GET("/:slug", h.GetPageContent)
 	}
