@@ -15,7 +15,7 @@ func NewGeminiTokenRefresher(geminiOAuthService *GeminiOAuthService) *GeminiToke
 
 // CacheKey 返回用于分布式锁的缓存键
 func (r *GeminiTokenRefresher) CacheKey(account *Account) string {
-	return GeminiTokenCacheKey(account)
+	return OAuthRefreshLockKey(account)
 }
 
 func (r *GeminiTokenRefresher) CanRefresh(account *Account) bool {

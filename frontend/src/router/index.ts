@@ -186,6 +186,22 @@ const routes: RouteRecordRaw[] = [
     }
   },
 
+  {
+    path: '/supplier/accounts', name: 'SupplierAccounts',
+    component: () => import('@/views/supplier/AccountsView.vue'),
+    meta: { requiresAuth: true, requiresSupplier: true, titleKey: 'supplier.accounts' }
+  },
+  {
+    path: '/supplier/proxies', name: 'SupplierProxies',
+    component: () => import('@/views/supplier/ProxiesView.vue'),
+    meta: { requiresAuth: true, requiresSupplier: true, titleKey: 'supplier.proxies' }
+  },
+  {
+    path: '/supplier/usage', name: 'SupplierUsage',
+    component: () => import('@/views/supplier/UsageView.vue'),
+    meta: { requiresAuth: true, requiresSupplier: true, titleKey: 'supplier.usage' }
+  },
+
   // ==================== User Routes ====================
   {
     path: '/',
@@ -808,12 +824,38 @@ router.beforeEach(async (to, _from, next) => {
     try {
       const status = await getSetupStatus()
       if (!status.needs_setup) {
-        next(resolveCompletedSetupRedirectPath(authStore.isAuthenticated, authStore.isAdmin))
+        next(resolveCompletedSetupRedirectPath(authStore.isAuthenticated, authStore.isAdmin, authStore.isSupplier))
         return
       }
     } catch {
       // If setup status cannot be determined, keep the setup page reachable.
     }
+  }
+
+  // OAuth callbacks can retain their existing dashboard fallback: suppliers are routed here.
+  if (authStore.isAuthenticated && authStore.isSupplier) {
+    const supplierRoute = to.meta.requiresSupplier === true || ['/supplier/accounts', '/supplier/proxies', '/supplier/usage', '/profile'].includes(to.path)
+    const publicRoute = !requiresAuth && (
+      ['/home', '/setup', '/login', '/register', '/email-verify', '/forgot-password', '/reset-password'].includes(to.path) ||
+      to.path.startsWith('/legal/') || (to.path.startsWith('/auth/') && !to.path.includes('/payment/'))
+    )
+    if (!supplierRoute && !publicRoute) {
+      next('/supplier/accounts')
+      return
+    }
+    if (supplierRoute) {
+      next()
+      return
+    }
+    if (to.path === '/login' || to.path === '/register') {
+      next('/supplier/accounts')
+      return
+    }
+  }
+
+  if (authStore.isAuthenticated && to.meta.requiresSupplier && !authStore.isSupplier) {
+    next(authStore.isAdmin ? '/admin/dashboard' : '/dashboard')
+    return
   }
 
   // If route doesn't require auth, allow access

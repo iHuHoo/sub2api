@@ -16,7 +16,7 @@ import (
 type OAuthRefreshExecutor interface {
 	TokenRefresher
 
-	// CacheKey 返回用于分布式锁的缓存键（与 TokenProvider 使用的一致）
+	// CacheKey returns a stable account-bound refresh lock key, independent of bearer token generation.
 	CacheKey(account *Account) string
 }
 
@@ -292,7 +292,7 @@ func (api *OAuthRefreshAPI) RefreshIfNeeded(
 
 	// 5. 设置版本号 + 更新 DB
 	if newCredentials != nil {
-		newCredentials["_token_version"] = time.Now().UnixMilli()
+		newCredentials["_token_version"] = nextOAuthTokenVersion(freshAccount)
 		if freshAccount.IsGrokOAuth() {
 			conditionalRepo, ok := api.accountRepo.(GrokOAuthRefreshSuccessRepository)
 			if !ok {
@@ -336,7 +336,7 @@ func (api *OAuthRefreshAPI) RefreshIfNeeded(
 				)
 				return &OAuthRefreshResult{Account: currentAccount}, nil
 			}
-			durableAccount, readErr := api.loadGrokDurableAccountAfterPersist(ctx, cacheKey, freshAccount.ID)
+			durableAccount, readErr := api.loadGrokDurableAccountAfterPersist(ctx, GrokTokenCacheKey(freshAccount), freshAccount.ID)
 			if readErr != nil || durableAccount == nil {
 				if readErr == nil {
 					readErr = fmt.Errorf("account not found after Grok OAuth success CAS")
@@ -350,12 +350,16 @@ func (api *OAuthRefreshAPI) RefreshIfNeeded(
 			// while the provider call was in flight. Return the durable row so
 			// post-refresh cache publication cannot restore that stale snapshot.
 			freshAccount = durableAccount
-		} else if updateErr := persistAccountCredentials(ctx, api.accountRepo, freshAccount, newCredentials); updateErr != nil {
-			slog.Error("oauth_refresh_update_failed",
-				"account_id", freshAccount.ID,
-				"error", updateErr,
-			)
-			return nil, fmt.Errorf("%w: %v", errOAuthRefreshCredentialPersist, updateErr)
+		} else {
+			applied, updateErr := persistOAuthRefreshCredentials(ctx, api.accountRepo, freshAccount, attemptedAccount.Credentials, newCredentials)
+			if updateErr != nil {
+				slog.Error("oauth_refresh_update_failed", "account_id", freshAccount.ID, "error", updateErr)
+				return nil, fmt.Errorf("%w: %v", errOAuthRefreshCredentialPersist, updateErr)
+			}
+			if !applied {
+				return &OAuthRefreshResult{Account: freshAccount}, nil
+			}
+			newCredentials = shallowCopyMap(freshAccount.Credentials)
 		}
 	}
 

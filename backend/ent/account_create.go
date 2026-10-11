@@ -67,6 +67,48 @@ func (_c *AccountCreate) SetNillableDeletedAt(v *time.Time) *AccountCreate {
 	return _c
 }
 
+// SetSupplierUserID sets the "supplier_user_id" field.
+func (_c *AccountCreate) SetSupplierUserID(v int64) *AccountCreate {
+	_c.mutation.SetSupplierUserID(v)
+	return _c
+}
+
+// SetNillableSupplierUserID sets the "supplier_user_id" field if the given value is not nil.
+func (_c *AccountCreate) SetNillableSupplierUserID(v *int64) *AccountCreate {
+	if v != nil {
+		_c.SetSupplierUserID(*v)
+	}
+	return _c
+}
+
+// SetSupplierPaused sets the "supplier_paused" field.
+func (_c *AccountCreate) SetSupplierPaused(v bool) *AccountCreate {
+	_c.mutation.SetSupplierPaused(v)
+	return _c
+}
+
+// SetNillableSupplierPaused sets the "supplier_paused" field if the given value is not nil.
+func (_c *AccountCreate) SetNillableSupplierPaused(v *bool) *AccountCreate {
+	if v != nil {
+		_c.SetSupplierPaused(*v)
+	}
+	return _c
+}
+
+// SetSupplierNotes sets the "supplier_notes" field.
+func (_c *AccountCreate) SetSupplierNotes(v string) *AccountCreate {
+	_c.mutation.SetSupplierNotes(v)
+	return _c
+}
+
+// SetNillableSupplierNotes sets the "supplier_notes" field if the given value is not nil.
+func (_c *AccountCreate) SetNillableSupplierNotes(v *string) *AccountCreate {
+	if v != nil {
+		_c.SetSupplierNotes(*v)
+	}
+	return _c
+}
+
 // SetName sets the "name" field.
 func (_c *AccountCreate) SetName(v string) *AccountCreate {
 	_c.mutation.SetName(v)
@@ -539,6 +581,10 @@ func (_c *AccountCreate) defaults() error {
 		v := account.DefaultUpdatedAt()
 		_c.mutation.SetUpdatedAt(v)
 	}
+	if _, ok := _c.mutation.SupplierPaused(); !ok {
+		v := account.DefaultSupplierPaused
+		_c.mutation.SetSupplierPaused(v)
+	}
 	if _, ok := _c.mutation.Credentials(); !ok {
 		if account.DefaultCredentials == nil {
 			return fmt.Errorf("ent: uninitialized account.DefaultCredentials (forgotten import ent/runtime?)")
@@ -591,6 +637,9 @@ func (_c *AccountCreate) check() error {
 	}
 	if _, ok := _c.mutation.UpdatedAt(); !ok {
 		return &ValidationError{Name: "updated_at", err: errors.New(`ent: missing required field "Account.updated_at"`)}
+	}
+	if _, ok := _c.mutation.SupplierPaused(); !ok {
+		return &ValidationError{Name: "supplier_paused", err: errors.New(`ent: missing required field "Account.supplier_paused"`)}
 	}
 	if _, ok := _c.mutation.Name(); !ok {
 		return &ValidationError{Name: "name", err: errors.New(`ent: missing required field "Account.name"`)}
@@ -696,6 +745,18 @@ func (_c *AccountCreate) createSpec() (*Account, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.DeletedAt(); ok {
 		_spec.SetField(account.FieldDeletedAt, field.TypeTime, value)
 		_node.DeletedAt = &value
+	}
+	if value, ok := _c.mutation.SupplierUserID(); ok {
+		_spec.SetField(account.FieldSupplierUserID, field.TypeInt64, value)
+		_node.SupplierUserID = &value
+	}
+	if value, ok := _c.mutation.SupplierPaused(); ok {
+		_spec.SetField(account.FieldSupplierPaused, field.TypeBool, value)
+		_node.SupplierPaused = value
+	}
+	if value, ok := _c.mutation.SupplierNotes(); ok {
+		_spec.SetField(account.FieldSupplierNotes, field.TypeString, value)
+		_node.SupplierNotes = &value
 	}
 	if value, ok := _c.mutation.Name(); ok {
 		_spec.SetField(account.FieldName, field.TypeString, value)
@@ -966,6 +1027,36 @@ func (u *AccountUpsert) UpdateDeletedAt() *AccountUpsert {
 // ClearDeletedAt clears the value of the "deleted_at" field.
 func (u *AccountUpsert) ClearDeletedAt() *AccountUpsert {
 	u.SetNull(account.FieldDeletedAt)
+	return u
+}
+
+// SetSupplierPaused sets the "supplier_paused" field.
+func (u *AccountUpsert) SetSupplierPaused(v bool) *AccountUpsert {
+	u.Set(account.FieldSupplierPaused, v)
+	return u
+}
+
+// UpdateSupplierPaused sets the "supplier_paused" field to the value that was provided on create.
+func (u *AccountUpsert) UpdateSupplierPaused() *AccountUpsert {
+	u.SetExcluded(account.FieldSupplierPaused)
+	return u
+}
+
+// SetSupplierNotes sets the "supplier_notes" field.
+func (u *AccountUpsert) SetSupplierNotes(v string) *AccountUpsert {
+	u.Set(account.FieldSupplierNotes, v)
+	return u
+}
+
+// UpdateSupplierNotes sets the "supplier_notes" field to the value that was provided on create.
+func (u *AccountUpsert) UpdateSupplierNotes() *AccountUpsert {
+	u.SetExcluded(account.FieldSupplierNotes)
+	return u
+}
+
+// ClearSupplierNotes clears the value of the "supplier_notes" field.
+func (u *AccountUpsert) ClearSupplierNotes() *AccountUpsert {
+	u.SetNull(account.FieldSupplierNotes)
 	return u
 }
 
@@ -1445,6 +1536,9 @@ func (u *AccountUpsertOne) UpdateNewValues() *AccountUpsertOne {
 		if _, exists := u.create.mutation.CreatedAt(); exists {
 			s.SetIgnore(account.FieldCreatedAt)
 		}
+		if _, exists := u.create.mutation.SupplierUserID(); exists {
+			s.SetIgnore(account.FieldSupplierUserID)
+		}
 	}))
 	return u
 }
@@ -1508,6 +1602,41 @@ func (u *AccountUpsertOne) UpdateDeletedAt() *AccountUpsertOne {
 func (u *AccountUpsertOne) ClearDeletedAt() *AccountUpsertOne {
 	return u.Update(func(s *AccountUpsert) {
 		s.ClearDeletedAt()
+	})
+}
+
+// SetSupplierPaused sets the "supplier_paused" field.
+func (u *AccountUpsertOne) SetSupplierPaused(v bool) *AccountUpsertOne {
+	return u.Update(func(s *AccountUpsert) {
+		s.SetSupplierPaused(v)
+	})
+}
+
+// UpdateSupplierPaused sets the "supplier_paused" field to the value that was provided on create.
+func (u *AccountUpsertOne) UpdateSupplierPaused() *AccountUpsertOne {
+	return u.Update(func(s *AccountUpsert) {
+		s.UpdateSupplierPaused()
+	})
+}
+
+// SetSupplierNotes sets the "supplier_notes" field.
+func (u *AccountUpsertOne) SetSupplierNotes(v string) *AccountUpsertOne {
+	return u.Update(func(s *AccountUpsert) {
+		s.SetSupplierNotes(v)
+	})
+}
+
+// UpdateSupplierNotes sets the "supplier_notes" field to the value that was provided on create.
+func (u *AccountUpsertOne) UpdateSupplierNotes() *AccountUpsertOne {
+	return u.Update(func(s *AccountUpsert) {
+		s.UpdateSupplierNotes()
+	})
+}
+
+// ClearSupplierNotes clears the value of the "supplier_notes" field.
+func (u *AccountUpsertOne) ClearSupplierNotes() *AccountUpsertOne {
+	return u.Update(func(s *AccountUpsert) {
+		s.ClearSupplierNotes()
 	})
 }
 
@@ -2229,6 +2358,9 @@ func (u *AccountUpsertBulk) UpdateNewValues() *AccountUpsertBulk {
 			if _, exists := b.mutation.CreatedAt(); exists {
 				s.SetIgnore(account.FieldCreatedAt)
 			}
+			if _, exists := b.mutation.SupplierUserID(); exists {
+				s.SetIgnore(account.FieldSupplierUserID)
+			}
 		}
 	}))
 	return u
@@ -2293,6 +2425,41 @@ func (u *AccountUpsertBulk) UpdateDeletedAt() *AccountUpsertBulk {
 func (u *AccountUpsertBulk) ClearDeletedAt() *AccountUpsertBulk {
 	return u.Update(func(s *AccountUpsert) {
 		s.ClearDeletedAt()
+	})
+}
+
+// SetSupplierPaused sets the "supplier_paused" field.
+func (u *AccountUpsertBulk) SetSupplierPaused(v bool) *AccountUpsertBulk {
+	return u.Update(func(s *AccountUpsert) {
+		s.SetSupplierPaused(v)
+	})
+}
+
+// UpdateSupplierPaused sets the "supplier_paused" field to the value that was provided on create.
+func (u *AccountUpsertBulk) UpdateSupplierPaused() *AccountUpsertBulk {
+	return u.Update(func(s *AccountUpsert) {
+		s.UpdateSupplierPaused()
+	})
+}
+
+// SetSupplierNotes sets the "supplier_notes" field.
+func (u *AccountUpsertBulk) SetSupplierNotes(v string) *AccountUpsertBulk {
+	return u.Update(func(s *AccountUpsert) {
+		s.SetSupplierNotes(v)
+	})
+}
+
+// UpdateSupplierNotes sets the "supplier_notes" field to the value that was provided on create.
+func (u *AccountUpsertBulk) UpdateSupplierNotes() *AccountUpsertBulk {
+	return u.Update(func(s *AccountUpsert) {
+		s.UpdateSupplierNotes()
+	})
+}
+
+// ClearSupplierNotes clears the value of the "supplier_notes" field.
+func (u *AccountUpsertBulk) ClearSupplierNotes() *AccountUpsertBulk {
+	return u.Update(func(s *AccountUpsert) {
+		s.ClearSupplierNotes()
 	})
 }
 

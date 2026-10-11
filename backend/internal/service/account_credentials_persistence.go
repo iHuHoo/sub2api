@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"log/slog"
+	"time"
 )
 
 type accountCredentialsUpdater interface {
@@ -60,4 +61,43 @@ func sanitizeSparkShadowCredentials(credentials map[string]any) map[string]any {
 		}
 	}
 	return out
+}
+
+// OAuthRefreshCredentialsRepository conditionally persists a refresh result against
+// the exact credential document used for its upstream exchange.
+type OAuthRefreshCredentialsRepository interface {
+	UpdateOAuthCredentialsIfUnchanged(context.Context, int64, map[string]any, map[string]any) (bool, error)
+}
+
+func persistOAuthRefreshCredentials(ctx context.Context, repo AccountRepository, account *Account, observed, credentials map[string]any) (bool, error) {
+	if account.IsCredentialShadow() {
+		return false, nil
+	}
+	if conditional, ok := repo.(OAuthRefreshCredentialsRepository); ok {
+		applied, err := conditional.UpdateOAuthCredentialsIfUnchanged(ctx, account.ID, observed, credentials)
+		if err != nil {
+			return false, err
+		}
+		// Read durable generation and operational fields on both success and CAS miss.
+		// A stale upstream result must never become the caller's current token snapshot.
+		latest, err := repo.GetByID(ctx, account.ID)
+		if err != nil {
+			return false, err
+		}
+		if latest == nil {
+			return false, ErrAccountNotFound
+		}
+		*account = *latest
+		return applied, nil
+	}
+	// Compatibility for repository adapters without the optional refresh capability.
+	return true, persistAccountCredentials(ctx, repo, account, credentials)
+}
+
+func nextOAuthTokenVersion(account *Account) int64 {
+	version := time.Now().UnixMilli()
+	if previous := account.GetCredentialAsInt64("_token_version"); previous >= version {
+		return previous + 1
+	}
+	return version
 }

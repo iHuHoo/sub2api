@@ -84,7 +84,7 @@ export interface User {
   linuxdo_bound?: boolean
   oidc_bound?: boolean
   wechat_bound?: boolean
-  role: 'admin' | 'user' // User role for authorization
+  role: 'admin' | 'user' | 'supplier' // User role for authorization
   balance: number // User balance for API usage
   frozen_balance?: number // Balance currently held by async batch jobs
   concurrency: number // Allowed concurrent requests
@@ -1206,6 +1206,9 @@ export interface OpenCodeGoUsageSettings {
 }
 
 export interface Account {
+  supplier_user_id?: number | null
+  supplier_name?: string
+  supplier_paused?: boolean
   id: number
   name: string
   notes?: string | null
@@ -2084,7 +2087,7 @@ export interface UpdateUserRequest {
   password?: string
   username?: string
   notes?: string
-  role?: 'admin' | 'user'
+  role?: 'admin' | 'user' | 'supplier'
   balance?: number
   concurrency?: number
   rpm_limit?: number

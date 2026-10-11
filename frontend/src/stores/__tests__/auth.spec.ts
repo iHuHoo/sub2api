@@ -388,3 +388,35 @@ describe('useAuthStore', () => {
     })
   })
 })
+
+
+describe('supplier authentication destinations', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    localStorage.clear()
+    vi.useFakeTimers()
+    mockGetCurrentUser.mockResolvedValue({ data: { ...fakeUser, role: 'supplier' } })
+  })
+  afterEach(() => { vi.useRealTimers() })
+  it('selects supplier home after password login', async () => {
+    mockLogin.mockResolvedValue({ ...fakeAuthResponse, user: { ...fakeUser, role: 'supplier' } })
+    const store = useAuthStore()
+    await store.login({ email: fakeUser.email, password: 'secret' })
+    expect(store.isSupplier).toBe(true)
+    expect(store.homePath).toBe('/supplier/accounts')
+  })
+  it('selects supplier home after OAuth token adoption', async () => {
+    const store = useAuthStore()
+    await store.setToken('oauth-token')
+    expect(store.isSupplier).toBe(true)
+    expect(store.homePath).toBe('/supplier/accounts')
+  })
+  it('selects supplier home for restored sessions', () => {
+    localStorage.setItem('auth_token', 'restored')
+    localStorage.setItem('auth_user', JSON.stringify({ ...fakeUser, role: 'supplier' }))
+    const store = useAuthStore()
+    store.checkAuth()
+    expect(store.isSupplier).toBe(true)
+    expect(store.homePath).toBe('/supplier/accounts')
+  })
+})

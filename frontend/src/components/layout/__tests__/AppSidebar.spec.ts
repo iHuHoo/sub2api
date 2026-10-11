@@ -80,3 +80,15 @@ describe('AppSidebar subscription feature flag', () => {
     expect(componentSource).toMatch(/path: '\/purchase'[^\n]*label: purchaseNavLabel\.value/)
   })
 })
+
+
+describe('supplier navigation', () => {
+  it('declares only the three supplier pages and profile in supplier navigation', () => {
+    const supplierItems = componentSource.split('authStore.isSupplier ? [')[1]?.split('] : finalizeNav')[0]
+    expect(supplierItems).toBeDefined()
+    expect([...supplierItems.matchAll(/path: '([^']+)'/g)].map(match => match[1])).toEqual(['/supplier/accounts', '/supplier/proxies', '/supplier/usage', '/profile'])
+  })
+  it('does not start the consumer key lookup on supplier mount', () => {
+    expect(componentSource).toContain('if (!authStore.isSupplier) void refreshBatchImageAccess()')
+  })
+})

@@ -193,3 +193,33 @@ func TestPasskeyCredentialListRemainsAvailableWhenSignInDisabled(t *testing.T) {
 	require.Equal(t, http.StatusUnauthorized, recorder.Code)
 	require.NotContains(t, recorder.Body.String(), "PASSKEY_DISABLED")
 }
+
+func TestPasskeyBackendModeLoginRoleAndStatus(t *testing.T) {
+	for _, backendMode := range []bool{false, true} {
+		mode := "normal"
+		value := "false"
+		if backendMode {
+			mode = "backend"
+			value = "true"
+		}
+		t.Run(mode, func(t *testing.T) {
+			settings := service.NewSettingService(&passkeySwitchSettingRepo{value: value}, &config.Config{})
+			require.NoError(t, settings.UpdateSettings(context.Background(), &service.SystemSettings{BackendModeEnabled: backendMode}))
+			require.Equal(t, backendMode, settings.IsBackendModeEnabled(context.Background()))
+			handler := NewPasskeyHandler(nil, nil, settings)
+			for _, role := range []string{service.RoleAdmin, service.RoleUser, service.RoleSupplier} {
+				t.Run(role, func(t *testing.T) {
+					active := &service.User{Role: role, Status: service.StatusActive}
+					err := handler.ensureBackendModeAllowsUser(context.Background(), active)
+					if backendMode && role == service.RoleUser {
+						require.ErrorContains(t, err, "Only admin login is allowed")
+					} else {
+						require.NoError(t, err)
+					}
+					inactive := &service.User{Role: role, Status: service.StatusDisabled}
+					require.ErrorIs(t, handler.ensureBackendModeAllowsUser(context.Background(), inactive), service.ErrUserNotActive)
+				})
+			}
+		})
+	}
+}

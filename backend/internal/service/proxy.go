@@ -14,6 +14,7 @@ const (
 )
 
 type Proxy struct {
+	SupplierUserID *int64
 	ID             int64
 	Name           string
 	Protocol       string

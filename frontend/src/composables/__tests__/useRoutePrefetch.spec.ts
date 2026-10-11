@@ -4,6 +4,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import type { RouteLocationNormalized, Router, RouteRecordNormalized } from 'vue-router'
 
+import { createPinia, setActivePinia } from 'pinia'
+import { useAuthStore } from '@/stores/auth'
+
 import { useRoutePrefetch, _adminPrefetchMap, _userPrefetchMap } from '../useRoutePrefetch'
 
 // Mock 路由对象
@@ -48,6 +51,7 @@ describe('useRoutePrefetch', () => {
   let mockRouter: Router
 
   beforeEach(() => {
+    setActivePinia(createPinia())
     mockRouter = createMockRouter()
 
     // 保存原始函数
@@ -241,4 +245,19 @@ describe('useRoutePrefetch', () => {
       expect(prefetchedRoutes.value.size).toBe(0)
     })
   })
+})
+
+
+it('prefetches supplier accounts from the shared profile without consumer routes', () => {
+  setActivePinia(createPinia())
+  const auth = useAuthStore()
+  auth.user = { role: 'supplier' } as never
+  const supplierImport = vi.fn()
+  const keyImport = vi.fn()
+  const router = { getRoutes: () => [
+    { path: '/supplier/accounts', components: { default: supplierImport } },
+    { path: '/keys', components: { default: keyImport } }
+  ] } as unknown as Router
+  const config = useRoutePrefetch(router)._getPrefetchConfig(createMockRoute('/profile'))
+  expect(config).toEqual([supplierImport])
 })

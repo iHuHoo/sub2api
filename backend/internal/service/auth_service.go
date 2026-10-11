@@ -1925,6 +1925,9 @@ func resolvedTokenVersion(user *User) int64 {
 	}
 
 	material := strings.ToLower(strings.TrimSpace(user.Email)) + "\n" + user.PasswordHash
+	if user.AuthVersion != 0 {
+		material += fmt.Sprintf("\nauth_version:%d", user.AuthVersion)
+	}
 	sum := sha256.Sum256([]byte(material))
 	fingerprint := int64(binary.BigEndian.Uint64(sum[:8]) & 0x7fffffffffffffff)
 	return user.TokenVersion ^ fingerprint

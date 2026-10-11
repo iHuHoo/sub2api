@@ -73,6 +73,7 @@ func (s *adminServiceImpl) CreateProxy(ctx context.Context, input *CreateProxyIn
 	}
 
 	proxy := &Proxy{
+		SupplierUserID: input.SupplierUserID,
 		Name:           input.Name,
 		Protocol:       input.Protocol,
 		Host:           input.Host,

@@ -152,6 +152,10 @@ func apiKeyAuthWithSubscription(apiKeyService *service.APIKeyService, subscripti
 		}
 
 		// 检查用户状态
+		if apiKey.User.Role == service.RoleSupplier {
+			AbortWithError(c, 403, "SUPPLIER_DOWNSTREAM_FORBIDDEN", "Suppliers cannot use downstream API keys")
+			return
+		}
 		if !apiKey.User.IsActive() {
 			MarkIngressRejected(c, IngressRejectUserInactive)
 			AbortWithError(c, 401, "USER_INACTIVE", "User account is not active")

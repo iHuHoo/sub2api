@@ -121,9 +121,9 @@ func (p *AntigravityTokenProvider) GetAccessToken(ctx context.Context, account *
 		}
 	} else if needsRefresh && p.tokenCache != nil {
 		// Backward-compatible test path when refreshAPI is not injected.
-		locked, err := p.tokenCache.AcquireRefreshLock(ctx, cacheKey, 30*time.Second)
+		locked, err := p.tokenCache.AcquireRefreshLock(ctx, OAuthRefreshLockKey(account), 30*time.Second)
 		if err == nil && locked {
-			defer func() { _ = p.tokenCache.ReleaseRefreshLock(ctx, cacheKey) }()
+			defer func() { _ = p.tokenCache.ReleaseRefreshLock(ctx, OAuthRefreshLockKey(account)) }()
 		}
 	}
 
@@ -136,14 +136,16 @@ func (p *AntigravityTokenProvider) GetAccessToken(ctx context.Context, account *
 	if strings.TrimSpace(account.GetCredential("project_id")) == "" && p.antigravityOAuthService != nil {
 		if p.shouldAttemptBackfill(account.ID) {
 			p.markBackfillAttempted(account.ID)
+			observedCredentials := shallowCopyMap(account.Credentials)
 			if projectID, err := p.antigravityOAuthService.FillProjectID(ctx, account, accessToken); err == nil && projectID != "" {
 				account.Credentials["project_id"] = projectID
-				if updateErr := persistAccountCredentials(ctx, p.accountRepo, account, account.Credentials); updateErr != nil {
+				if _, updateErr := persistOAuthRefreshCredentials(ctx, p.accountRepo, account, observedCredentials, account.Credentials); updateErr != nil {
 					slog.Warn("antigravity_project_id_backfill_persist_failed",
 						"account_id", account.ID,
 						"error", updateErr,
 					)
 				}
+				accessToken = account.GetCredential("access_token")
 			}
 		}
 	}
@@ -231,5 +233,5 @@ func (p *AntigravityTokenProvider) markBackfillAttempted(accountID int64) {
 }
 
 func AntigravityTokenCacheKey(account *Account) string {
-	return "ag:account:" + strconv.FormatInt(account.ID, 10)
+	return tokenVersionCacheKey("ag:account:"+strconv.FormatInt(account.ID, 10), account)
 }

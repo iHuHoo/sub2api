@@ -70,6 +70,11 @@ func DeletedAt(v time.Time) predicate.Proxy {
 	return predicate.Proxy(sql.FieldEQ(FieldDeletedAt, v))
 }
 
+// SupplierUserID applies equality check predicate on the "supplier_user_id" field. It's identical to SupplierUserIDEQ.
+func SupplierUserID(v int64) predicate.Proxy {
+	return predicate.Proxy(sql.FieldEQ(FieldSupplierUserID, v))
+}
+
 // Name applies equality check predicate on the "name" field. It's identical to NameEQ.
 func Name(v string) predicate.Proxy {
 	return predicate.Proxy(sql.FieldEQ(FieldName, v))
@@ -253,6 +258,56 @@ func DeletedAtIsNil() predicate.Proxy {
 // DeletedAtNotNil applies the NotNil predicate on the "deleted_at" field.
 func DeletedAtNotNil() predicate.Proxy {
 	return predicate.Proxy(sql.FieldNotNull(FieldDeletedAt))
+}
+
+// SupplierUserIDEQ applies the EQ predicate on the "supplier_user_id" field.
+func SupplierUserIDEQ(v int64) predicate.Proxy {
+	return predicate.Proxy(sql.FieldEQ(FieldSupplierUserID, v))
+}
+
+// SupplierUserIDNEQ applies the NEQ predicate on the "supplier_user_id" field.
+func SupplierUserIDNEQ(v int64) predicate.Proxy {
+	return predicate.Proxy(sql.FieldNEQ(FieldSupplierUserID, v))
+}
+
+// SupplierUserIDIn applies the In predicate on the "supplier_user_id" field.
+func SupplierUserIDIn(vs ...int64) predicate.Proxy {
+	return predicate.Proxy(sql.FieldIn(FieldSupplierUserID, vs...))
+}
+
+// SupplierUserIDNotIn applies the NotIn predicate on the "supplier_user_id" field.
+func SupplierUserIDNotIn(vs ...int64) predicate.Proxy {
+	return predicate.Proxy(sql.FieldNotIn(FieldSupplierUserID, vs...))
+}
+
+// SupplierUserIDGT applies the GT predicate on the "supplier_user_id" field.
+func SupplierUserIDGT(v int64) predicate.Proxy {
+	return predicate.Proxy(sql.FieldGT(FieldSupplierUserID, v))
+}
+
+// SupplierUserIDGTE applies the GTE predicate on the "supplier_user_id" field.
+func SupplierUserIDGTE(v int64) predicate.Proxy {
+	return predicate.Proxy(sql.FieldGTE(FieldSupplierUserID, v))
+}
+
+// SupplierUserIDLT applies the LT predicate on the "supplier_user_id" field.
+func SupplierUserIDLT(v int64) predicate.Proxy {
+	return predicate.Proxy(sql.FieldLT(FieldSupplierUserID, v))
+}
+
+// SupplierUserIDLTE applies the LTE predicate on the "supplier_user_id" field.
+func SupplierUserIDLTE(v int64) predicate.Proxy {
+	return predicate.Proxy(sql.FieldLTE(FieldSupplierUserID, v))
+}
+
+// SupplierUserIDIsNil applies the IsNil predicate on the "supplier_user_id" field.
+func SupplierUserIDIsNil() predicate.Proxy {
+	return predicate.Proxy(sql.FieldIsNull(FieldSupplierUserID))
+}
+
+// SupplierUserIDNotNil applies the NotNil predicate on the "supplier_user_id" field.
+func SupplierUserIDNotNil() predicate.Proxy {
+	return predicate.Proxy(sql.FieldNotNull(FieldSupplierUserID))
 }
 
 // NameEQ applies the EQ predicate on the "name" field.

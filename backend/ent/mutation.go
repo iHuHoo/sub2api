@@ -2288,6 +2288,10 @@ type AccountMutation struct {
 	created_at                  *time.Time
 	updated_at                  *time.Time
 	deleted_at                  *time.Time
+	supplier_user_id            *int64
+	addsupplier_user_id         *int64
+	supplier_paused             *bool
+	supplier_notes              *string
 	name                        *string
 	notes                       *string
 	platform                    *string
@@ -2555,6 +2559,161 @@ func (m *AccountMutation) DeletedAtCleared() bool {
 func (m *AccountMutation) ResetDeletedAt() {
 	m.deleted_at = nil
 	delete(m.clearedFields, account.FieldDeletedAt)
+}
+
+// SetSupplierUserID sets the "supplier_user_id" field.
+func (m *AccountMutation) SetSupplierUserID(i int64) {
+	m.supplier_user_id = &i
+	m.addsupplier_user_id = nil
+}
+
+// SupplierUserID returns the value of the "supplier_user_id" field in the mutation.
+func (m *AccountMutation) SupplierUserID() (r int64, exists bool) {
+	v := m.supplier_user_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldSupplierUserID returns the old "supplier_user_id" field's value of the Account entity.
+// If the Account object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *AccountMutation) OldSupplierUserID(ctx context.Context) (v *int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldSupplierUserID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldSupplierUserID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldSupplierUserID: %w", err)
+	}
+	return oldValue.SupplierUserID, nil
+}
+
+// AddSupplierUserID adds i to the "supplier_user_id" field.
+func (m *AccountMutation) AddSupplierUserID(i int64) {
+	if m.addsupplier_user_id != nil {
+		*m.addsupplier_user_id += i
+	} else {
+		m.addsupplier_user_id = &i
+	}
+}
+
+// AddedSupplierUserID returns the value that was added to the "supplier_user_id" field in this mutation.
+func (m *AccountMutation) AddedSupplierUserID() (r int64, exists bool) {
+	v := m.addsupplier_user_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearSupplierUserID clears the value of the "supplier_user_id" field.
+func (m *AccountMutation) ClearSupplierUserID() {
+	m.supplier_user_id = nil
+	m.addsupplier_user_id = nil
+	m.clearedFields[account.FieldSupplierUserID] = struct{}{}
+}
+
+// SupplierUserIDCleared returns if the "supplier_user_id" field was cleared in this mutation.
+func (m *AccountMutation) SupplierUserIDCleared() bool {
+	_, ok := m.clearedFields[account.FieldSupplierUserID]
+	return ok
+}
+
+// ResetSupplierUserID resets all changes to the "supplier_user_id" field.
+func (m *AccountMutation) ResetSupplierUserID() {
+	m.supplier_user_id = nil
+	m.addsupplier_user_id = nil
+	delete(m.clearedFields, account.FieldSupplierUserID)
+}
+
+// SetSupplierPaused sets the "supplier_paused" field.
+func (m *AccountMutation) SetSupplierPaused(b bool) {
+	m.supplier_paused = &b
+}
+
+// SupplierPaused returns the value of the "supplier_paused" field in the mutation.
+func (m *AccountMutation) SupplierPaused() (r bool, exists bool) {
+	v := m.supplier_paused
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldSupplierPaused returns the old "supplier_paused" field's value of the Account entity.
+// If the Account object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *AccountMutation) OldSupplierPaused(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldSupplierPaused is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldSupplierPaused requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldSupplierPaused: %w", err)
+	}
+	return oldValue.SupplierPaused, nil
+}
+
+// ResetSupplierPaused resets all changes to the "supplier_paused" field.
+func (m *AccountMutation) ResetSupplierPaused() {
+	m.supplier_paused = nil
+}
+
+// SetSupplierNotes sets the "supplier_notes" field.
+func (m *AccountMutation) SetSupplierNotes(s string) {
+	m.supplier_notes = &s
+}
+
+// SupplierNotes returns the value of the "supplier_notes" field in the mutation.
+func (m *AccountMutation) SupplierNotes() (r string, exists bool) {
+	v := m.supplier_notes
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldSupplierNotes returns the old "supplier_notes" field's value of the Account entity.
+// If the Account object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *AccountMutation) OldSupplierNotes(ctx context.Context) (v *string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldSupplierNotes is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldSupplierNotes requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldSupplierNotes: %w", err)
+	}
+	return oldValue.SupplierNotes, nil
+}
+
+// ClearSupplierNotes clears the value of the "supplier_notes" field.
+func (m *AccountMutation) ClearSupplierNotes() {
+	m.supplier_notes = nil
+	m.clearedFields[account.FieldSupplierNotes] = struct{}{}
+}
+
+// SupplierNotesCleared returns if the "supplier_notes" field was cleared in this mutation.
+func (m *AccountMutation) SupplierNotesCleared() bool {
+	_, ok := m.clearedFields[account.FieldSupplierNotes]
+	return ok
+}
+
+// ResetSupplierNotes resets all changes to the "supplier_notes" field.
+func (m *AccountMutation) ResetSupplierNotes() {
+	m.supplier_notes = nil
+	delete(m.clearedFields, account.FieldSupplierNotes)
 }
 
 // SetName sets the "name" field.
@@ -4138,7 +4297,7 @@ func (m *AccountMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *AccountMutation) Fields() []string {
-	fields := make([]string, 0, 31)
+	fields := make([]string, 0, 34)
 	if m.created_at != nil {
 		fields = append(fields, account.FieldCreatedAt)
 	}
@@ -4147,6 +4306,15 @@ func (m *AccountMutation) Fields() []string {
 	}
 	if m.deleted_at != nil {
 		fields = append(fields, account.FieldDeletedAt)
+	}
+	if m.supplier_user_id != nil {
+		fields = append(fields, account.FieldSupplierUserID)
+	}
+	if m.supplier_paused != nil {
+		fields = append(fields, account.FieldSupplierPaused)
+	}
+	if m.supplier_notes != nil {
+		fields = append(fields, account.FieldSupplierNotes)
 	}
 	if m.name != nil {
 		fields = append(fields, account.FieldName)
@@ -4246,6 +4414,12 @@ func (m *AccountMutation) Field(name string) (ent.Value, bool) {
 		return m.UpdatedAt()
 	case account.FieldDeletedAt:
 		return m.DeletedAt()
+	case account.FieldSupplierUserID:
+		return m.SupplierUserID()
+	case account.FieldSupplierPaused:
+		return m.SupplierPaused()
+	case account.FieldSupplierNotes:
+		return m.SupplierNotes()
 	case account.FieldName:
 		return m.Name()
 	case account.FieldNotes:
@@ -4317,6 +4491,12 @@ func (m *AccountMutation) OldField(ctx context.Context, name string) (ent.Value,
 		return m.OldUpdatedAt(ctx)
 	case account.FieldDeletedAt:
 		return m.OldDeletedAt(ctx)
+	case account.FieldSupplierUserID:
+		return m.OldSupplierUserID(ctx)
+	case account.FieldSupplierPaused:
+		return m.OldSupplierPaused(ctx)
+	case account.FieldSupplierNotes:
+		return m.OldSupplierNotes(ctx)
 	case account.FieldName:
 		return m.OldName(ctx)
 	case account.FieldNotes:
@@ -4402,6 +4582,27 @@ func (m *AccountMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetDeletedAt(v)
+		return nil
+	case account.FieldSupplierUserID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetSupplierUserID(v)
+		return nil
+	case account.FieldSupplierPaused:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetSupplierPaused(v)
+		return nil
+	case account.FieldSupplierNotes:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetSupplierNotes(v)
 		return nil
 	case account.FieldName:
 		v, ok := value.(string)
@@ -4607,6 +4808,9 @@ func (m *AccountMutation) SetField(name string, value ent.Value) error {
 // this mutation.
 func (m *AccountMutation) AddedFields() []string {
 	var fields []string
+	if m.addsupplier_user_id != nil {
+		fields = append(fields, account.FieldSupplierUserID)
+	}
 	if m.addproxy_fallback_origin_id != nil {
 		fields = append(fields, account.FieldProxyFallbackOriginID)
 	}
@@ -4630,6 +4834,8 @@ func (m *AccountMutation) AddedFields() []string {
 // was not set, or was not defined in the schema.
 func (m *AccountMutation) AddedField(name string) (ent.Value, bool) {
 	switch name {
+	case account.FieldSupplierUserID:
+		return m.AddedSupplierUserID()
 	case account.FieldProxyFallbackOriginID:
 		return m.AddedProxyFallbackOriginID()
 	case account.FieldConcurrency:
@@ -4649,6 +4855,13 @@ func (m *AccountMutation) AddedField(name string) (ent.Value, bool) {
 // type.
 func (m *AccountMutation) AddField(name string, value ent.Value) error {
 	switch name {
+	case account.FieldSupplierUserID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddSupplierUserID(v)
+		return nil
 	case account.FieldProxyFallbackOriginID:
 		v, ok := value.(int64)
 		if !ok {
@@ -4694,6 +4907,12 @@ func (m *AccountMutation) ClearedFields() []string {
 	var fields []string
 	if m.FieldCleared(account.FieldDeletedAt) {
 		fields = append(fields, account.FieldDeletedAt)
+	}
+	if m.FieldCleared(account.FieldSupplierUserID) {
+		fields = append(fields, account.FieldSupplierUserID)
+	}
+	if m.FieldCleared(account.FieldSupplierNotes) {
+		fields = append(fields, account.FieldSupplierNotes)
 	}
 	if m.FieldCleared(account.FieldNotes) {
 		fields = append(fields, account.FieldNotes)
@@ -4760,6 +4979,12 @@ func (m *AccountMutation) ClearField(name string) error {
 	case account.FieldDeletedAt:
 		m.ClearDeletedAt()
 		return nil
+	case account.FieldSupplierUserID:
+		m.ClearSupplierUserID()
+		return nil
+	case account.FieldSupplierNotes:
+		m.ClearSupplierNotes()
+		return nil
 	case account.FieldNotes:
 		m.ClearNotes()
 		return nil
@@ -4824,6 +5049,15 @@ func (m *AccountMutation) ResetField(name string) error {
 		return nil
 	case account.FieldDeletedAt:
 		m.ResetDeletedAt()
+		return nil
+	case account.FieldSupplierUserID:
+		m.ResetSupplierUserID()
+		return nil
+	case account.FieldSupplierPaused:
+		m.ResetSupplierPaused()
+		return nil
+	case account.FieldSupplierNotes:
+		m.ResetSupplierNotes()
 		return nil
 	case account.FieldName:
 		m.ResetName()
@@ -38625,6 +38859,8 @@ type ProxyMutation struct {
 	created_at             *time.Time
 	updated_at             *time.Time
 	deleted_at             *time.Time
+	supplier_user_id       *int64
+	addsupplier_user_id    *int64
 	name                   *string
 	protocol               *string
 	host                   *string
@@ -38868,6 +39104,76 @@ func (m *ProxyMutation) DeletedAtCleared() bool {
 func (m *ProxyMutation) ResetDeletedAt() {
 	m.deleted_at = nil
 	delete(m.clearedFields, proxy.FieldDeletedAt)
+}
+
+// SetSupplierUserID sets the "supplier_user_id" field.
+func (m *ProxyMutation) SetSupplierUserID(i int64) {
+	m.supplier_user_id = &i
+	m.addsupplier_user_id = nil
+}
+
+// SupplierUserID returns the value of the "supplier_user_id" field in the mutation.
+func (m *ProxyMutation) SupplierUserID() (r int64, exists bool) {
+	v := m.supplier_user_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldSupplierUserID returns the old "supplier_user_id" field's value of the Proxy entity.
+// If the Proxy object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ProxyMutation) OldSupplierUserID(ctx context.Context) (v *int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldSupplierUserID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldSupplierUserID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldSupplierUserID: %w", err)
+	}
+	return oldValue.SupplierUserID, nil
+}
+
+// AddSupplierUserID adds i to the "supplier_user_id" field.
+func (m *ProxyMutation) AddSupplierUserID(i int64) {
+	if m.addsupplier_user_id != nil {
+		*m.addsupplier_user_id += i
+	} else {
+		m.addsupplier_user_id = &i
+	}
+}
+
+// AddedSupplierUserID returns the value that was added to the "supplier_user_id" field in this mutation.
+func (m *ProxyMutation) AddedSupplierUserID() (r int64, exists bool) {
+	v := m.addsupplier_user_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearSupplierUserID clears the value of the "supplier_user_id" field.
+func (m *ProxyMutation) ClearSupplierUserID() {
+	m.supplier_user_id = nil
+	m.addsupplier_user_id = nil
+	m.clearedFields[proxy.FieldSupplierUserID] = struct{}{}
+}
+
+// SupplierUserIDCleared returns if the "supplier_user_id" field was cleared in this mutation.
+func (m *ProxyMutation) SupplierUserIDCleared() bool {
+	_, ok := m.clearedFields[proxy.FieldSupplierUserID]
+	return ok
+}
+
+// ResetSupplierUserID resets all changes to the "supplier_user_id" field.
+func (m *ProxyMutation) ResetSupplierUserID() {
+	m.supplier_user_id = nil
+	m.addsupplier_user_id = nil
+	delete(m.clearedFields, proxy.FieldSupplierUserID)
 }
 
 // SetName sets the "name" field.
@@ -39527,7 +39833,7 @@ func (m *ProxyMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *ProxyMutation) Fields() []string {
-	fields := make([]string, 0, 14)
+	fields := make([]string, 0, 15)
 	if m.created_at != nil {
 		fields = append(fields, proxy.FieldCreatedAt)
 	}
@@ -39536,6 +39842,9 @@ func (m *ProxyMutation) Fields() []string {
 	}
 	if m.deleted_at != nil {
 		fields = append(fields, proxy.FieldDeletedAt)
+	}
+	if m.supplier_user_id != nil {
+		fields = append(fields, proxy.FieldSupplierUserID)
 	}
 	if m.name != nil {
 		fields = append(fields, proxy.FieldName)
@@ -39584,6 +39893,8 @@ func (m *ProxyMutation) Field(name string) (ent.Value, bool) {
 		return m.UpdatedAt()
 	case proxy.FieldDeletedAt:
 		return m.DeletedAt()
+	case proxy.FieldSupplierUserID:
+		return m.SupplierUserID()
 	case proxy.FieldName:
 		return m.Name()
 	case proxy.FieldProtocol:
@@ -39621,6 +39932,8 @@ func (m *ProxyMutation) OldField(ctx context.Context, name string) (ent.Value, e
 		return m.OldUpdatedAt(ctx)
 	case proxy.FieldDeletedAt:
 		return m.OldDeletedAt(ctx)
+	case proxy.FieldSupplierUserID:
+		return m.OldSupplierUserID(ctx)
 	case proxy.FieldName:
 		return m.OldName(ctx)
 	case proxy.FieldProtocol:
@@ -39672,6 +39985,13 @@ func (m *ProxyMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetDeletedAt(v)
+		return nil
+	case proxy.FieldSupplierUserID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetSupplierUserID(v)
 		return nil
 	case proxy.FieldName:
 		v, ok := value.(string)
@@ -39758,6 +40078,9 @@ func (m *ProxyMutation) SetField(name string, value ent.Value) error {
 // this mutation.
 func (m *ProxyMutation) AddedFields() []string {
 	var fields []string
+	if m.addsupplier_user_id != nil {
+		fields = append(fields, proxy.FieldSupplierUserID)
+	}
 	if m.addport != nil {
 		fields = append(fields, proxy.FieldPort)
 	}
@@ -39772,6 +40095,8 @@ func (m *ProxyMutation) AddedFields() []string {
 // was not set, or was not defined in the schema.
 func (m *ProxyMutation) AddedField(name string) (ent.Value, bool) {
 	switch name {
+	case proxy.FieldSupplierUserID:
+		return m.AddedSupplierUserID()
 	case proxy.FieldPort:
 		return m.AddedPort()
 	case proxy.FieldExpiryWarnDays:
@@ -39785,6 +40110,13 @@ func (m *ProxyMutation) AddedField(name string) (ent.Value, bool) {
 // type.
 func (m *ProxyMutation) AddField(name string, value ent.Value) error {
 	switch name {
+	case proxy.FieldSupplierUserID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddSupplierUserID(v)
+		return nil
 	case proxy.FieldPort:
 		v, ok := value.(int)
 		if !ok {
@@ -39809,6 +40141,9 @@ func (m *ProxyMutation) ClearedFields() []string {
 	var fields []string
 	if m.FieldCleared(proxy.FieldDeletedAt) {
 		fields = append(fields, proxy.FieldDeletedAt)
+	}
+	if m.FieldCleared(proxy.FieldSupplierUserID) {
+		fields = append(fields, proxy.FieldSupplierUserID)
 	}
 	if m.FieldCleared(proxy.FieldUsername) {
 		fields = append(fields, proxy.FieldUsername)
@@ -39839,6 +40174,9 @@ func (m *ProxyMutation) ClearField(name string) error {
 	case proxy.FieldDeletedAt:
 		m.ClearDeletedAt()
 		return nil
+	case proxy.FieldSupplierUserID:
+		m.ClearSupplierUserID()
+		return nil
 	case proxy.FieldUsername:
 		m.ClearUsername()
 		return nil
@@ -39867,6 +40205,9 @@ func (m *ProxyMutation) ResetField(name string) error {
 		return nil
 	case proxy.FieldDeletedAt:
 		m.ResetDeletedAt()
+		return nil
+	case proxy.FieldSupplierUserID:
+		m.ResetSupplierUserID()
 		return nil
 	case proxy.FieldName:
 		m.ResetName()
@@ -49956,6 +50297,8 @@ type UserMutation struct {
 	created_at                    *time.Time
 	updated_at                    *time.Time
 	deleted_at                    *time.Time
+	auth_version                  *int64
+	addauth_version               *int64
 	email                         *string
 	password_hash                 *string
 	role                          *string
@@ -50246,6 +50589,62 @@ func (m *UserMutation) DeletedAtCleared() bool {
 func (m *UserMutation) ResetDeletedAt() {
 	m.deleted_at = nil
 	delete(m.clearedFields, user.FieldDeletedAt)
+}
+
+// SetAuthVersion sets the "auth_version" field.
+func (m *UserMutation) SetAuthVersion(i int64) {
+	m.auth_version = &i
+	m.addauth_version = nil
+}
+
+// AuthVersion returns the value of the "auth_version" field in the mutation.
+func (m *UserMutation) AuthVersion() (r int64, exists bool) {
+	v := m.auth_version
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAuthVersion returns the old "auth_version" field's value of the User entity.
+// If the User object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UserMutation) OldAuthVersion(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAuthVersion is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAuthVersion requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAuthVersion: %w", err)
+	}
+	return oldValue.AuthVersion, nil
+}
+
+// AddAuthVersion adds i to the "auth_version" field.
+func (m *UserMutation) AddAuthVersion(i int64) {
+	if m.addauth_version != nil {
+		*m.addauth_version += i
+	} else {
+		m.addauth_version = &i
+	}
+}
+
+// AddedAuthVersion returns the value that was added to the "auth_version" field in this mutation.
+func (m *UserMutation) AddedAuthVersion() (r int64, exists bool) {
+	v := m.addauth_version
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetAuthVersion resets all changes to the "auth_version" field.
+func (m *UserMutation) ResetAuthVersion() {
+	m.auth_version = nil
+	m.addauth_version = nil
 }
 
 // SetEmail sets the "email" field.
@@ -51962,7 +52361,7 @@ func (m *UserMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *UserMutation) Fields() []string {
-	fields := make([]string, 0, 25)
+	fields := make([]string, 0, 26)
 	if m.created_at != nil {
 		fields = append(fields, user.FieldCreatedAt)
 	}
@@ -51971,6 +52370,9 @@ func (m *UserMutation) Fields() []string {
 	}
 	if m.deleted_at != nil {
 		fields = append(fields, user.FieldDeletedAt)
+	}
+	if m.auth_version != nil {
+		fields = append(fields, user.FieldAuthVersion)
 	}
 	if m.email != nil {
 		fields = append(fields, user.FieldEmail)
@@ -52052,6 +52454,8 @@ func (m *UserMutation) Field(name string) (ent.Value, bool) {
 		return m.UpdatedAt()
 	case user.FieldDeletedAt:
 		return m.DeletedAt()
+	case user.FieldAuthVersion:
+		return m.AuthVersion()
 	case user.FieldEmail:
 		return m.Email()
 	case user.FieldPasswordHash:
@@ -52111,6 +52515,8 @@ func (m *UserMutation) OldField(ctx context.Context, name string) (ent.Value, er
 		return m.OldUpdatedAt(ctx)
 	case user.FieldDeletedAt:
 		return m.OldDeletedAt(ctx)
+	case user.FieldAuthVersion:
+		return m.OldAuthVersion(ctx)
 	case user.FieldEmail:
 		return m.OldEmail(ctx)
 	case user.FieldPasswordHash:
@@ -52184,6 +52590,13 @@ func (m *UserMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetDeletedAt(v)
+		return nil
+	case user.FieldAuthVersion:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAuthVersion(v)
 		return nil
 	case user.FieldEmail:
 		v, ok := value.(string)
@@ -52347,6 +52760,9 @@ func (m *UserMutation) SetField(name string, value ent.Value) error {
 // this mutation.
 func (m *UserMutation) AddedFields() []string {
 	var fields []string
+	if m.addauth_version != nil {
+		fields = append(fields, user.FieldAuthVersion)
+	}
 	if m.addbalance != nil {
 		fields = append(fields, user.FieldBalance)
 	}
@@ -52373,6 +52789,8 @@ func (m *UserMutation) AddedFields() []string {
 // was not set, or was not defined in the schema.
 func (m *UserMutation) AddedField(name string) (ent.Value, bool) {
 	switch name {
+	case user.FieldAuthVersion:
+		return m.AddedAuthVersion()
 	case user.FieldBalance:
 		return m.AddedBalance()
 	case user.FieldFrozenBalance:
@@ -52394,6 +52812,13 @@ func (m *UserMutation) AddedField(name string) (ent.Value, bool) {
 // type.
 func (m *UserMutation) AddField(name string, value ent.Value) error {
 	switch name {
+	case user.FieldAuthVersion:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddAuthVersion(v)
+		return nil
 	case user.FieldBalance:
 		v, ok := value.(float64)
 		if !ok {
@@ -52510,6 +52935,9 @@ func (m *UserMutation) ResetField(name string) error {
 		return nil
 	case user.FieldDeletedAt:
 		m.ResetDeletedAt()
+		return nil
+	case user.FieldAuthVersion:
+		m.ResetAuthVersion()
 		return nil
 	case user.FieldEmail:
 		m.ResetEmail()

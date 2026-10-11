@@ -866,6 +866,8 @@ func buildSchedulerMetadataAccount(account service.Account) service.Account {
 	return service.Account{
 		ID:                      account.ID,
 		Name:                    account.Name,
+		SupplierUserID:          account.SupplierUserID,
+		SupplierPaused:          account.SupplierPaused,
 		Platform:                account.Platform,
 		Type:                    account.Type,
 		Concurrency:             account.Concurrency,

@@ -31,7 +31,7 @@ func NewGrokTokenRefresher(grokOAuthService GrokOAuthTokenService) *GrokTokenRef
 }
 
 func (r *GrokTokenRefresher) CacheKey(account *Account) string {
-	return GrokTokenCacheKey(account)
+	return OAuthRefreshLockKey(account)
 }
 
 func (r *GrokTokenRefresher) CanRefresh(account *Account) bool {

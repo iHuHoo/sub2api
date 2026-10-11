@@ -39,7 +39,7 @@ const isAdmin = computed(() => authStore.user?.role === 'admin')
 
 const { replayTour } = useOnboardingTour({
   storageKey: isAdmin.value ? 'admin_guide' : 'user_guide',
-  autoStart: true
+  autoStart: !authStore.isSupplier
 })
 
 const onboardingStore = useOnboardingStore()

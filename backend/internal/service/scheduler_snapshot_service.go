@@ -1660,7 +1660,7 @@ func derefAccounts(accounts []*Account) []Account {
 	}
 	out := make([]Account, 0, len(accounts))
 	for _, account := range accounts {
-		if account == nil {
+		if account == nil || account.SupplierPaused {
 			continue
 		}
 		out = append(out, *account)

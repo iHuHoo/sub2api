@@ -22,6 +22,12 @@ const (
 	FieldUpdatedAt = "updated_at"
 	// FieldDeletedAt holds the string denoting the deleted_at field in the database.
 	FieldDeletedAt = "deleted_at"
+	// FieldSupplierUserID holds the string denoting the supplier_user_id field in the database.
+	FieldSupplierUserID = "supplier_user_id"
+	// FieldSupplierPaused holds the string denoting the supplier_paused field in the database.
+	FieldSupplierPaused = "supplier_paused"
+	// FieldSupplierNotes holds the string denoting the supplier_notes field in the database.
+	FieldSupplierNotes = "supplier_notes"
 	// FieldName holds the string denoting the name field in the database.
 	FieldName = "name"
 	// FieldNotes holds the string denoting the notes field in the database.
@@ -134,6 +140,9 @@ var Columns = []string{
 	FieldCreatedAt,
 	FieldUpdatedAt,
 	FieldDeletedAt,
+	FieldSupplierUserID,
+	FieldSupplierPaused,
+	FieldSupplierNotes,
 	FieldName,
 	FieldNotes,
 	FieldPlatform,
@@ -194,6 +203,8 @@ var (
 	DefaultUpdatedAt func() time.Time
 	// UpdateDefaultUpdatedAt holds the default value on update for the "updated_at" field.
 	UpdateDefaultUpdatedAt func() time.Time
+	// DefaultSupplierPaused holds the default value on creation for the "supplier_paused" field.
+	DefaultSupplierPaused bool
 	// NameValidator is a validator for the "name" field. It is called by the builders before save.
 	NameValidator func(string) error
 	// PlatformValidator is a validator for the "platform" field. It is called by the builders before save.
@@ -269,6 +280,21 @@ func ByUpdatedAt(opts ...sql.OrderTermOption) OrderOption {
 // ByDeletedAt orders the results by the deleted_at field.
 func ByDeletedAt(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldDeletedAt, opts...).ToFunc()
+}
+
+// BySupplierUserID orders the results by the supplier_user_id field.
+func BySupplierUserID(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldSupplierUserID, opts...).ToFunc()
+}
+
+// BySupplierPaused orders the results by the supplier_paused field.
+func BySupplierPaused(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldSupplierPaused, opts...).ToFunc()
+}
+
+// BySupplierNotes orders the results by the supplier_notes field.
+func BySupplierNotes(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldSupplierNotes, opts...).ToFunc()
 }
 
 // ByName orders the results by the name field.

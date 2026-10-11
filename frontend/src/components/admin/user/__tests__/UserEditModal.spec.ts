@@ -88,3 +88,14 @@ describe('UserEditModal concurrency', () => {
     expect(update).not.toHaveBeenCalled()
   })
 })
+
+
+it('allows an administrator to select supplier and sends the existing update flow', async () => {
+  const wrapper = mountModal(1)
+  const select = wrapper.findComponent({ name: 'Select' })
+  expect(select.props('options')).toContainEqual({ value: 'supplier', label: 'supplier.role' })
+  await select.vm.$emit('update:modelValue', 'supplier')
+  await wrapper.get('form').trigger('submit')
+  await flushPromises()
+  expect(update).toHaveBeenCalledWith(7, expect.objectContaining({ role: 'supplier' }))
+})

@@ -58,7 +58,7 @@ vi.mock('@/stores/auth', () => ({
 
 vi.mock('vue-i18n', async () => {
   const actual = await vi.importActual<typeof import('vue-i18n')>('vue-i18n')
-  return { ...actual, useI18n: () => ({ t: (key: string) => key }) }
+  return { ...actual, useI18n: () => ({ t: (key: string, params?: Record<string, unknown>) => key === 'supplier.provenance' ? `Supplier: ${params?.name} · #${params?.id}` : key }) }
 })
 
 const DataTableStub = defineComponent({
@@ -66,6 +66,7 @@ const DataTableStub = defineComponent({
   template: `
     <div>
       <div v-for="row in data" :key="row.id" :data-account-name="row.name">
+        <slot name="cell-name" :row="row" :value="row.name" />
         <slot name="cell-groups" :row="row" />
         <slot name="cell-actions" :row="row" />
       </div>
@@ -292,6 +293,31 @@ describe('admin AccountsView lite account list', () => {
     expect(showError).toHaveBeenCalledWith('detail failed')
     expect(wrapper.get('[data-test="edit-account"]').text()).toBe('')
     consoleError.mockRestore()
+    wrapper.unmount()
+  })
+})
+
+
+describe('admin account name-cell provenance in compact and full-shaped rows', () => {
+  beforeEach(() => {
+    localStorage.clear()
+    getUpstreamBillingProbeSettings.mockReset().mockResolvedValue({ enabled: true })
+  })
+  it.each([
+    [123, 'Alice', 'Supplier: Alice · #123'],
+    [123, 'alice@example.test', 'Supplier: alice@example.test · #123'],
+    [123, '', 'Supplier: supplier.role · #123'],
+    [null, '', 'supplier.platformAccount']
+  ])('renders immutable owner %s with display name %s', async (id, name, expected) => {
+    listAccounts.mockResolvedValue({ items: [{ ...listRow, supplier_user_id: id, supplier_name: name }, { ...fullAccount, id: 43, supplier_user_id: id, supplier_name: name }], total: 2, page: 1, page_size: 20, pages: 1 })
+    getAllProxies.mockResolvedValue([])
+    getAllGroups.mockResolvedValue([])
+    getBatchTodayStats.mockResolvedValue({ stats: {} })
+    const wrapper = mountView()
+    await flushPromises()
+    const provenance = wrapper.findAll('[data-testid="account-provenance"]')
+    expect(provenance).toHaveLength(2)
+    expect(provenance.map(p => p.text())).toEqual([expected, expected])
     wrapper.unmount()
   })
 })

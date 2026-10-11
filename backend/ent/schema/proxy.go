@@ -31,6 +31,7 @@ func (Proxy) Mixin() []ent.Mixin {
 
 func (Proxy) Fields() []ent.Field {
 	return []ent.Field{
+		field.Int64("supplier_user_id").Optional().Nillable().Immutable(),
 		field.String("name").
 			MaxLen(100).
 			NotEmpty(),
@@ -85,6 +86,7 @@ func (Proxy) Edges() []ent.Edge {
 
 func (Proxy) Indexes() []ent.Index {
 	return []ent.Index{
+		index.Fields("supplier_user_id"),
 		index.Fields("status"),
 		index.Fields("deleted_at"),
 		index.Fields("expires_at"),

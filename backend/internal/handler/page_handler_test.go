@@ -1,9 +1,16 @@
 package handler
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/Wei-Shaw/sub2api/internal/server/middleware"
+	"github.com/Wei-Shaw/sub2api/internal/service"
+	"github.com/gin-gonic/gin"
+	"github.com/stretchr/testify/require"
 )
 
 func TestCleanPageImageRelativePath(t *testing.T) {
@@ -109,4 +116,67 @@ func mustEvalSymlinks(t *testing.T, path string) string {
 		t.Fatalf("eval symlinks for %q: %v", path, err)
 	}
 	return realPath
+}
+
+func TestRegisterPageRoutesSupplierBoundary(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	dataDir := t.TempDir()
+	pagesDir := filepath.Join(dataDir, "pages")
+	for _, slug := range []string{"customer-guide", "admin-guide"} {
+		require.NoError(t, os.MkdirAll(filepath.Join(pagesDir, slug), 0755))
+		require.NoError(t, os.WriteFile(filepath.Join(pagesDir, slug+".md"), []byte("# Private markdown"), 0644))
+		require.NoError(t, os.WriteFile(filepath.Join(pagesDir, slug, "logo.png"), []byte("page image"), 0644))
+	}
+
+	for _, backendMode := range []string{"false", "true"} {
+		t.Run("backend_mode="+backendMode, func(t *testing.T) {
+			settings := service.NewSettingService(&oauthPendingFlowSettingRepoStub{values: map[string]string{
+				service.SettingKeyBackendModeEnabled: backendMode,
+				service.SettingKeyCustomMenuItems:    `[{"url":"md:customer-guide","visibility":"user"},{"url":"md:admin-guide","visibility":"admin"}]`,
+			}}, nil)
+			r := gin.New()
+			jwtAuth := func(c *gin.Context) {
+				role := c.GetHeader("X-Test-Role")
+				if role == "" {
+					c.AbortWithStatus(http.StatusUnauthorized)
+					return
+				}
+				c.Set(string(middleware.ContextKeyUserRole), role)
+				c.Next()
+			}
+			adminAuth := func(c *gin.Context) { c.AbortWithStatus(http.StatusForbidden) }
+			RegisterPageRoutes(r.Group("/api/v1"), dataDir, jwtAuth, adminAuth, settings)
+
+			for _, tt := range []struct {
+				name string
+				role string
+				path string
+				want int
+				body string
+			}{
+				{"supplier consumer page", service.RoleSupplier, "/customer-guide", http.StatusForbidden, ""},
+				{"user consumer page", service.RoleUser, "/customer-guide", http.StatusOK, "# Private markdown"},
+				{"admin consumer page", service.RoleAdmin, "/customer-guide", http.StatusOK, "# Private markdown"},
+				{"anonymous consumer page", "", "/customer-guide", http.StatusUnauthorized, ""},
+				{"supplier admin page", service.RoleSupplier, "/admin-guide", http.StatusForbidden, ""},
+				{"user admin page", service.RoleUser, "/admin-guide", http.StatusNotFound, ""},
+				{"admin admin page", service.RoleAdmin, "/admin-guide", http.StatusOK, "# Private markdown"},
+				{"anonymous consumer image", "", "/customer-guide/images/logo.png", http.StatusOK, "page image"},
+				{"anonymous admin image", "", "/admin-guide/images/logo.png", http.StatusNotFound, ""},
+			} {
+				t.Run(tt.name, func(t *testing.T) {
+					req := httptest.NewRequest(http.MethodGet, "/api/v1/pages"+tt.path, nil)
+					req.Header.Set("X-Test-Role", tt.role)
+					w := httptest.NewRecorder()
+					r.ServeHTTP(w, req)
+					require.Equal(t, tt.want, w.Code)
+					if tt.body != "" {
+						require.Equal(t, tt.body, w.Body.String())
+					} else {
+						require.NotContains(t, w.Body.String(), "# Private markdown")
+					}
+				})
+			}
+		})
+	}
 }

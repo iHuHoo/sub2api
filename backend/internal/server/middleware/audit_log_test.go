@@ -188,3 +188,39 @@ func TestOllamaCloudUsageSessionRouteOmitsAuditBody(t *testing.T) {
 	require.Equal(t, "<credential-bearing body omitted>", logs[0].RequestBody)
 	require.NotContains(t, logs[0].RequestBody, "audit-canary")
 }
+
+func TestSupplierAuditOmitsCredentialsAndRecordsOwnership(t *testing.T) {
+	repo := &auditCaptureRepository{}
+	audit := service.NewAuditLogService(repo, nil)
+	audit.Start()
+	r := gin.New()
+	r.Use(func(c *gin.Context) {
+		c.Set(string(ContextKeyUser), AuthSubject{UserID: 11})
+		c.Set(string(ContextKeyUserRole), service.RoleSupplier)
+		c.Next()
+	})
+	r.Use(gin.HandlerFunc(NewAuditLogMiddleware(audit)))
+	for _, path := range []string{"/api/v1/supplier/accounts", "/api/v1/supplier/proxies"} {
+		r.POST(path, func(c *gin.Context) {
+			SetAuditExtra(c, map[string]any{"supplier_user_id": int64(11), "resource_id": int64(99)})
+			c.Status(201)
+		})
+	}
+	for _, path := range []string{"/api/v1/supplier/accounts", "/api/v1/supplier/proxies"} {
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest("POST", path, bytes.NewBufferString(`{"notes":"credential-canary","credentials":{"service_account_json":"nested-secret"},"password":"secret"}`))
+		req.Header.Set("Content-Type", "application/json")
+		r.ServeHTTP(w, req)
+	}
+	audit.Stop()
+	repo.mu.Lock()
+	defer repo.mu.Unlock()
+	require.Len(t, repo.logs, 2)
+	for _, entry := range repo.logs {
+		require.Equal(t, "<credential-bearing body omitted>", entry.RequestBody)
+		require.Equal(t, service.RoleSupplier, entry.ActorRole)
+		require.Equal(t, int64(11), *entry.ActorUserID)
+		require.EqualValues(t, 11, entry.Extra["supplier_user_id"])
+		require.EqualValues(t, 99, entry.Extra["resource_id"])
+	}
+}

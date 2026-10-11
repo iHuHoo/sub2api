@@ -136,13 +136,13 @@ func parseVertexServiceAccountJSON(raw []byte) (*vertexServiceAccountKey, error)
 func vertexServiceAccountCacheKey(account *Account, key *vertexServiceAccountKey) string {
 	fingerprint := ""
 	if key != nil {
-		sum := sha256.Sum256([]byte(key.ClientEmail + "\x00" + key.PrivateKeyID))
+		sum := sha256.Sum256([]byte(key.ClientEmail + "\x00" + key.PrivateKeyID + "\x00" + key.PrivateKey))
 		fingerprint = hex.EncodeToString(sum[:8])
 	}
 	if fingerprint == "" && account != nil {
 		fingerprint = fmt.Sprintf("account:%d", account.ID)
 	}
-	return "vertex:service_account:" + fingerprint
+	return tokenVersionCacheKey(fmt.Sprintf("vertex:service_account:account:%d:%s", account.ID, fingerprint), account)
 }
 
 // getVertexServiceAccountAccessToken obtains an access token for a Vertex service account,
@@ -163,9 +163,10 @@ func getVertexServiceAccountAccessToken(ctx context.Context, cache GeminiTokenCa
 	locked := false
 	if cache != nil {
 		var lockErr error
-		locked, lockErr = cache.AcquireRefreshLock(ctx, cacheKey, 30*time.Second)
+		lockKey := fmt.Sprintf("vertex:service_account:account:%d", account.ID)
+		locked, lockErr = cache.AcquireRefreshLock(ctx, lockKey, 30*time.Second)
 		if lockErr == nil && locked {
-			defer func() { _ = cache.ReleaseRefreshLock(ctx, cacheKey) }()
+			defer func() { _ = cache.ReleaseRefreshLock(ctx, lockKey) }()
 		} else if lockErr != nil {
 			slog.Warn("vertex_service_account_token_lock_failed", "account_id", account.ID, "error", lockErr)
 		} else {

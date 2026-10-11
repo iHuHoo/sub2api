@@ -35,6 +35,7 @@ func newProxyRepositoryWithSQL(client *dbent.Client, sqlq sqlExecutor) *proxyRep
 
 func (r *proxyRepository) Create(ctx context.Context, proxyIn *service.Proxy) error {
 	builder := r.client.Proxy.Create().
+		SetNillableSupplierUserID(proxyIn.SupplierUserID).
 		SetName(proxyIn.Name).
 		SetProtocol(proxyIn.Protocol).
 		SetHost(proxyIn.Host).
@@ -591,6 +592,7 @@ func proxyEntityToService(m *dbent.Proxy) *service.Proxy {
 	out := &service.Proxy{
 		ID:             m.ID,
 		Name:           m.Name,
+		SupplierUserID: m.SupplierUserID,
 		Protocol:       m.Protocol,
 		Host:           m.Host,
 		Port:           m.Port,

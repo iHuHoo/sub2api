@@ -127,7 +127,7 @@
       </template>
 
       <!-- Regular User View -->
-      <template v-else-if="!appStore.backendModeEnabled">
+      <template v-else-if="authStore.isSupplier || !appStore.backendModeEnabled">
         <div class="sidebar-section">
           <router-link
             v-for="item in userNavItems"
@@ -252,7 +252,7 @@ const isAdmin = computed(() => authStore.isAdmin)
 const sidebarNavRef = ref<HTMLElement | null>(null)
 const isDark = ref(document.documentElement.classList.contains('dark'))
 
-const homePath = computed(() => (isAdmin.value ? '/admin/dashboard' : '/dashboard'))
+const homePath = computed(() => authStore.homePath)
 
 // Per-group expand/collapse overrides. A group with no entry follows the
 // automatic behavior (expanded while the active route is one of its children);
@@ -751,7 +751,12 @@ function finalizeNav(items: NavItem[]): NavItem[] {
 }
 
 // User navigation items (for regular users)
-const userNavItems = computed((): NavItem[] => finalizeNav(buildSelfNavItems(true)))
+const userNavItems = computed((): NavItem[] => authStore.isSupplier ? [
+  { path: '/supplier/accounts', label: t('supplier.accounts'), icon: KeyIcon },
+  { path: '/supplier/proxies', label: t('supplier.proxies'), icon: SignalIcon },
+  { path: '/supplier/usage', label: t('supplier.usage'), icon: ChartIcon },
+  { path: '/profile', label: t('nav.profile'), icon: UserIcon }
+] : finalizeNav(buildSelfNavItems(true)))
 
 // Personal navigation items (for admin's "My Account" section, without Dashboard).
 // Admins access 可用渠道 from this section just like regular users — there is no
@@ -954,7 +959,7 @@ watch(
 )
 
 onMounted(() => {
-  void refreshBatchImageAccess()
+  if (!authStore.isSupplier) void refreshBatchImageAccess()
   if (isAdmin.value) {
     adminSettingsStore.fetch()
   }

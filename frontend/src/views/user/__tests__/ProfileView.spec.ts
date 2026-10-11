@@ -73,6 +73,24 @@ describe('ProfileView', () => {
     })
   })
 
+  it('keeps supplier account security but omits balance notification actions', async () => {
+    authState.user = { ...authState.user, role: 'supplier' }
+    Object.assign(authState, { isSupplier: true })
+    fetchPublicSettingsMock.mockResolvedValue({ balance_low_notify_enabled: true, passkey_enabled: true })
+    const wrapper = mount(ProfileView, { global: { stubs: {
+      AppLayout: { template: '<div><slot /></div>' }, ProfileInfoCard: true,
+      ProfileBalanceNotifyCard: { template: '<div data-testid="balance" />' },
+      ProfilePasswordForm: { template: '<div data-testid="password" />' },
+      ProfileTotpCard: { template: '<div data-testid="totp" />' },
+      ProfilePasskeyCard: { template: '<div data-testid="passkey" />' }, Icon: true
+    } } })
+    await flushPromises()
+    expect(wrapper.find('[data-testid="balance"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="password"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="totp"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="passkey"]').exists()).toBe(true)
+  })
+
   it('renders the simplified single-column profile shell without separate stat cards', async () => {
     const wrapper = mount(ProfileView, {
       global: {

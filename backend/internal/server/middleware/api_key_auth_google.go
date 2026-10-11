@@ -108,6 +108,10 @@ func APIKeyAuthWithSubscriptionGoogle(apiKeyService *service.APIKeyService, subs
 			abortWithGoogleError(c, 401, "User associated with API key not found")
 			return
 		}
+		if apiKey.User.Role == service.RoleSupplier {
+			abortWithGoogleError(c, 403, "Suppliers cannot use downstream API keys")
+			return
+		}
 		if !apiKey.User.IsActive() {
 			MarkIngressRejected(c, IngressRejectUserInactive)
 			abortWithGoogleError(c, 401, "User account is not active")
