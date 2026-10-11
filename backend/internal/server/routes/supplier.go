@@ -11,6 +11,7 @@ func RegisterSupplierRoutes(v1 *gin.RouterGroup, h *handler.Handlers, jwtAuth mi
 	supplier.Use(gin.HandlerFunc(jwtAuth), middleware.SupplierOnly(), limiter.Global(), gin.HandlerFunc(auditLog))
 	supplier.GET("/accounts", h.Supplier.ListAccounts)
 	supplier.POST("/accounts", h.Supplier.CreateAccount)
+	supplier.POST("/accounts/import-codex-session", limiter.Heavy(), h.Supplier.ImportCodexSession)
 	supplier.GET("/accounts/:id", h.Supplier.GetAccount)
 	supplier.PUT("/accounts/:id", h.Supplier.UpdateAccount)
 	supplier.POST("/accounts/:id/pause", h.Supplier.PauseAccount)
@@ -21,4 +22,6 @@ func RegisterSupplierRoutes(v1 *gin.RouterGroup, h *handler.Handlers, jwtAuth mi
 	supplier.DELETE("/proxies/:id", h.Supplier.DeleteProxy)
 	supplier.POST("/proxies/:id/test", limiter.Heavy(), h.Supplier.TestProxy)
 	supplier.GET("/usage", limiter.Heavy(), h.Supplier.Usage)
+	supplier.POST("/oauth/:platform/:action", limiter.Heavy(), h.Supplier.OAuth)
+	supplier.GET("/oauth/:platform/capabilities", h.Supplier.OAuthCapabilities)
 }

@@ -2,6 +2,7 @@ import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { adminAPI } from '@/api/admin'
+import type { supplierAccountCreationAPI } from '@/api/supplierAccountCreation'
 import type { GeminiOAuthCapabilities } from '@/api/admin/gemini'
 
 export interface GeminiTokenInfo {
@@ -17,7 +18,7 @@ export interface GeminiTokenInfo {
   [key: string]: unknown
 }
 
-export function useGeminiOAuth() {
+export function useGeminiOAuth(api: typeof adminAPI.gemini | typeof supplierAccountCreationAPI.gemini = adminAPI.gemini) {
   const appStore = useAppStore()
   const { t } = useI18n()
 
@@ -56,7 +57,7 @@ export function useGeminiOAuth() {
       const trimmedTierID = tierId?.trim()
       if (trimmedTierID) payload.tier_id = trimmedTierID
 
-      const response = await adminAPI.gemini.generateAuthUrl(payload as any)
+      const response = await api.generateAuthUrl(payload as any)
       authUrl.value = response.auth_url
       sessionId.value = response.session_id
       state.value = response.state
@@ -98,7 +99,7 @@ export function useGeminiOAuth() {
       const trimmedTierID = params.tierId?.trim()
       if (trimmedTierID) payload.tier_id = trimmedTierID
 
-      const tokenInfo = await adminAPI.gemini.exchangeCode(payload as any)
+      const tokenInfo = await api.exchangeCode(payload as any)
       return tokenInfo as GeminiTokenInfo
     } catch (err: any) {
       // Check for specific missing project_id error
@@ -142,7 +143,7 @@ export function useGeminiOAuth() {
 
   const getCapabilities = async (): Promise<GeminiOAuthCapabilities | null> => {
     try {
-      return await adminAPI.gemini.getCapabilities()
+      return await api.getCapabilities()
     } catch (err: any) {
       // Capabilities are optional for older servers; don't block the UI.
       return null

@@ -2,10 +2,11 @@ import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { adminAPI } from '@/api/admin'
+import type { supplierAccountCreationAPI } from '@/api/supplierAccountCreation'
 import type { GrokTokenInfo } from '@/api/admin/grok'
 import { extractApiErrorMessage, extractI18nErrorMessage } from '@/utils/apiError'
 
-export function useGrokOAuth() {
+export function useGrokOAuth(api: typeof adminAPI.grok | typeof supplierAccountCreationAPI.grok = adminAPI.grok) {
   const appStore = useAppStore()
   const { t } = useI18n()
 
@@ -34,7 +35,7 @@ export function useGrokOAuth() {
       const payload: Record<string, unknown> = {}
       if (proxyId) payload.proxy_id = proxyId
 
-      const response = await adminAPI.grok.generateAuthUrl(payload)
+      const response = await api.generateAuthUrl(payload)
       authUrl.value = response.auth_url
       sessionId.value = response.session_id
       state.value = response.state
@@ -71,7 +72,7 @@ export function useGrokOAuth() {
       }
       if (params.proxyId) payload.proxy_id = params.proxyId
 
-      return await adminAPI.grok.exchangeCode(payload as any)
+      return await api.exchangeCode(payload as any)
     } catch (err: any) {
       error.value = extractI18nErrorMessage(
         err,
@@ -99,7 +100,7 @@ export function useGrokOAuth() {
     error.value = ''
 
     try {
-      return await adminAPI.grok.refreshGrokToken(refreshToken.trim(), proxyId)
+      return await api.refreshGrokToken(refreshToken.trim(), proxyId)
     } catch (err: any) {
       error.value = extractI18nErrorMessage(
         err,
@@ -158,7 +159,7 @@ export function useGrokOAuth() {
     loading.value = true
     error.value = ''
     try {
-      return await adminAPI.grok.validateSSOToken(ssoToken.trim(), proxyId)
+      return await api.validateSSOToken(ssoToken.trim(), proxyId)
     } catch (err: any) {
       error.value = extractI18nErrorMessage(
         err,
@@ -184,7 +185,7 @@ export function useGrokOAuth() {
     loading.value = true
     error.value = ''
     try {
-      return await adminAPI.grok.authorizePassword(emailAndPassword, proxyId)
+      return await api.authorizePassword(emailAndPassword, proxyId)
     } catch (err: any) {
       error.value = extractI18nErrorMessage(
         err,

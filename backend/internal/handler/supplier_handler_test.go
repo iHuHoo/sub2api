@@ -36,3 +36,15 @@ func TestSupplierErrorWhitelist(t *testing.T) {
 		require.NotEqual(t, 500, w.Code)
 	}
 }
+
+func TestSupplierOAuthStrictBinding(t *testing.T) {
+	for _, body := range []string{`{"redirect_uri":"https://evil.example"}`, `{"proxy_url":"http://127.0.0.1"}`, `{"group_ids":[1]}`, `{"priority":10}`, `{"token_uri":"http://localhost"}`, `{"refresh_token":"secret"} {}`} {
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest("POST", "/", bytes.NewBufferString(body))
+		var input service.SupplierOAuthInput
+		require.False(t, bindSupplierJSON(c, &input))
+		require.Equal(t, 400, w.Code)
+		require.NotContains(t, w.Body.String(), "secret")
+	}
+}

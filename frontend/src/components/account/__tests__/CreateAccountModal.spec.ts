@@ -91,7 +91,7 @@ const OAuthAuthorizationFlowStub = defineComponent({
     initialInputMethod: String,
   },
   data: () => ({ inputMethod: 'manual' }),
-  emits: ['import-codex-session', 'import-codex-pat'],
+  emits: ['import-codex-session', 'import-codex-pat', 'generate-url', 'validate-refresh-token', 'cookie-auth'],
   template: `
     <div>
       <button data-testid="import-codex-session" @click="$emit('import-codex-session', 'session-json')">session</button>
@@ -138,9 +138,9 @@ const ModelWhitelistSelectorStub = defineComponent({
   >models</button>`,
 })
 
-function mountModal(groups: any[] = []) {
+function mountModal(groups: any[] = [], supplier = false) {
   return mount(CreateAccountModal, {
-    props: { show: true, proxies: [], groups },
+    props: { show: true, proxies: [], groups, supplier },
     global: {
       stubs: {
         BaseDialog: BaseDialogStub,
@@ -893,5 +893,172 @@ describe('CreateAccountModal OpenAI long-context billing', () => {
     await flushPromises()
 
     expect(createOpenAICodexPATMock.mock.calls[0]?.[0]?.extra?.openai_long_context_billing_enabled).toBe(false)
+  })
+})
+
+
+describe('supplier account creation boundary', () => {
+  it('hides management controls and avoids administrator calls on open, platform switch and close', async () => {
+    const { adminAPI } = await import('@/api/admin')
+    vi.clearAllMocks()
+    const wrapper = mountModal([], true)
+    await flushPromises()
+    expect(adminAPI.settings.getSettings).not.toHaveBeenCalled()
+    expect(adminAPI.settings.getWebSearchEmulationConfig).not.toHaveBeenCalled()
+    expect(wrapper.find('[data-testid="select-pricing-groups"]').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('admin.accounts.concurrency')
+    await wrapper.setProps({ show: false })
+    await wrapper.setProps({ show: true })
+    await selectButtonByText(wrapper, 'Antigravity')
+    await flushPromises()
+    expect(adminAPI.tlsFingerprintProfiles.list).not.toHaveBeenCalled()
+    const { getAntigravityDefaultModelMapping } = await import('@/api/admin/accounts')
+    expect(getAntigravityDefaultModelMapping).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+})
+
+
+describe('supplier shared account actions', () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  it('creates an API key account through the supplier allowlist', async () => {
+    const { apiClient } = await import('@/api/client')
+    const post = vi.spyOn(apiClient, 'post').mockResolvedValue({ data: { id: 9 } })
+    const wrapper = mountModal([], true)
+    await selectButtonByText(wrapper, 'OpenAI')
+    await selectButtonByText(wrapper, 'API Key')
+    await wrapper.get('form input[type="text"]').setValue('Supplier OpenAI')
+    await wrapper.get('form input[type="password"]').setValue('test-key')
+    await wrapper.get('form').trigger('submit.prevent')
+    await flushPromises()
+    expect(post).toHaveBeenCalledWith('/supplier/accounts', expect.objectContaining({
+      name: 'Supplier OpenAI', platform: 'openai', type: 'apikey',
+      credentials: { api_key: 'test-key', base_url: 'https://api.openai.com/v1' }
+    }))
+    const payload = post.mock.calls[0]![1]
+    expect(payload).not.toHaveProperty('group_ids')
+    expect(payload).not.toHaveProperty('concurrency')
+    expect(payload).not.toHaveProperty('extra')
+    expect(wrapper.emitted('created')).toHaveLength(1)
+    wrapper.unmount()
+  })
+
+  it('does not offer administrator-only Zhipu team billing fields to suppliers', async () => {
+    const wrapper = mountModal([], true)
+    await selectButtonByText(wrapper, 'Zhipu GLM')
+    await selectButtonByText(wrapper, 'admin.accounts.cnProviders.accountMode.coding')
+    expect(wrapper.text()).not.toContain('admin.accounts.cnProviders.zhipuTeam.title')
+    expect(wrapper.findComponent({ name: 'OpenCodeGoProtocolRulesEditor' }).exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('keeps Bedrock credentials usable in the shared supplier form', async () => {
+    const { apiClient } = await import('@/api/client')
+    const post = vi.spyOn(apiClient, 'post').mockResolvedValue({ data: { id: 9 } })
+    const wrapper = mountModal([], true)
+    await selectButtonByText(wrapper, 'admin.accounts.bedrockLabel')
+    await wrapper.get('form input[type="text"]').setValue('Supplier Bedrock')
+    await wrapper.get('input[placeholder="AKIA..."]').setValue('access-key')
+    await wrapper.get('form input[type="password"]').setValue('secret-key')
+    await wrapper.get('form').trigger('submit.prevent')
+    await flushPromises()
+    expect(post).toHaveBeenCalledWith('/supplier/accounts', expect.objectContaining({
+      type: 'bedrock', credentials: { auth_mode: 'sigv4', aws_region: 'us-east-1', aws_access_key_id: 'access-key', aws_secret_access_key: 'secret-key' }
+    }))
+    wrapper.unmount()
+  })
+
+  it('keeps service-account JSON upload usable in the shared supplier form', async () => {
+    const { apiClient } = await import('@/api/client')
+    const post = vi.spyOn(apiClient, 'post').mockResolvedValue({ data: { id: 9 } })
+    const wrapper = mountModal([], true)
+    await selectButtonByText(wrapper, 'Service Account')
+    await wrapper.get('form input[type="text"]').setValue('Supplier Vertex')
+    const input = wrapper.get('input[type="file"]')
+    const content = JSON.stringify({ type: 'service_account', project_id: 'project', client_email: 'test@project.iam.gserviceaccount.com', private_key: 'private-key' })
+    Object.defineProperty(input.element, 'files', { value: [{ text: async () => content }] })
+    await input.trigger('change')
+    await flushPromises()
+    await wrapper.get('form').trigger('submit.prevent')
+    await flushPromises()
+    expect(post).toHaveBeenCalledWith('/supplier/accounts', expect.objectContaining({
+      type: 'service_account', credentials: expect.objectContaining({ service_account_json: content, project_id: 'project' })
+    }))
+    wrapper.unmount()
+  })
+
+  it.each(['OpenAI', 'Antigravity', 'Grok', 'Gemini'])('authorizes %s through supplier OAuth routes', async platform => {
+    const { apiClient } = await import('@/api/client')
+    vi.spyOn(apiClient, 'get').mockResolvedValue({ data: { ai_studio_oauth_enabled: false } })
+    const post = vi.spyOn(apiClient, 'post').mockResolvedValue({ data: { auth_url: 'https://provider.example/auth', session_id: 'session', state: 'state' } })
+    const wrapper = mountModal([], true)
+    await selectButtonByText(wrapper, platform)
+    await wrapper.get('form input[type="text"]').setValue('Supplier OAuth')
+    await wrapper.get('form').trigger('submit.prevent')
+    await flushPromises()
+    const flow = wrapper.findComponent(OAuthAuthorizationFlowStub)
+    expect(flow.exists()).toBe(true)
+    flow.vm.$emit('generate-url')
+    await flushPromises()
+    expect(post).toHaveBeenCalledWith(`/supplier/oauth/${platform.toLowerCase()}/generate-auth-url`, expect.any(Object), expect.any(Object))
+    expect(post.mock.calls.every(call => call[0].startsWith('/supplier/'))).toBe(true)
+    wrapper.unmount()
+  })
+
+  it.each(['OpenAI', 'Antigravity', 'Grok'])('imports %s refresh tokens and creates only through supplier routes', async platform => {
+    const { apiClient } = await import('@/api/client')
+    const post = vi.spyOn(apiClient, 'post').mockImplementation(async url => ({ data:
+      url === '/supplier/accounts' ? { id: 9 } : { access_token: 'access', refresh_token: 'refresh', expires_in: 3600 }
+    }))
+    const wrapper = mountModal([], true)
+    await selectButtonByText(wrapper, platform)
+    await wrapper.get('form input[type="text"]').setValue('Supplier refresh')
+    await wrapper.get('form').trigger('submit.prevent')
+    await flushPromises()
+    wrapper.findComponent(OAuthAuthorizationFlowStub).vm.$emit('validate-refresh-token', 'refresh')
+    await flushPromises()
+    expect(post.mock.calls.map(call => call[0])).toEqual([
+      `/supplier/oauth/${platform.toLowerCase()}/refresh-token`, '/supplier/accounts'
+    ])
+    expect(post.mock.calls[1]![1]).toMatchObject({ platform: platform.toLowerCase(), type: 'oauth', credentials: { access_token: 'access' } })
+    expect(post.mock.calls[1]![1]).not.toHaveProperty('group_ids')
+    expect(wrapper.emitted('created')).toHaveLength(1)
+    wrapper.unmount()
+  })
+
+  it('authorizes Anthropic cookies and creates through supplier routes', async () => {
+    const { apiClient } = await import('@/api/client')
+    const post = vi.spyOn(apiClient, 'post').mockImplementation(async url => ({ data:
+      url === '/supplier/accounts' ? { id: 9 } : { access_token: 'access', refresh_token: 'refresh' }
+    }))
+    const wrapper = mountModal([], true)
+    await wrapper.get('form input[type="text"]').setValue('Supplier Claude')
+    await wrapper.get('form').trigger('submit.prevent')
+    await flushPromises()
+    wrapper.findComponent(OAuthAuthorizationFlowStub).vm.$emit('cookie-auth', 'session-key')
+    await flushPromises()
+    expect(post.mock.calls.map(call => call[0])).toEqual(['/supplier/oauth/anthropic/cookie-auth', '/supplier/accounts'])
+    expect(post.mock.calls[0]![1]).toEqual({ session_key: 'session-key' })
+    expect(wrapper.emitted('created')).toHaveLength(1)
+    wrapper.unmount()
+  })
+
+  it('imports Codex sessions using the supplier endpoint and hides PAT and Agent Identity', async () => {
+    const { apiClient } = await import('@/api/client')
+    const post = vi.spyOn(apiClient, 'post').mockResolvedValue({ data: { created: 1, updated: 0, skipped: 0, failed: 0, errors: [], warnings: [] } })
+    const wrapper = mountModal([], true)
+    await selectButtonByText(wrapper, 'OpenAI')
+    await wrapper.get('form input[type="text"]').setValue('Supplier session')
+    await wrapper.get('form').trigger('submit.prevent')
+    await flushPromises()
+    const flow = wrapper.findComponent(OAuthAuthorizationFlowStub)
+    expect(flow.props('showCodexPatOption')).toBe(false)
+    expect(flow.props('showAgentIdentityOption')).toBe(false)
+    flow.vm.$emit('import-codex-session', '{"tokens":{"access_token":"access"}}')
+    await flushPromises()
+    expect(post).toHaveBeenCalledWith('/supplier/accounts/import-codex-session', expect.objectContaining({ content: '{"tokens":{"access_token":"access"}}' }), expect.any(Object))
+    expect(post.mock.calls[0]![1]).not.toHaveProperty('group_ids')
+    wrapper.unmount()
   })
 })
