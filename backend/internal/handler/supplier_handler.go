@@ -15,7 +15,50 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-type SupplierHandler struct{ service *service.SupplierService }
+type SupplierHandler struct {
+	service *service.SupplierService
+	oauth   *service.SupplierOAuthService
+}
+
+func NewSupplierHandlerWithOAuth(s *service.SupplierService, o *service.OpenAIOAuthService, c *service.OAuthService, g *service.GeminiOAuthService, a *service.AntigravityOAuthService, x *service.GrokOAuthService) *SupplierHandler {
+	return &SupplierHandler{service: s, oauth: service.NewSupplierOAuthService(s, o, c, g, a, x)}
+}
+
+func (h *SupplierHandler) OAuth(c *gin.Context) {
+	owner, ok := supplierSubject(c)
+	if !ok {
+		return
+	}
+	if h.oauth == nil {
+		supplierError(c, service.ErrSupplierUnavailable)
+		return
+	}
+	var in service.SupplierOAuthInput
+	if !bindSupplierJSON(c, &in) {
+		return
+	}
+	out, err := h.oauth.Execute(c.Request.Context(), owner, c.Param("platform"), c.Param("action"), in)
+	if err != nil {
+		supplierError(c, err)
+		return
+	}
+	response.Success(c, out)
+}
+func (h *SupplierHandler) OAuthCapabilities(c *gin.Context) {
+	if _, ok := supplierSubject(c); !ok {
+		return
+	}
+	if h.oauth == nil {
+		supplierError(c, service.ErrSupplierUnavailable)
+		return
+	}
+	out := h.oauth.Capabilities(c.Param("platform"))
+	if out == nil {
+		supplierError(c, service.ErrSupplierInvalid)
+		return
+	}
+	response.Success(c, out)
+}
 
 func NewSupplierHandler(s *service.SupplierService) *SupplierHandler {
 	return &SupplierHandler{service: s}

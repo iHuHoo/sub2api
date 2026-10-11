@@ -28,8 +28,12 @@ func TestSupplierRoutesRoleBoundaryAndNoAccountDelete(t *testing.T) {
 		r.ServeHTTP(w, httptest.NewRequest("DELETE", "/api/v1/supplier/accounts/1", nil))
 		require.Equal(t, 404, w.Code)
 		for _, route := range r.Routes() {
-			require.NotContains(t, route.Path, "oauth")
 			require.NotContains(t, route.Path, "admin")
+		}
+		for _, path := range []string{"/api/v1/supplier/oauth/openai/generate-auth-url", "/api/v1/supplier/oauth/openai/exchange-code", "/api/v1/supplier/accounts/import-codex-session"} {
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, httptest.NewRequest("POST", path, nil))
+			require.Equal(t, 403, w.Code)
 		}
 	}
 }

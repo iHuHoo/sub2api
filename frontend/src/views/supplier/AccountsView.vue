@@ -2,6 +2,7 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import AppLayout from '@/components/layout/AppLayout.vue'
+import CreateAccountModal from '@/components/account/CreateAccountModal.vue'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import DataTable from '@/components/common/DataTable.vue'
 import Pagination from '@/components/common/Pagination.vue'
@@ -17,6 +18,9 @@ const loading = ref(false)
 const saving = ref(false)
 const pendingPause = ref<number | null>(null)
 const show = ref(false)
+const showCreate = ref(false)
+const createLoading = ref(false)
+const createProxies = ref<SupplierProxy[]>([])
 const editing = ref<SupplierAccount | null>(null)
 const initialExpiry = ref('')
 const proxies = ref<SupplierProxy[]>([])
@@ -79,10 +83,8 @@ const columns = computed(() => [
 function resetCredentials() {
   Object.keys(credentials).forEach(key => delete credentials[key])
   Object.keys(clearCredentials).forEach(key => delete clearCredentials[key])
-  if (!editing.value && form.type === 'bedrock') credentials.auth_mode = 'sigv4'
 }
 watch(() => form.platform, () => {
-  if (!editing.value) form.type = platformTypes[form.platform]?.[0] ?? 'apikey'
   resetCredentials()
 })
 watch(() => form.type, resetCredentials)
@@ -105,7 +107,26 @@ async function loadProxies() {
   } catch (error) { appStore.showError(t(supplierErrorKey(error))) }
   finally { proxyLoading.value = false }
 }
-function open(account: SupplierAccount | null = null) {
+async function openCreate() {
+  if (createLoading.value) return
+  createLoading.value = true
+  createProxies.value = []
+  try {
+    let nextPage = 1
+    let pages = 1
+    const owned: SupplierProxy[] = []
+    do {
+      const data = await supplierAPI.proxies.list(nextPage)
+      owned.push(...data.items)
+      pages = data.pages
+      nextPage++
+    } while (nextPage <= pages)
+    createProxies.value = owned
+    showCreate.value = true
+  } catch (error) { appStore.showError(t(supplierErrorKey(error))) }
+  finally { createLoading.value = false }
+}
+function open(account: SupplierAccount) {
   if (account?.read_only) return
   editing.value = account
   initialExpiry.value = account?.expires_at ? new Date(account.expires_at).toISOString().slice(0, 16) : ''
@@ -125,7 +146,7 @@ function isSecret(key: string) {
   return ['api_key', 'access_token', 'refresh_token', 'id_token', 'aws_access_key_id', 'aws_secret_access_key', 'aws_session_token'].includes(key)
 }
 async function save() {
-  if (saving.value || editing.value?.read_only) return
+  if (saving.value || !editing.value || editing.value.read_only) return
   if (!form.name.trim() || new TextEncoder().encode(form.name).length > 100 || new TextEncoder().encode(form.notes).length > 2000) {
     appStore.showError(t('supplier.invalidInput'))
     return
@@ -135,14 +156,10 @@ async function save() {
   for (const field of fields.value) {
     if (clearCredentials[field.key] && canClear(field)) imported[field.key] = ''
     else if (credentials[field.key]) imported[field.key] = credentials[field.key]
-    else if (!editing.value && field.required) {
-      appStore.showError(t('supplier.requiredCredential', { field: field.key }))
-      return
-    }
   }
   if (Object.keys(imported).length) changes.credentials = imported
-  if (!editing.value || form.name !== editing.value.name) changes.name = form.name
-  if (!editing.value || form.notes !== (editing.value.notes ?? '')) changes.notes = form.notes
+  if (form.name !== editing.value.name) changes.name = form.name
+  if (form.notes !== (editing.value.notes ?? '')) changes.notes = form.notes
   if (form.proxy_id !== '') changes.proxy_id = Number(form.proxy_id)
   if (form.clear_expiry) changes.expires_at = 0
   else if (form.expires_at && form.expires_at !== initialExpiry.value) {
@@ -155,8 +172,7 @@ async function save() {
   }
   saving.value = true
   try {
-    if (editing.value) await supplierAPI.accounts.update(editing.value.id, changes)
-    else await supplierAPI.accounts.create({ ...changes, name: form.name, platform: form.platform, type: form.type, credentials: imported })
+    await supplierAPI.accounts.update(editing.value.id, changes)
     appStore.showSuccess(t('supplier.saved'))
     show.value = false
     resetCredentials()
@@ -186,7 +202,7 @@ onMounted(load)
     <div class="space-y-5">
       <div class="flex flex-wrap items-center justify-between gap-3">
         <h2 class="text-xl font-semibold text-gray-900 dark:text-white">{{ t('supplier.accounts') }}</h2>
-        <button class="btn btn-primary" @click="open()">{{ t('supplier.addAccount') }}</button>
+        <button class="btn btn-primary" :disabled="createLoading" @click="openCreate">{{ t('supplier.addAccount') }}</button>
       </div>
       <p class="card p-4 text-sm text-gray-600 dark:text-gray-300">{{ t('supplier.assignmentNotice') }}</p>
       <div class="card overflow-hidden">
@@ -210,6 +226,7 @@ onMounted(load)
         <Pagination v-if="total" :total="total" :page="page" :page-size="20" :show-page-size-selector="false" @update:page="page = $event; load()" />
       </div>
     </div>
+    <CreateAccountModal v-if="showCreate" :show="showCreate" supplier :proxies="createProxies" :groups="[]" @close="showCreate = false" @created="load" />
     <BaseDialog :show="show" :title="editing ? t('supplier.editAccount') : t('supplier.addAccount')" width="normal" @close="close">
       <form id="supplier-account-form" class="space-y-4" @submit.prevent="save">
         <label class="block"><span class="input-label">{{ t('supplier.name') }}</span><input v-model="form.name" name="name" class="input" required maxlength="100" /></label>

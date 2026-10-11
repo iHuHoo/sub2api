@@ -27,6 +27,7 @@ function render(component: typeof AccountsView | typeof ProxiesView | typeof Usa
   return mount(component, { global: { stubs: {
     AppLayout: { template: '<div><slot /></div>' },
     BaseDialog: { props: ['show'], template: '<div v-if="show"><slot /><slot name="footer" /></div>' },
+    CreateAccountModal: { name: 'CreateAccountModal', props: { show: Boolean, supplier: Boolean, proxies: Array, groups: Array }, template: '<div v-if="show" data-testid="shared-create" />' },
     Pagination: true
   } } })
 }
@@ -115,37 +116,35 @@ describe('supplier account editor', () => {
     expect(wrapper.findAll('button').filter(b => ['Edit', 'Pause supply'].includes(b.text())).every(b => b.attributes('disabled') !== undefined)).toBe(true)
     expect(wrapper.text()).toContain('Derived account')
   })
-  it('uses guided imports with official endpoints and never exposes administrator fields', async () => {
+  it('prevents duplicate create clicks while own proxies load', async () => {
+    api.proxies.list.mockReturnValue(new Promise(() => {}))
     const wrapper = render(AccountsView)
     await flushPromises()
     await click(wrapper, 'Add account')
-    expect(wrapper.find('[name="api_key"]').exists()).toBe(true)
-    expect(wrapper.find('[name="base_url"]').element.tagName).toBe('SELECT')
-    expect(wrapper.find('[name="groups"]').exists()).toBe(false)
-    expect(wrapper.find('[name="priority"]').exists()).toBe(false)
-    expect(wrapper.find('[name="supplier_user_id"]').exists()).toBe(false)
-    const platforms = wrapper.findAll('[name="platform"] option').map(o => o.attributes('value'))
-    expect(platforms).not.toContain('composite')
-    expect(platforms).toContain('antigravity')
+    const button = wrapper.findAll('button').find(button => button.text() === 'Add account')!
+    expect(button.attributes('disabled')).toBeDefined()
+    await button.trigger('click')
+    expect(api.proxies.list).toHaveBeenCalledTimes(1)
+    wrapper.unmount()
   })
-  it('imports OAuth, Bedrock and service-account fields explicitly', async () => {
+
+  it('opens the shared supplier creation modal with every own proxy page', async () => {
+    api.proxies.list.mockImplementation((pageNumber: number) => Promise.resolve({
+      ...page([pageNumber === 1 ? proxy : { ...proxy, id: 8 }]), total: 2, pages: 2, page: pageNumber
+    }))
     const wrapper = render(AccountsView)
     await flushPromises()
     await click(wrapper, 'Add account')
-    await wrapper.get('[name="platform"]').setValue('anthropic')
-    await wrapper.get('[name="type"]').setValue('bedrock')
-    expect(wrapper.find('[name="aws_secret_access_key"]').exists()).toBe(true)
-    await wrapper.get('[name="auth_mode"]').setValue('apikey')
-    expect(wrapper.find('[name="api_key"]').exists()).toBe(true)
-    expect(wrapper.find('[name="aws_secret_access_key"]').exists()).toBe(false)
-    await wrapper.get('[name="type"]').setValue('service_account')
-    expect(wrapper.get('[name="service_account_json"]').element.tagName).toBe('TEXTAREA')
-    await wrapper.get('[name="platform"]').setValue('openai')
-    await wrapper.get('[name="type"]').setValue('oauth')
-    expect(wrapper.find('[name="chatgpt_account_id"]').exists()).toBe(true)
-    expect(wrapper.find('[name="refresh_token"]').exists()).toBe(true)
-    expect(wrapper.find('[name="base_url"]').exists()).toBe(false)
+    const modal = wrapper.findComponent({ name: 'CreateAccountModal' })
+    expect(modal.exists()).toBe(true)
+    expect(modal.props('supplier')).toBe(true)
+    expect(modal.props('groups')).toEqual([])
+    expect(modal.props('proxies').map((p: { id: number }) => p.id)).toEqual([7, 8])
+    expect(api.proxies.list).toHaveBeenNthCalledWith(1, 1)
+    expect(api.proxies.list).toHaveBeenNthCalledWith(2, 2)
+    expect(wrapper.find('#supplier-account-form').exists()).toBe(false)
   })
+
 })
 
 describe('supplier proxy editor', () => {

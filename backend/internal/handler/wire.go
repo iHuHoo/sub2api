@@ -234,7 +234,7 @@ func ProvideHandlers(
 // ProviderSet is the Wire provider set for all handlers
 var ProviderSet = wire.NewSet(
 	// Top-level handlers
-	NewSupplierHandler,
+	NewSupplierHandlerWithOAuth,
 	NewAuthHandler,
 	NewUserHandler,
 	NewAPIKeyHandler,

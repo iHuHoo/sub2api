@@ -351,6 +351,12 @@ func supplierCredentialKeys(platform, typ string) map[string]bool {
 	switch typ {
 	case AccountTypeAPIKey:
 		allowed = []string{"api_key", "base_url"}
+		if platform == PlatformGemini {
+			allowed = append(allowed, "tier_id")
+		}
+		if IsCNProvider(platform) || platform == PlatformOpenCodeGo || platform == PlatformCommandCode || platform == PlatformCline {
+			allowed = append(allowed, "account_mode", "api_protocol", "api_base_urls")
+		}
 	case AccountTypeUpstream:
 		if platform == PlatformOpenAI || platform == PlatformAnthropic {
 			allowed = []string{"api_key", "base_url"}
@@ -365,7 +371,7 @@ func supplierCredentialKeys(platform, typ string) map[string]bool {
 			allowed = []string{"access_token", "refresh_token", "id_token", "expires_at", "token_type", "scope", "email"}
 		}
 		if platform == PlatformOpenAI {
-			allowed = append(allowed, "chatgpt_account_id", "chatgpt_user_id", "organization_id")
+			allowed = append(allowed, "chatgpt_account_id", "chatgpt_user_id", "organization_id", "client_id", "plan_type")
 		}
 		if platform == PlatformAnthropic {
 			allowed = append(allowed, "claude_user_id", "anthropic_user_id")
@@ -373,13 +379,22 @@ func supplierCredentialKeys(platform, typ string) map[string]bool {
 		if platform == PlatformGemini || platform == PlatformAntigravity {
 			allowed = append(allowed, "project_id")
 		}
+		if platform == PlatformAntigravity {
+			allowed = append(allowed, "plan_type")
+		}
+		if platform == PlatformGemini {
+			allowed = append(allowed, "oauth_type", "tier_id")
+		}
+		if platform == PlatformGrok {
+			allowed = append(allowed, "client_id", "team_id")
+		}
 	case AccountTypeServiceAccount:
 		if platform == PlatformGemini || platform == PlatformAnthropic {
 			allowed = []string{"service_account_json", "project_id", "location"}
 		}
 	case AccountTypeBedrock:
 		if platform == PlatformAnthropic {
-			allowed = []string{"auth_mode", "api_key", "aws_access_key_id", "aws_secret_access_key", "aws_session_token", "aws_region"}
+			allowed = []string{"auth_mode", "api_key", "aws_access_key_id", "aws_secret_access_key", "aws_session_token", "aws_region", "aws_force_global"}
 		}
 	}
 	for _, k := range allowed {
@@ -399,17 +414,17 @@ func supplierOfficialURLs(platform string) []string {
 	case PlatformGrok:
 		return []string{"https://api.x.ai/v1"}
 	case PlatformKimi:
-		return []string{DefaultKimiPayGBaseURL, DefaultKimiCodingBaseURL}
+		return []string{DefaultKimiPayGBaseURL, DefaultKimiCodingBaseURL, DefaultKimiPayGAnthropicBaseURL, DefaultKimiCodingAnthropicBaseURL}
 	case PlatformZhipu:
-		return []string{DefaultZhipuPayGBaseURL, DefaultZhipuCodingBaseURL}
+		return []string{DefaultZhipuPayGBaseURL, DefaultZhipuCodingBaseURL, DefaultZhipuAnthropicBaseURL}
 	case PlatformDeepseek:
-		return []string{DefaultDeepseekBaseURL}
+		return []string{DefaultDeepseekBaseURL, DefaultDeepseekAnthropicBaseURL}
 	case PlatformMiniMax:
-		return []string{DefaultMiniMaxBaseURL}
+		return []string{DefaultMiniMaxBaseURL, DefaultMiniMaxAnthropicBaseURL}
 	case PlatformOpenCodeGo:
-		return []string{DefaultOpenCodeGoBaseURL, DefaultOpenCodeZenBaseURL}
+		return []string{DefaultOpenCodeGoBaseURL, DefaultOpenCodeZenBaseURL, DefaultOpenCodeGoAnthropicBaseURL, DefaultOpenCodeZenAnthropicBaseURL}
 	case PlatformCommandCode:
-		return []string{DefaultCommandCodeBaseURL}
+		return []string{DefaultCommandCodeBaseURL, DefaultCommandCodeAnthropicBaseURL}
 	case PlatformCline:
 		return []string{DefaultClineBaseURL}
 	case PlatformTypeSafe:
@@ -431,6 +446,31 @@ func validateSupplierCredentials(platform, typ string, creds map[string]any, req
 	for k, v := range creds {
 		if !keys[k] {
 			return ErrSupplierInvalid
+		}
+		if k == "api_base_urls" {
+			urls, ok := v.(map[string]any)
+			if !ok || len(urls) > 3 {
+				return ErrSupplierInvalid
+			}
+			for protocol, raw := range urls {
+				if protocol != APIProtocolChatCompletions && protocol != APIProtocolAnthropic && protocol != APIProtocolResponses {
+					return ErrSupplierInvalid
+				}
+				url, ok := raw.(string)
+				if !ok {
+					return ErrSupplierInvalid
+				}
+				found := false
+				for _, official := range supplierOfficialURLs(platform) {
+					if url == official {
+						found = true
+					}
+				}
+				if !found {
+					return ErrSupplierInvalid
+				}
+			}
+			continue
 		}
 		if k == "service_account_json" {
 			raw, ok := v.(string)
@@ -468,6 +508,40 @@ func validateSupplierCredentials(platform, typ string, creds map[string]any, req
 			return ErrSupplierInvalid
 		}
 		if strings.ContainsAny(str, "\r\n") {
+			return ErrSupplierInvalid
+		}
+		if k == "account_mode" && str != AccountModePayG && str != AccountModeCoding && str != AccountModeZen && str != AccountModeGo {
+			return ErrSupplierInvalid
+		}
+		if k == "api_protocol" && str != APIProtocolChatCompletions && str != APIProtocolAnthropic && str != APIProtocolResponses && str != APIProtocolAdaptive {
+			return ErrSupplierInvalid
+		}
+		if k == "oauth_type" && str != "code_assist" && str != "google_one" && str != "ai_studio" {
+			return ErrSupplierInvalid
+		}
+		if k == "tier_id" {
+			if typ == AccountTypeAPIKey && str != GeminiTierAIStudioFree && str != GeminiTierAIStudioPaid {
+				return ErrSupplierInvalid
+			}
+			if err := validateTierID(str); err != nil {
+				return ErrSupplierInvalid
+			}
+		}
+		if k == "plan_type" {
+			plan := strings.ToLower(str)
+			if platform == PlatformAntigravity {
+				if plan != "free" && plan != "pro" && plan != "ultra" && plan != "abnormal" {
+					return ErrSupplierInvalid
+				}
+			} else {
+				switch plan {
+				case "", "free", "go", "plus", "pro", "team", "business", "enterprise", "edu", "education", "abnormal", "self_serve_business_prolite", "self_serve_business_usage_based", "free_workspace", "enterprise_cbp_usage_based", "enterprise_cbp_automation":
+				default:
+					return ErrSupplierInvalid
+				}
+			}
+		}
+		if k == "aws_force_global" && str != "true" && str != "false" {
 			return ErrSupplierInvalid
 		}
 		if k == "base_url" {

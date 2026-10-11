@@ -200,22 +200,22 @@ func TestSupplierAuditOmitsCredentialsAndRecordsOwnership(t *testing.T) {
 		c.Next()
 	})
 	r.Use(gin.HandlerFunc(NewAuditLogMiddleware(audit)))
-	for _, path := range []string{"/api/v1/supplier/accounts", "/api/v1/supplier/proxies"} {
+	for _, path := range []string{"/api/v1/supplier/accounts", "/api/v1/supplier/proxies", "/api/v1/supplier/accounts/import-codex-session", "/api/v1/supplier/oauth/:platform/:action"} {
 		r.POST(path, func(c *gin.Context) {
 			SetAuditExtra(c, map[string]any{"supplier_user_id": int64(11), "resource_id": int64(99)})
 			c.Status(201)
 		})
 	}
-	for _, path := range []string{"/api/v1/supplier/accounts", "/api/v1/supplier/proxies"} {
+	for _, path := range []string{"/api/v1/supplier/accounts", "/api/v1/supplier/proxies", "/api/v1/supplier/accounts/import-codex-session", "/api/v1/supplier/oauth/openai/exchange-code"} {
 		w := httptest.NewRecorder()
-		req := httptest.NewRequest("POST", path, bytes.NewBufferString(`{"notes":"credential-canary","credentials":{"service_account_json":"nested-secret"},"password":"secret"}`))
+		req := httptest.NewRequest("POST", path, bytes.NewBufferString(`{"notes":"credential-canary","credentials":{"service_account_json":"nested-secret"},"password":"secret","content":"{\"access_token\":\"import-token-canary\"}","code":"oauth-code-canary"}`))
 		req.Header.Set("Content-Type", "application/json")
 		r.ServeHTTP(w, req)
 	}
 	audit.Stop()
 	repo.mu.Lock()
 	defer repo.mu.Unlock()
-	require.Len(t, repo.logs, 2)
+	require.Len(t, repo.logs, 4)
 	for _, entry := range repo.logs {
 		require.Equal(t, "<credential-bearing body omitted>", entry.RequestBody)
 		require.Equal(t, service.RoleSupplier, entry.ActorRole)
