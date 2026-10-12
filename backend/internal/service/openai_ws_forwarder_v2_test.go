@@ -16,8 +16,6 @@ import (
 // HTTP POST /v1/responses -> forwardOpenAIWSV2 keeps the canonical outbound
 // tier separate from response.completed.service_tier for usage-time billing.
 func TestForwardOpenAIWSV2_KeepsOutboundAndObservedServiceTiersSeparate(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
 	cases := []struct {
 		name        string
 		requestTier string
@@ -97,8 +95,6 @@ func TestForwardOpenAIWSV2_KeepsOutboundAndObservedServiceTiersSeparate(t *testi
 }
 
 func TestForwardOpenAIWSV2_MarksCyberPolicyForFailureEventShapes(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
 	tests := []struct {
 		name          string
 		upstreamEvent []byte

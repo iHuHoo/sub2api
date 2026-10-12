@@ -28,7 +28,6 @@ func newTypeSafeAccountTestFixture(t *testing.T, status int, responseBody string
 		httpUpstream: upstream,
 		cfg:          &config.Config{},
 	}
-	gin.SetMode(gin.TestMode)
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodPost, "/api/v1/admin/accounts/31/test", nil)

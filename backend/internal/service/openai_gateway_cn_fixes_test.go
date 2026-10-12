@@ -82,7 +82,6 @@ func TestCalculateOpenAIRecordUsageCost_EmptyCandidatesIsPricingUnavailable(t *t
 }
 
 func TestResponsesStreamingFromNativeAnthropic_ClientDisconnectDrainsUsage(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 	svc := newNativeAnthropicHangTestService(5)
 
 	rec := httptest.NewRecorder()
@@ -113,8 +112,6 @@ func TestResponsesStreamingFromNativeAnthropic_ClientDisconnectDrainsUsage(t *te
 }
 
 func TestResponsesStreamingFromNativeAnthropic_NormalizesTerminalUsage(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
 	tests := []struct {
 		name              string
 		startUsage        string

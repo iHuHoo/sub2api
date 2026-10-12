@@ -189,8 +189,6 @@ func TestCheckErrorPolicy_GeminiAccounts(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestGeminiErrorPolicyIntegration(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
 	tests := []struct {
 		name                 string
 		account              *Account
@@ -375,7 +373,6 @@ func TestGeminiErrorPolicyIntegration(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestSkippedErrorPolicyFailoverError(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 	svc := &GeminiMessagesCompatService{}
 
 	poolAccount := func(extra map[string]any) *Account {

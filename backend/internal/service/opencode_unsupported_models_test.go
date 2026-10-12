@@ -14,8 +14,6 @@ import (
 )
 
 func TestForwardOpenCodeUnsupportedModels_ChatCompletionsReturns400(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
 	account := &Account{
 		ID:       101,
 		Platform: PlatformOpenCodeGo,
@@ -50,8 +48,6 @@ func TestForwardOpenCodeUnsupportedModels_ChatCompletionsReturns400(t *testing.T
 }
 
 func TestForwardOpenCodeUnsupportedModels_ResponsesReturns400(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
 	account := &Account{
 		ID:       102,
 		Platform: PlatformOpenCodeGo,
@@ -83,8 +79,6 @@ func TestForwardOpenCodeUnsupportedModels_ResponsesReturns400(t *testing.T) {
 }
 
 func TestForwardOpenCodeUnsupportedModels_MessagesReturns400(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
 	account := &Account{
 		ID:       103,
 		Platform: PlatformOpenCodeGo,
@@ -116,7 +110,6 @@ func TestForwardOpenCodeUnsupportedModels_MessagesReturns400(t *testing.T) {
 }
 
 func TestAccountTestService_OpenCodeUnsupportedModelReturnsError(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodPost, "/test", nil)

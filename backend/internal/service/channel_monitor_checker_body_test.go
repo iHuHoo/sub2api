@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -60,6 +61,7 @@ func setupFakeAnthropic(t *testing.T, handler *captureHandler) string {
 }
 
 type openAICaptureHandler struct {
+	mu                        sync.Mutex
 	lastBody                  map[string]any
 	lastHeaders               http.Header
 	lastPath                  string
@@ -69,6 +71,8 @@ type openAICaptureHandler struct {
 }
 
 func (h *openAICaptureHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
 	h.lastHeaders = r.Header.Clone()
 	h.lastPath = r.URL.Path
 	defer func() { _ = r.Body.Close() }()
@@ -175,6 +179,8 @@ func TestRunCheckForModel_OpenAI_DefaultChatRequest(t *testing.T) {
 	if res.Status != MonitorStatusOperational {
 		t.Fatalf("default chat request should pass challenge, got status=%s message=%q", res.Status, res.Message)
 	}
+	h.mu.Lock()
+	defer h.mu.Unlock()
 	if h.lastPath != providerOpenAIPath {
 		t.Fatalf("expected chat completions path %q, got %q", providerOpenAIPath, h.lastPath)
 	}
@@ -225,6 +231,8 @@ func TestRunCheckForModel_Grok_DefaultChatRequest(t *testing.T) {
 	if res.LatencyMs == nil {
 		t.Fatal("Grok request should record latency")
 	}
+	h.mu.Lock()
+	defer h.mu.Unlock()
 	if h.lastPath != providerGrokPath {
 		t.Fatalf("expected Grok chat completions path %q, got %q", providerGrokPath, h.lastPath)
 	}
@@ -290,6 +298,8 @@ func TestRunCheckForModel_OpenAIResponses_DefaultRequest(t *testing.T) {
 	if res.Status != MonitorStatusOperational {
 		t.Fatalf("default responses request should pass challenge, got status=%s message=%q", res.Status, res.Message)
 	}
+	h.mu.Lock()
+	defer h.mu.Unlock()
 	if h.lastPath != providerOpenAIResponsesPath {
 		t.Fatalf("expected responses path %q, got %q", providerOpenAIResponsesPath, h.lastPath)
 	}
@@ -326,6 +336,8 @@ func TestRunCheckForModel_OpenAIResponses_SkipsLeadingReasoningItem(t *testing.T
 	if res.Status != MonitorStatusOperational {
 		t.Fatalf("responses request should find text after leading reasoning item, got status=%s message=%q", res.Status, res.Message)
 	}
+	h.mu.Lock()
+	defer h.mu.Unlock()
 	if h.lastPath != providerOpenAIResponsesPath {
 		t.Fatalf("expected responses path %q, got %q", providerOpenAIResponsesPath, h.lastPath)
 	}
@@ -350,6 +362,8 @@ func TestRunCheckForModel_OpenAIResponsesReplaceMissingInstructionsFailsLocally(
 	if !strings.Contains(res.Message, "instructions and input are required") {
 		t.Errorf("expected local validation message about instructions/input, got %q", res.Message)
 	}
+	h.mu.Lock()
+	defer h.mu.Unlock()
 	if h.lastPath != "" {
 		t.Errorf("invalid replace body should fail before HTTP request, got path %q", h.lastPath)
 	}

@@ -112,8 +112,6 @@ func TestEnforceCacheControlLimit_MimicPathKeepsClient1hBreakpointValid(t *testi
 }
 
 func TestForwardCountTokens_MimicPathKeepsClient1hBreakpointValid(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages/count_tokens", nil)

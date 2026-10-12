@@ -64,7 +64,6 @@ func newSystemOneTestService(upstream HTTPUpstream) *GatewayService {
 }
 
 func newSystemOneTestContext() *gin.Context {
-	gin.SetMode(gin.TestMode)
 	c, _ := gin.CreateTestContext(httptest.NewRecorder())
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/systemone", nil)
 	return c

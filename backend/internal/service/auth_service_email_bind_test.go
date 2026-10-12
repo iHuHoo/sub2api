@@ -239,7 +239,9 @@ func TestAuthServiceBindEmailIdentity_RejectsAliasOfExistingEmailOnAnotherUser(t
 
 	err := svc.SendEmailIdentityBindCode(ctx, sourceUser.ID, "zckioio123+new@gmail.com")
 	require.ErrorIs(t, err, service.ErrEmailExists)
+	cache.mu.Lock()
 	require.Empty(t, cache.setEmails)
+	cache.mu.Unlock()
 
 	updatedUser, err := svc.BindEmailIdentity(
 		ctx,
@@ -651,7 +653,9 @@ func TestAuthServiceEmailIdentityBinding_RejectsEmailOutsideRegistrationSuffixWh
 
 	err := svc.SendEmailIdentityBindCode(ctx, user.ID, "intruder@gmail.com")
 	require.ErrorIs(t, err, service.ErrEmailSuffixNotAllowed)
+	cache.mu.Lock()
 	require.Empty(t, cache.setEmails)
+	cache.mu.Unlock()
 
 	updatedUser, err := svc.BindEmailIdentity(ctx, user.ID, "intruder@gmail.com", "123456", "new-password")
 	require.ErrorIs(t, err, service.ErrEmailSuffixNotAllowed)
@@ -811,19 +815,28 @@ func (s *emailBindSettingRepoStub) Delete(context.Context, string) error {
 }
 
 type emailBindCacheStub struct {
+	mu        sync.Mutex
 	data      *service.VerificationCodeData
 	err       error
 	setEmails []string
 }
 
 func (s *emailBindCacheStub) GetVerificationCode(context.Context, string) (*service.VerificationCodeData, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if s.err != nil {
 		return nil, s.err
 	}
-	return s.data, nil
+	if s.data == nil {
+		return nil, nil
+	}
+	data := *s.data
+	return &data, nil
 }
 
 func (s *emailBindCacheStub) SetVerificationCode(_ context.Context, email string, _ *service.VerificationCodeData, _ time.Duration) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.setEmails = append(s.setEmails, email)
 	return nil
 }
@@ -1167,6 +1180,8 @@ func cloneEmailBindUser(user *service.User) *service.User {
 }
 
 func (s *emailBindCacheStub) IncrVerificationCodeAttempts(context.Context, string) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if s.data == nil {
 		return 0, errors.New("verification code not found")
 	}
