@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "ruleset_version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "request_id": "fixture-partial",
+  "checked_at": "2026-10-11T08:00:00Z",
+  "mode": "quick",
+  "execution": "partial",
+  "connectivity": "unknown",
+  "exit": {
+    "ip": "203.0.113.10",
+    "source": "fixture",
+    "observed_at": "2026-10-11T08:00:00Z"
+  },
+  "stability": {
+    "status": "skipped",
+    "reason_code": "mode_not_sample",
+    "attempted": 0,
+    "succeeded": 0,
+    "distinct_ips": 0,
+    "samples": []
+  },
+  "items": [
+    {
+      "id": "openai",
+      "plugin_id": "httpcheck",
+      "plugin_version": "1.0.0",
+      "rule_id": "openai",
+      "rule_version": "1.0.0",
+      "category": "connectivity",
+      "target": "https://example.com",
+      "status": "pass",
+      "reason_code": "expected_status",
+      "message": "虚构样例；未验证登录、额度或推理能力。",
+      "started_at": "2026-10-11T08:00:00Z",
+      "duration_ms": 0,
+      "http_status": 401
+    },
+    {
+      "id": "claude",
+      "plugin_id": "httpcheck",
+      "plugin_version": "1.0.0",
+      "rule_id": "claude",
+      "rule_version": "1.0.0",
+      "category": "connectivity",
+      "target": "https://example.com",
+      "status": "unknown",
+      "reason_code": "report_deadline",
+      "message": "虚构样例；未验证登录、额度或推理能力。",
+      "started_at": "2026-10-11T08:00:00Z"
+    }
+  ],
+  "summary": "虚构样例",
+  "completion": {
+    "planned": 2,
+    "executed": 2,
+    "conclusive": 1,
+    "unknown": 1,
+    "skipped": 0
+  }
+}
