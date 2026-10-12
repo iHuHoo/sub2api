@@ -2514,3 +2514,5 @@ export type {
   PlatformQuotaWindow,
   PlatformQuotasResponse,
 } from '@/api/admin/users'
+
+export * from './proxyDiagnostics'

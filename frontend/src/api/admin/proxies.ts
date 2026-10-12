@@ -6,6 +6,9 @@
 import { apiClient } from '../client'
 import type {
   Proxy,
+  ProxyDiagnosticsCapabilities,
+  ProxyDiagnosticsMode,
+  ProxyDiagnosticsResponse,
   ProxyAccountSummary,
   ProxyQualityCheckResult,
   CreateProxyRequest,
@@ -264,7 +267,36 @@ export async function importData(payload: {
   return data
 }
 
+function requireDiagnosticsV1(data: ProxyDiagnosticsResponse): ProxyDiagnosticsResponse {
+  const version = data?.report?.schema_version
+  if (typeof version !== 'number') throw { reason: 'service_unavailable' }
+  if (version !== 1) throw { reason: 'schema_unsupported' }
+  return data
+}
+
+export async function diagnosticsCapabilities(): Promise<ProxyDiagnosticsCapabilities> {
+  const { data } = await apiClient.get<ProxyDiagnosticsCapabilities>('/admin/proxies/diagnostics-capabilities')
+  if (data.enabled && data.schema_version !== 1) throw { reason: 'schema_unsupported' }
+  return data
+}
+
+export async function checkDiagnostics(id: number, mode: ProxyDiagnosticsMode, options?: { signal?: AbortSignal }): Promise<ProxyDiagnosticsResponse> {
+  const { data } = await apiClient.post<ProxyDiagnosticsResponse>(`/admin/proxies/${id}/diagnostics`, { mode }, {
+    timeout: 70000,
+    signal: options?.signal
+  })
+  return requireDiagnosticsV1(data)
+}
+
+export async function getDiagnostics(id: number, options?: { signal?: AbortSignal }): Promise<ProxyDiagnosticsResponse> {
+  const { data } = await apiClient.get<ProxyDiagnosticsResponse>(`/admin/proxies/${id}/diagnostics`, { signal: options?.signal })
+  return requireDiagnosticsV1(data)
+}
+
 export const proxiesAPI = {
+  diagnosticsCapabilities,
+  checkDiagnostics,
+  getDiagnostics,
   list,
   getAll,
   getAllWithCount,

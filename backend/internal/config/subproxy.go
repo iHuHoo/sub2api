@@ -28,7 +28,7 @@ func (c SubproxyConfig) Validate() error {
 	if e != nil || u.Hostname() == "" || u.User != nil || u.RawQuery != "" || u.ForceQuery || u.Fragment != "" || u.Opaque != "" || (u.Path != "" && u.Path != "/") {
 		return errors.New("subproxy: invalid base_url")
 	}
-	if u.Scheme != "https" && !(u.Scheme == "http" && c.AllowInternalHTTP) {
+	if u.Scheme != "https" && (u.Scheme != "http" || !c.AllowInternalHTTP) {
 		return errors.New("subproxy: HTTPS required unless same-host internal HTTP is explicitly enabled")
 	}
 	return nil
@@ -46,7 +46,7 @@ func (r SubproxySecretRef) Read() (string, error) {
 		if e != nil {
 			return "", fail
 		}
-		defer f.Close()
+		defer func() { _ = f.Close() }()
 		b, e := io.ReadAll(io.LimitReader(f, 4097))
 		if e != nil || len(b) > 4096 {
 			return "", fail
