@@ -215,13 +215,19 @@ func parseDiagnosticsReport(raw []byte) (json.RawMessage, error) {
 	if len(raw) > 256*1024 {
 		return nil, errDiagnosticsReport
 	}
+	// Future majors may not have v1 fields; identify the version before validating them.
+	var header struct {
+		Version *int `json:"schema_version"`
+	}
+	if json.Unmarshal(raw, &header) != nil || header.Version == nil || *header.Version < 1 {
+		return nil, errDiagnosticsReport
+	}
+	if *header.Version != 1 {
+		return nil, ErrDiagnosticsSchemaUnsupported
+	}
 	obj, e := diagnosticsObject(raw, "schema_version ruleset_version request_id checked_at mode execution connectivity exit stability items summary completion", "")
 	if e != nil {
 		return nil, e
-	}
-	var version int
-	if json.Unmarshal(obj["schema_version"], &version) != nil || version != 1 {
-		return nil, errDiagnosticsReport
 	}
 	for _, check := range []error{
 		diagnosticsString(obj, "ruleset_version", 64, diagnosticsRuleset),

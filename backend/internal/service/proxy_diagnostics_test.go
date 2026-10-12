@@ -257,6 +257,18 @@ func TestDiagnosticsServiceCancellationAndTimeout(t *testing.T) {
 		})
 	}
 }
+
+func TestDiagnosticsUnsupportedSchemaHasDedicatedReason(t *testing.T) {
+	// A newer major need not have v1 fields; identify it before validating v1.
+	s, repo, cache := diagnosticsTestService(t, func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"schema_version":2}`))
+	})
+	_, err := s.Check(context.Background(), 1, "quick")
+	require.Equal(t, "schema_unsupported", apperrors.Reason(err))
+	cache.report = CachedDiagnosticsReport{Fingerprint: s.fingerprint(repo.p), Report: json.RawMessage(`{"schema_version":2}`)}
+	_, err = s.Latest(context.Background(), 1)
+	require.Equal(t, "schema_unsupported", apperrors.Reason(err))
+}
 func TestDiagnosticsDisabledHasNoClientOrSecrets(t *testing.T) {
 	s, e := NewProxyDiagnosticsService(nil, nil, &config.Config{Subproxy: config.SubproxyConfig{BaseURL: ":invalid", Token: config.SubproxySecretRef{File: "/missing"}}})
 	require.NoError(t, e)

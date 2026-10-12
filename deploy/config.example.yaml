@@ -1297,3 +1297,13 @@ image_storage:
   presign_expiry_hours: 24
   # 当上游返回的是图片 url 时，下载该图片再转存的字节上限（默认 32MB）
   max_download_bytes: 33554432
+# 可选独立代理诊断服务；默认关闭。secret 只填引用，不填真实值。
+# 同机私有容器网络可设置 allow_internal_http: true；跨机必须 HTTPS。
+subproxy:
+  enabled: false
+  base_url: "https://subproxy.internal.example"
+  allow_internal_http: false
+  token:
+    env: "SUBPROXY_SERVICE_TOKEN"
+  hmac_secret:
+    file: "/run/secrets/subproxy_hmac"

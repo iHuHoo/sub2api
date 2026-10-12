@@ -20,10 +20,11 @@ import (
 )
 
 var (
-	ErrDiagnosticsDisabled       = apperrors.New(503, "DIAGNOSTICS_DISABLED", "Proxy diagnostics is disabled")
-	ErrDiagnosticsReportNotFound = apperrors.NotFound("REPORT_NOT_FOUND", "No current diagnostics report")
-	ErrDiagnosticsProxyChanged   = apperrors.Conflict("PROXY_CHANGED", "Proxy configuration changed during check")
-	ErrDiagnosticsUnavailable    = apperrors.New(503, "service_unavailable", "Diagnostics service unavailable")
+	ErrDiagnosticsDisabled          = apperrors.New(503, "DIAGNOSTICS_DISABLED", "Proxy diagnostics is disabled")
+	ErrDiagnosticsReportNotFound    = apperrors.NotFound("REPORT_NOT_FOUND", "No current diagnostics report")
+	ErrDiagnosticsProxyChanged      = apperrors.Conflict("PROXY_CHANGED", "Proxy configuration changed during check")
+	ErrDiagnosticsUnavailable       = apperrors.New(503, "service_unavailable", "Diagnostics service unavailable")
+	ErrDiagnosticsSchemaUnsupported = apperrors.New(503, "schema_unsupported", "Unsupported diagnostics report schema")
 )
 
 type DiagnosticsResponse struct {
@@ -81,7 +82,11 @@ func NewProxyDiagnosticsService(repo ProxyRepository, cache ProxyDiagnosticsCach
 	s.token = token
 	s.hmacSecret = []byte(secret)
 	s.endpoint = strings.TrimRight(c.BaseURL, "/") + "/v1/checks"
-	tr := http.DefaultTransport.(*http.Transport).Clone()
+	transport, ok := http.DefaultTransport.(*http.Transport)
+	if !ok {
+		return nil, errors.New("subproxy: unsupported default transport")
+	}
+	tr := transport.Clone()
 	tr.Proxy = nil // Internal credentials must not traverse an environment proxy.
 	s.client = &http.Client{Transport: tr, Timeout: 65 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 	return s, nil
@@ -99,17 +104,17 @@ func (s *ProxyDiagnosticsService) fingerprint(p *Proxy) string {
 		Token string
 	}{diagnosticsProxyFrom(p), s.token})
 	h := hmac.New(sha256.New, s.hmacSecret)
-	h.Write(b)
+	_, _ = h.Write(b)
 	return hex.EncodeToString(h.Sum(nil))
 }
 func (s *ProxyDiagnosticsService) Check(ctx context.Context, id int64, mode string) (DiagnosticsResponse, error) {
 	var result DiagnosticsResponse
 	if !s.Enabled() {
-		warnDiagnosticsFailure(id, "diagnostics_disabled")
+		slog.Debug("proxy_diagnostics_disabled", "proxy_id", id, "classification", "diagnostics_disabled")
 		return result, ErrDiagnosticsDisabled
 	}
 	if mode != "quick" && mode != "sample" {
-		warnDiagnosticsFailure(id, "request_invalid")
+		warnDiagnosticsFailure(id, "invalid_mode")
 		return result, apperrors.BadRequest("INVALID_MODE", "Mode must be quick or sample")
 	}
 	p, e := s.repo.GetByID(ctx, id)
@@ -146,7 +151,7 @@ func (s *ProxyDiagnosticsService) Check(ctx context.Context, id int64, mode stri
 		warnDiagnosticsFailure(id, "service_unavailable")
 		return result, ErrDiagnosticsUnavailable
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	raw, e := io.ReadAll(io.LimitReader(resp.Body, 256*1024+1))
 	if e != nil || len(raw) > 256*1024 {
 		warnDiagnosticsFailure(id, "response_read_failed")
@@ -182,6 +187,10 @@ func (s *ProxyDiagnosticsService) Check(ctx context.Context, id int64, mode stri
 	}
 	report, e := parseDiagnosticsReport(raw)
 	if e != nil {
+		if errors.Is(e, ErrDiagnosticsSchemaUnsupported) {
+			warnDiagnosticsFailure(id, "schema_unsupported")
+			return result, ErrDiagnosticsSchemaUnsupported
+		}
 		warnDiagnosticsFailure(id, "report_invalid")
 		return result, ErrDiagnosticsUnavailable
 	}
@@ -217,7 +226,7 @@ func (s *ProxyDiagnosticsService) Check(ctx context.Context, id int64, mode stri
 }
 func (s *ProxyDiagnosticsService) Latest(ctx context.Context, id int64) (DiagnosticsResponse, error) {
 	if !s.Enabled() {
-		warnDiagnosticsFailure(id, "diagnostics_disabled")
+		slog.Debug("proxy_diagnostics_disabled", "proxy_id", id, "classification", "diagnostics_disabled")
 		return DiagnosticsResponse{}, ErrDiagnosticsDisabled
 	}
 	p, e := s.repo.GetByID(ctx, id)
@@ -240,6 +249,10 @@ func (s *ProxyDiagnosticsService) Latest(ctx context.Context, id int64) (Diagnos
 	}
 	report, e := parseDiagnosticsReport(cached.Report)
 	if e != nil {
+		if errors.Is(e, ErrDiagnosticsSchemaUnsupported) {
+			warnDiagnosticsFailure(id, "schema_unsupported")
+			return DiagnosticsResponse{}, ErrDiagnosticsSchemaUnsupported
+		}
 		warnDiagnosticsFailure(id, "report_invalid")
 		return DiagnosticsResponse{}, ErrDiagnosticsReportNotFound
 	}

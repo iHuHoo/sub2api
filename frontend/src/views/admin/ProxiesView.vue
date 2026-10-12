@@ -57,12 +57,12 @@
             </button>
             <button
               @click="handleBatchQualityCheck"
-              :disabled="batchQualityChecking || loading"
+              :disabled="batchQualityChecking || loading || diagnosticsUnavailable || diagnosticsWorking"
               class="btn btn-secondary"
               :title="t('admin.proxies.batchQualityCheck')"
             >
               <Icon name="shield" size="md" class="mr-2" :class="batchQualityChecking ? 'animate-pulse' : ''" />
-              {{ t('admin.proxies.batchQualityCheck') }}
+              {{ t(diagnosticsEnabled ? dk + 'batch' : 'admin.proxies.batchQualityCheck') }}
             </button>
             <button
               @click="openBatchDelete"
@@ -85,6 +85,16 @@
             </button>
           </div>
         </div>
+        <div v-if="diagnosticsEnabled" class="mt-3 flex flex-wrap items-center gap-3 text-sm">
+          <label for="diagnostics-mode">{{ t(dk + 'chooseMode') }}</label>
+          <div class="w-44"><Select id="diagnostics-mode" v-model="diagnosticsMode" :disabled="diagnosticsWorking" :options="diagnosticsModeOptions" /></div>
+          <span class="text-gray-500">{{ t(dk + 'noModelCalls') }}</span>
+        </div>
+        <p v-if="capabilitiesError" role="alert" class="mt-3 text-sm text-red-600">
+          {{ t(dk + 'capabilitiesFailed') }}
+          {{ t(dk + 'errors.' + capabilitiesError) }}
+          <button class="underline" @click="loadDiagnosticsCapabilities">{{ t(dk + 'retry') }}</button>
+        </p>
       </template>
 
       <template #table>
@@ -232,7 +242,7 @@
               </span>
               <span v-else class="text-sm text-gray-400">-</span>
               <div
-                v-if="typeof row.quality_checked === 'number'"
+                v-if="capabilitiesLoaded && !diagnosticsEnabled && typeof row.quality_checked === 'number'"
                 class="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400"
                 :title="row.quality_summary || undefined"
               >
@@ -299,7 +309,7 @@
               </button>
               <button
                 @click="handleQualityCheck(row)"
-                :disabled="qualityCheckingProxyIds.has(row.id)"
+                :disabled="qualityCheckingProxyIds.has(row.id) || diagnosticsUnavailable || diagnosticsWorking"
                 class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-blue-50 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-blue-900/20 dark:hover:text-blue-400"
               >
                 <svg
@@ -323,8 +333,9 @@
                   ></path>
                 </svg>
                 <Icon v-else name="shield" size="sm" />
-                <span class="text-xs">{{ t('admin.proxies.qualityCheck') }}</span>
+                <span class="text-xs">{{ t(diagnosticsEnabled ? dk + 'run' : 'admin.proxies.qualityCheck') }}</span>
               </button>
+              <button v-if="diagnosticsEnabled" class="rounded-lg p-1.5 text-xs text-primary-600" :disabled="diagnosticsWorking" @click="showLatestDiagnostics(row)">{{ t(dk + 'latest') }}</button>
               <button
                 @click="handleEdit(row)"
                 class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-primary-600 dark:hover:bg-dark-700 dark:hover:text-primary-400"
@@ -916,6 +927,25 @@
       </template>
     </BaseDialog>
 
+    <BaseDialog :show="showDiagnostics" :title="t(dk + 'title')" width="wide" @close="closeDiagnostics">
+      <div class="space-y-4">
+        <p class="text-sm text-gray-500">{{ t(dk + 'batchHint') }}</p>
+        <p v-if="diagnosticsDiscovering || latestLoading" role="status">{{ t(dk + 'loading') }}</p>
+        <p v-if="diagnosticsBatch.busy.value" role="alert" class="text-amber-600">{{ t(dk + 'busyStopped') }}</p>
+        <p v-if="diagnosticsDialogError" role="alert" class="text-red-600">{{ t(dk + 'errors.' + diagnosticsDialogError) }}</p>
+        <div v-for="proxy in diagnosticsTargets" :key="proxy.id" class="rounded-xl border border-gray-200 p-3 dark:border-dark-600">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <h3 class="break-all font-medium">{{ proxy.name }} · #{{ proxy.id }}</h3>
+            <span v-if="diagnosticsBatch.entries[proxy.id]" role="status" class="text-sm">{{ t(dk + 'states.' + diagnosticsBatch.entries[proxy.id].state) }}</span>
+          </div>
+          <p v-if="diagnosticsBatch.entries[proxy.id]?.error" role="alert" class="mt-2 text-sm text-red-600">{{ t(dk + 'errors.' + diagnosticsBatch.entries[proxy.id].error) }}</p>
+          <ProxyDiagnosticsReport v-if="diagnosticsBatch.entries[proxy.id]?.result" class="mt-3" :report="diagnosticsBatch.entries[proxy.id].result!.report" :saved="diagnosticsBatch.entries[proxy.id].result!.saved" />
+        </div>
+        <p v-if="!diagnosticsTargets.length && !diagnosticsDiscovering && !diagnosticsDialogError" class="text-sm text-gray-500">{{ t('admin.proxies.batchQualityEmpty') }}</p>
+      </div>
+      <template #footer><button class="btn btn-secondary" @click="closeDiagnostics">{{ t(dk + (diagnosticsWorking || latestLoading ? 'cancel' : 'close')) }}</button></template>
+    </BaseDialog>
+
     <!-- Proxy Accounts Dialog -->
     <BaseDialog
       :show="showAccountsModal"
@@ -968,7 +998,7 @@ import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { adminAPI } from '@/api/admin'
-import type { Proxy, ProxyAccountSummary, ProxyProtocol, ProxyQualityCheckResult } from '@/types'
+import type { Proxy, ProxyAccountSummary, ProxyProtocol, ProxyQualityCheckResult, ProxyDiagnosticsMode } from '@/types'
 import type { Column } from '@/components/common/types'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import TablePageLayout from '@/components/layout/TablePageLayout.vue'
@@ -979,6 +1009,8 @@ import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import ImportDataModal from '@/components/admin/proxy/ImportDataModal.vue'
 import Select from '@/components/common/Select.vue'
+import ProxyDiagnosticsReport from '@/components/proxy/ProxyDiagnosticsReport.vue'
+import { useProxyDiagnostics, diagnosticsError, type DiagnosticsError } from '@/composables/useProxyDiagnostics'
 import ProxyAdBanner from '@/components/common/ProxyAdBanner.vue'
 import Icon from '@/components/icons/Icon.vue'
 import PlatformTypeBadge from '@/components/common/PlatformTypeBadge.vue'
@@ -1007,6 +1039,83 @@ const columns = computed<Column[]>(() => [
   { key: 'status', label: t('admin.proxies.columns.status'), sortable: true },
   { key: 'actions', label: t('admin.proxies.columns.actions'), sortable: false }
 ])
+
+const dk = 'admin.proxies.diagnostics.'
+const diagnosticsEnabled = ref(false)
+const capabilitiesLoaded = ref(false)
+const capabilitiesError = ref<DiagnosticsError>()
+const diagnosticsUnavailable = computed(() => !capabilitiesLoaded.value || !!capabilitiesError.value)
+const diagnosticsMode = ref<ProxyDiagnosticsMode>('quick')
+const diagnosticsModeOptions = computed(() => ['quick', 'sample'].map(value => ({ value, label: t(dk + value) })))
+const diagnosticsBatch = useProxyDiagnostics()
+const diagnosticsDiscovering = ref(false)
+const diagnosticsWorking = computed(() => diagnosticsBatch.running.value || diagnosticsDiscovering.value)
+const showDiagnostics = ref(false)
+const diagnosticsTargets = ref<Array<Pick<Proxy, 'id' | 'name'>>>([])
+const diagnosticsDialogError = ref<DiagnosticsError>()
+const latestLoading = ref(false)
+let diagnosticsReadController: AbortController | undefined
+async function loadDiagnosticsCapabilities() {
+  capabilitiesLoaded.value = false
+  capabilitiesError.value = undefined
+  try {
+    const capabilities = await adminAPI.proxies.diagnosticsCapabilities()
+    diagnosticsEnabled.value = capabilities.enabled
+    capabilitiesLoaded.value = true
+  } catch (error) {
+    capabilitiesError.value = diagnosticsError(error)
+  }
+}
+function closeDiagnostics() {
+  diagnosticsBatch.cancel()
+  diagnosticsReadController?.abort()
+  showDiagnostics.value = false
+}
+async function runDiagnostics(proxy?: Proxy) {
+  if (diagnosticsUnavailable.value || diagnosticsWorking.value) return
+  diagnosticsReadController?.abort()
+  latestLoading.value = false
+  diagnosticsBatch.busy.value = false
+  const controller = new AbortController()
+  diagnosticsReadController = controller
+  diagnosticsTargets.value = []
+  diagnosticsDialogError.value = undefined
+  showDiagnostics.value = true
+  diagnosticsDiscovering.value = true
+  try {
+    const targets = proxy ? [proxy] : selectedCount.value > 0
+      ? Array.from(selectedProxyIds.value).map(id => ({ id, name: proxies.value.find(p => p.id === id)?.name || String(id) }))
+      : await fetchAllProxiesForBatch(controller.signal)
+    if (controller.signal.aborted) return
+    diagnosticsTargets.value = targets.map(({ id, name }) => ({ id, name }))
+    diagnosticsDiscovering.value = false
+    await diagnosticsBatch.run(targets.map(p => p.id), diagnosticsMode.value)
+  } catch (error) {
+    if (!controller.signal.aborted) diagnosticsDialogError.value = diagnosticsError(error)
+  } finally {
+    diagnosticsDiscovering.value = false
+  }
+}
+async function showLatestDiagnostics(proxy: Proxy) {
+  if (diagnosticsWorking.value) return
+  diagnosticsReadController?.abort()
+  diagnosticsBatch.busy.value = false
+  const controller = new AbortController()
+  diagnosticsReadController = controller
+  diagnosticsTargets.value = [{ id: proxy.id, name: proxy.name }]
+  diagnosticsDialogError.value = undefined
+  delete diagnosticsBatch.entries[proxy.id]
+  showDiagnostics.value = true
+  latestLoading.value = true
+  try {
+    const result = await adminAPI.proxies.getDiagnostics(proxy.id, { signal: controller.signal })
+    if (!controller.signal.aborted) diagnosticsBatch.entries[proxy.id] = { state: 'done', result }
+  } catch (error) {
+    if (!controller.signal.aborted) diagnosticsDialogError.value = diagnosticsError(error)
+  } finally {
+    if (diagnosticsReadController === controller) latestLoading.value = false
+  }
+}
 
 // Filter options
 const protocolOptions = computed(() => [
@@ -1600,6 +1709,8 @@ const handleTestConnection = async (proxy: Proxy) => {
 }
 
 const handleQualityCheck = async (proxy: Proxy) => {
+  if (diagnosticsUnavailable.value) return
+  if (diagnosticsEnabled.value) return runDiagnostics(proxy)
   startQualityCheckingProxy(proxy.id)
   try {
     const result = await adminAPI.proxies.checkProxyQuality(proxy.id)
@@ -1804,7 +1915,7 @@ const qualityTargetLabel = (target: string) => {
   }
 }
 
-const fetchAllProxiesForBatch = async (): Promise<Proxy[]> => {
+const fetchAllProxiesForBatch = async (signal?: AbortSignal): Promise<Proxy[]> => {
   const pageSize = 200
   const result: Proxy[] = []
   let page = 1
@@ -1820,7 +1931,8 @@ const fetchAllProxiesForBatch = async (): Promise<Proxy[]> => {
         search: searchQuery.value || undefined,
         sort_by: sortState.sort_by,
         sort_order: sortState.sort_order
-      }
+      },
+      { signal }
     )
     result.push(...response.items)
     totalPages = response.pages || 1
@@ -1877,6 +1989,8 @@ const handleBatchTest = async () => {
 }
 
 const handleBatchQualityCheck = async () => {
+  if (diagnosticsUnavailable.value) return
+  if (diagnosticsEnabled.value) return runDiagnostics()
   if (batchQualityChecking.value) return
 
   batchQualityChecking.value = true
@@ -2076,12 +2190,14 @@ function closeCopyMenu() {
 }
 
 onMounted(() => {
+  loadDiagnosticsCapabilities()
   loadProxies()
   loadBackupProxyOptions()
   document.addEventListener('click', closeCopyMenu)
 })
 
 onUnmounted(() => {
+  closeDiagnostics()
   clearTimeout(searchTimeout)
   abortController?.abort()
   document.removeEventListener('click', closeCopyMenu)

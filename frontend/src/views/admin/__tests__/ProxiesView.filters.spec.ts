@@ -8,7 +8,7 @@ const { listProxies, getAllWithCount } = vi.hoisted(() => ({
 }))
 
 vi.mock('@/api/admin', () => ({
-  adminAPI: { proxies: { list: listProxies, getAllWithCount } }
+  adminAPI: { proxies: { diagnosticsCapabilities: vi.fn().mockResolvedValue({ enabled: false, schema_version: 1, modes: ['quick', 'sample'] }), list: listProxies, getAllWithCount } }
 }))
 vi.mock('@/stores/app', () => ({ useAppStore: () => ({ showError: vi.fn() }) }))
 vi.mock('vue-i18n', async () => ({

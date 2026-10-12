@@ -3,7 +3,7 @@ import { flushPromises, shallowMount } from '@vue/test-utils'
 import ProxiesView from '../ProxiesView.vue'
 
 const { list, update, getAllWithCount } = vi.hoisted(() => ({ list: vi.fn(), update: vi.fn(), getAllWithCount: vi.fn() }))
-vi.mock('@/api/admin', () => ({ adminAPI: { proxies: { list, update, getAllWithCount } } }))
+vi.mock('@/api/admin', () => ({ adminAPI: { proxies: { diagnosticsCapabilities: vi.fn().mockResolvedValue({ enabled: false, schema_version: 1, modes: ['quick', 'sample'] }), list, update, getAllWithCount } } }))
 vi.mock('@/stores/app', () => ({ useAppStore: () => ({ showError: vi.fn(), showSuccess: vi.fn() }) }))
 vi.mock('vue-i18n', async () => ({
   ...await vi.importActual<typeof import('vue-i18n')>('vue-i18n'),

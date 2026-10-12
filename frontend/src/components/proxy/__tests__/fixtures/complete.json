@@ -1,0 +1,70 @@
+{
+  "schema_version": 1,
+  "ruleset_version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "request_id": "fixture-complete",
+  "checked_at": "2026-10-11T08:00:00Z",
+  "mode": "sample",
+  "execution": "completed",
+  "connectivity": "reachable",
+  "exit": {
+    "ip": "203.0.113.10",
+    "source": "fixture",
+    "observed_at": "2026-10-11T08:00:00Z"
+  },
+  "stability": {
+    "status": "pass",
+    "reason_code": "exit_unchanged",
+    "attempted": 3,
+    "succeeded": 2,
+    "distinct_ips": 1,
+    "latency_min_ms": 0,
+    "latency_median_ms": 0,
+    "latency_max_ms": 0,
+    "samples": [
+      {
+        "status": "pass",
+        "reason_code": "exit_observed",
+        "ip": "203.0.113.10",
+        "source": "fixture",
+        "latency_ms": 0
+      },
+      {
+        "status": "pass",
+        "reason_code": "exit_observed",
+        "ip": "203.0.113.10",
+        "source": "fixture",
+        "latency_ms": 0
+      },
+      {
+        "status": "unknown",
+        "reason_code": "request_timeout",
+        "source": "fixture"
+      }
+    ]
+  },
+  "items": [
+    {
+      "id": "openai",
+      "plugin_id": "httpcheck",
+      "plugin_version": "1.0.0",
+      "rule_id": "openai",
+      "rule_version": "1.0.0",
+      "category": "connectivity",
+      "target": "https://example.com",
+      "status": "pass",
+      "reason_code": "expected_status",
+      "message": "虚构样例；未验证登录、额度或推理能力。",
+      "started_at": "2026-10-11T08:00:00Z",
+      "duration_ms": 0,
+      "http_status": 401
+    }
+  ],
+  "summary": "虚构样例",
+  "completion": {
+    "planned": 1,
+    "executed": 1,
+    "conclusive": 1,
+    "unknown": 0,
+    "skipped": 0
+  }
+}
