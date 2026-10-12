@@ -66,6 +66,7 @@ const DefaultUpstreamResponseReadMaxBytes int64 = 128 * 1024 * 1024
 const DefaultModelsListReadMaxBytes int64 = 8 * 1024 * 1024
 
 type Config struct {
+	Subproxy                SubproxyConfig                `mapstructure:"subproxy"`
 	Server                  ServerConfig                  `mapstructure:"server"`
 	Log                     LogConfig                     `mapstructure:"log"`
 	CORS                    CORSConfig                    `mapstructure:"cors"`
@@ -2032,6 +2033,13 @@ func configureConfigSource(setConfigFile, addConfigPath func(string)) {
 }
 
 func setDefaults() {
+	viper.SetDefault("subproxy.enabled", false)
+	viper.SetDefault("subproxy.base_url", "")
+	viper.SetDefault("subproxy.allow_internal_http", false)
+	viper.SetDefault("subproxy.token.env", "")
+	viper.SetDefault("subproxy.token.file", "")
+	viper.SetDefault("subproxy.hmac_secret.env", "")
+	viper.SetDefault("subproxy.hmac_secret.file", "")
 	viper.SetDefault("run_mode", RunModeStandard)
 	viper.SetDefault("simple_mode.auto_create_default_groups", true)
 	viper.SetDefault("simple_mode_key_rate_limit_enabled", false)
@@ -2703,6 +2711,9 @@ func setEnvReachableDefaults() {
 }
 
 func (c *Config) Validate() error {
+	if err := c.Subproxy.Validate(); err != nil {
+		return err
+	}
 	forwardedClientIPHeaders, err := NormalizeForwardedClientIPHeaders(c.Security.ForwardedClientIPHeaders)
 	if err != nil {
 		return fmt.Errorf("security.forwarded_client_ip_headers: %w", err)
