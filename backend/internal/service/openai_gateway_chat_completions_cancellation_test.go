@@ -76,8 +76,6 @@ func (u *contextBoundHTTPUpstream) DoWithTLS(req *http.Request, proxyURL string,
 }
 
 func TestForwardAsChatCompletions_CancelsUpstreamBeforeClosingBody(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	body := []byte(`{"model":"gpt-5.4","messages":[{"role":"user","content":"hello"}],"stream":true}`)

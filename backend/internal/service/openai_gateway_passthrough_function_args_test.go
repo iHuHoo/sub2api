@@ -21,8 +21,6 @@ import (
 )
 
 func TestHandleStreamingResponsePassthroughDeduplicatesFunctionCallArguments(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
 	argsA := `{"cmd":"echo hi","meta":{"nested":[1,{"ok":true}],"quote":"a}b"}}`
 	argsB := `{"path":"/tmp/file","patch":{"ops":[{"op":"replace","value":{"lines":["x","y"]}}]}}`
 	upstreamBody := strings.Join([]string{
@@ -72,8 +70,6 @@ func TestHandleStreamingResponsePassthroughDeduplicatesFunctionCallArguments(t *
 }
 
 func TestForwardResponsesChatCompletionsFallbackKeepsFunctionArgumentsSingle(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
 	body := []byte(`{"model":"gpt-5.4","input":"run a command","stream":true}`)
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)

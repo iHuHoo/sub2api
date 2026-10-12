@@ -127,7 +127,6 @@ func TestApplyOpenAICompatModelNormalization(t *testing.T) {
 }
 
 func TestForwardAsAnthropic_UsesExactFableMessagesDispatchModel(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 	t.Parallel()
 
 	rec := httptest.NewRecorder()
@@ -176,7 +175,6 @@ func TestForwardAsAnthropic_UsesExactFableMessagesDispatchModel(t *testing.T) {
 }
 
 func TestForwardAsAnthropic_NormalizesRoutingAndEffortForGpt54XHigh(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 	t.Parallel()
 
 	rec := httptest.NewRecorder()
@@ -235,7 +233,6 @@ func TestForwardAsAnthropic_NormalizesRoutingAndEffortForGpt54XHigh(t *testing.T
 }
 
 func TestForwardAsAnthropic_PreservesMaxForFinalGPT56ResponsesModel(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 	t.Parallel()
 
 	tests := []struct {
@@ -314,8 +311,6 @@ func TestForwardAsAnthropic_PreservesMaxForFinalGPT56ResponsesModel(t *testing.T
 }
 
 func TestForwardAsAnthropic_DisabledThinkingOverridesMaxForResponses(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
 	body := []byte(`{"model":"sol","max_tokens":16,"messages":[{"role":"user","content":"hello"}],"thinking":{"type":"disabled"},"output_config":{"effort":"max"},"stream":false}`)
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
@@ -370,7 +365,6 @@ func rawGPT56ResponsesOAuthAccount(requestedModel, mappedModel string) *Account 
 }
 
 func TestForwardAsAnthropic_MappedClaudeModelAcceptsChatUsageShape(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 	t.Parallel()
 
 	rec := httptest.NewRecorder()
@@ -427,7 +421,6 @@ func TestForwardAsAnthropic_MappedClaudeModelAcceptsChatUsageShape(t *testing.T)
 }
 
 func TestForwardAsAnthropic_InjectsPromptCacheKeyForAPIKeyMessagesDispatch(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 	t.Parallel()
 
 	rec := httptest.NewRecorder()
@@ -473,7 +466,6 @@ func TestForwardAsAnthropic_InjectsPromptCacheKeyForAPIKeyMessagesDispatch(t *te
 }
 
 func TestForwardAsAnthropic_AutoDerivesPromptCacheKeyWhenMessagesDispatchHasNoSessionID(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 	t.Parallel()
 
 	rec := httptest.NewRecorder()
@@ -520,7 +512,6 @@ func TestForwardAsAnthropic_AutoDerivesPromptCacheKeyWhenMessagesDispatchHasNoSe
 }
 
 func TestForwardAsAnthropic_GPT6AstraPromptCacheIdentityStableAcrossAppendedTurns(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 	t.Parallel()
 
 	for _, mappedModel := range []string{"gpt-6-astra", "gpt-6"} {
@@ -580,7 +571,6 @@ func TestForwardAsAnthropic_GPT6AstraPromptCacheIdentityStableAcrossAppendedTurn
 }
 
 func TestForwardAsAnthropic_DoesNotAutoDerivePromptCacheKeyForNonCodexModel(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 	t.Parallel()
 
 	rec := httptest.NewRecorder()
@@ -625,7 +615,6 @@ func TestForwardAsAnthropic_DoesNotAutoDerivePromptCacheKeyForNonCodexModel(t *t
 }
 
 func TestForwardAsAnthropic_TrimsFullReplayOnlyForCodexCompatModels(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 	t.Parallel()
 
 	messages := make([]string, 0, openAICompatAnthropicReplayMaxTailMessages+3)
@@ -689,7 +678,6 @@ func TestForwardAsAnthropic_TrimsFullReplayOnlyForCodexCompatModels(t *testing.T
 }
 
 func TestForwardAsAnthropic_OAuthCompatKeepsFullReplayForCacheGrowth(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 	t.Parallel()
 
 	messages := make([]string, 0, openAICompatAnthropicReplayMaxTailMessages+3)
@@ -732,7 +720,6 @@ func TestForwardAsAnthropic_OAuthCompatKeepsFullReplayForCacheGrowth(t *testing.
 }
 
 func TestForwardAsAnthropic_AttachesPreviousResponseIDForCompatContinuation(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 	t.Parallel()
 
 	upstream := &httpUpstreamRecorder{}
@@ -784,7 +771,6 @@ func TestForwardAsAnthropic_AttachesPreviousResponseIDForCompatContinuation(t *t
 }
 
 func TestForwardAsAnthropic_PreviousResponseIDKeepsMultiToolCallContext(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 	t.Parallel()
 
 	upstream := &httpUpstreamRecorder{}
@@ -839,7 +825,6 @@ func TestForwardAsAnthropic_PreviousResponseIDKeepsMultiToolCallContext(t *testi
 }
 
 func TestForwardAsAnthropic_ReplaysFullToolHistoryWhenPreviousResponseUnavailable(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 	t.Parallel()
 
 	upstream := &httpUpstreamRecorder{}
@@ -904,7 +889,6 @@ func TestOpenAICompatPreviousResponseUnavailableRecognitionIsStrict(t *testing.T
 }
 
 func TestForwardAsAnthropic_PreviousResponseUnavailableRetryFailureDoesNotLoop(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 	t.Parallel()
 
 	unavailable := func() *http.Response {
@@ -933,7 +917,6 @@ func TestForwardAsAnthropic_PreviousResponseUnavailableRetryFailureDoesNotLoop(t
 }
 
 func TestForwardAsAnthropic_DisablesAPIKeyContinuationWhenUpstreamRequiresWebSocketV2(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 	t.Parallel()
 
 	upstream := &httpUpstreamRecorder{}
@@ -992,7 +975,6 @@ func TestForwardAsAnthropic_DisablesAPIKeyContinuationWhenUpstreamRequiresWebSoc
 }
 
 func TestForwardAsAnthropic_APIKeyMetadataSessionSurvivesChangingCacheControlAnchorAfterContinuationDisabled(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 	t.Parallel()
 
 	metadata := `{"user_id":"{\"device_id\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"account_uuid\":\"\",\"session_id\":\"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa\"}"}`
@@ -1057,7 +1039,6 @@ func TestForwardAsAnthropic_APIKeyMetadataSessionSurvivesChangingCacheControlAnc
 }
 
 func TestForwardAsAnthropic_DoesNotAttachPreviousResponseIDForOAuthCompat(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 	t.Parallel()
 
 	upstream := &httpUpstreamRecorder{resp: openAICompatSSECompletedResponse("resp_oauth_next", "gpt-5.4")}
@@ -1091,7 +1072,6 @@ func TestForwardAsAnthropic_DoesNotAttachPreviousResponseIDForOAuthCompat(t *tes
 }
 
 func TestForwardAsAnthropic_ReusesOAuthCodexTurnState(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 	t.Parallel()
 
 	firstResp := openAICompatSSECompletedResponse("resp_oauth_first", "gpt-5.4")
@@ -1146,8 +1126,6 @@ func TestForwardAsAnthropic_ReusesOAuthCodexTurnState(t *testing.T) {
 }
 
 func TestForwardAsAnthropic_OAuthRestoresCodexIdentityHeaders(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
 	const tuiUA = "codex-tui/9.9.9 (Mac OS X 14.0; arm64) iTerm (codex-tui; 9.9.9)"
 	const vscodeUA = "codex_vscode/9.9.9 (Mac OS X 14.0; arm64) vscode (codex_vscode; 9.9.9)"
 	// messages 桥接路径同样强制统一出站身份：三类客户端身份都收敛到规范身份。
@@ -1197,7 +1175,6 @@ func TestForwardAsAnthropic_OAuthRestoresCodexIdentityHeaders(t *testing.T) {
 }
 
 func TestForwardAsAnthropic_OAuthDigestFallbackReusesTurnStateWithoutExplicitKey(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 	t.Parallel()
 
 	firstResp := openAICompatSSECompletedResponse("resp_oauth_digest_first", "gpt-5.4")
@@ -1255,7 +1232,6 @@ func TestForwardAsAnthropic_OAuthDigestFallbackReusesTurnStateWithoutExplicitKey
 }
 
 func TestForwardAsAnthropic_OAuthMetadataSessionSurvivesDigestPrefixRewrite(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 	t.Parallel()
 
 	firstResp := openAICompatSSECompletedResponse("resp_oauth_metadata_first", "gpt-5.5")
@@ -1312,7 +1288,6 @@ func TestForwardAsAnthropic_OAuthMetadataSessionSurvivesDigestPrefixRewrite(t *t
 }
 
 func TestForwardAsAnthropic_OAuthMetadataSessionSurvivesChangingCacheControlAnchor(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 	t.Parallel()
 
 	firstResp := openAICompatSSECompletedResponse("resp_oauth_cache_anchor_first", "gpt-5.5")
@@ -1369,7 +1344,6 @@ func TestForwardAsAnthropic_OAuthMetadataSessionSurvivesChangingCacheControlAnch
 }
 
 func TestForwardAsAnthropic_OAuthKeepsSystemAsDeveloperInput(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 	t.Parallel()
 
 	upstream := &httpUpstreamRecorder{resp: openAICompatSSECompletedResponse("resp_oauth_system", "gpt-5.4")}
@@ -1408,7 +1382,6 @@ func TestForwardAsAnthropic_OAuthKeepsSystemAsDeveloperInput(t *testing.T) {
 }
 
 func TestForwardAsAnthropic_OAuthAddsClaudeCodeTodoGuardForCompatModel(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 	t.Parallel()
 
 	upstream := &httpUpstreamRecorder{resp: openAICompatSSECompletedResponse("resp_oauth_todo_guard", "gpt-5.5")}
@@ -1445,7 +1418,6 @@ func TestForwardAsAnthropic_OAuthAddsClaudeCodeTodoGuardForCompatModel(t *testin
 }
 
 func TestForwardAsAnthropic_OAuthPreservesClaudeCodeToolCallID(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 	t.Parallel()
 
 	upstream := &httpUpstreamRecorder{resp: openAICompatSSECompletedResponse("resp_oauth_tool", "gpt-5.4")}
@@ -1482,7 +1454,6 @@ func TestForwardAsAnthropic_OAuthPreservesClaudeCodeToolCallID(t *testing.T) {
 }
 
 func TestForwardAsAnthropic_StoresStreamingResponseIDWithoutUsage(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 	t.Parallel()
 
 	upstream := &httpUpstreamRecorder{}
@@ -1565,7 +1536,6 @@ func openAICompatSSEResponseWithoutUsage(responseID, model string) *http.Respons
 }
 
 func TestForwardAsAnthropic_ForcedCodexInstructionsTemplatePrependsRenderedInstructions(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 	t.Parallel()
 
 	templateDir := t.TempDir()
@@ -1616,7 +1586,6 @@ func TestForwardAsAnthropic_ForcedCodexInstructionsTemplatePrependsRenderedInstr
 }
 
 func TestForwardAsAnthropic_ForcedCodexInstructionsTemplateUsesCachedTemplateContent(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 	t.Parallel()
 
 	rec := httptest.NewRecorder()
@@ -1663,8 +1632,6 @@ func TestForwardAsAnthropic_ForcedCodexInstructionsTemplateUsesCachedTemplateCon
 }
 
 func TestForwardAsAnthropic_ClientDisconnectDrainsUpstreamUsage(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	c.Writer = &openAICompatFailingWriter{ResponseWriter: c.Writer, failAfter: 0}
@@ -1710,8 +1677,6 @@ func TestForwardAsAnthropic_ClientDisconnectDrainsUpstreamUsage(t *testing.T) {
 }
 
 func TestForwardAsAnthropic_TerminalUsageWithoutUpstreamCloseReturns(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	c.Writer = &openAICompatFailingWriter{ResponseWriter: c.Writer, failAfter: 0}
@@ -1766,8 +1731,6 @@ func TestForwardAsAnthropic_TerminalUsageWithoutUpstreamCloseReturns(t *testing.
 }
 
 func TestForwardAsAnthropic_EventNamedTerminalWithoutUpstreamCloseReturns(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	c.Writer = &openAICompatFailingWriter{ResponseWriter: c.Writer, failAfter: 0}
@@ -1827,8 +1790,6 @@ func TestForwardAsAnthropic_EventNamedTerminalWithoutUpstreamCloseReturns(t *tes
 }
 
 func TestForwardAsAnthropic_EventNamedTerminalWithKeepaliveReturns(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	c.Writer = &openAICompatFailingWriter{ResponseWriter: c.Writer, failAfter: 0}
@@ -1895,8 +1856,6 @@ func TestForwardAsAnthropic_EventNamedTerminalWithKeepaliveReturns(t *testing.T)
 }
 
 func TestForwardAsAnthropic_BufferedTerminalWithoutUpstreamCloseReturns(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	body := []byte(`{"model":"gpt-5.4","max_tokens":16,"messages":[{"role":"user","content":"hello"}],"stream":false}`)
@@ -1951,8 +1910,6 @@ func TestForwardAsAnthropic_BufferedTerminalWithoutUpstreamCloseReturns(t *testi
 }
 
 func TestHandleAnthropicBufferedStreamingResponse_OverridesUpstreamContentType(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
@@ -1988,8 +1945,6 @@ func TestHandleAnthropicBufferedStreamingResponse_OverridesUpstreamContentType(t
 }
 
 func TestForwardAsAnthropic_BufferedEventNamedTerminalWithoutUpstreamCloseReturns(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	body := []byte(`{"model":"gpt-5.4","max_tokens":16,"messages":[{"role":"user","content":"hello"}],"stream":false}`)
@@ -2049,8 +2004,6 @@ func TestForwardAsAnthropic_BufferedEventNamedTerminalWithoutUpstreamCloseReturn
 }
 
 func TestForwardAsAnthropic_MissingTerminalBeforeOutputReturnsFailoverAndOps(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	body := []byte(`{"model":"gpt-5.4","max_tokens":16,"messages":[{"role":"user","content":"hello"}],"stream":true}`)
@@ -2099,8 +2052,6 @@ func TestForwardAsAnthropic_MissingTerminalBeforeOutputReturnsFailoverAndOps(t *
 }
 
 func TestForwardAsAnthropic_MissingTerminalAfterOutputRecordsOpsWithoutFailover(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	body := []byte(`{"model":"gpt-5.4","max_tokens":16,"messages":[{"role":"user","content":"hello"}],"stream":true}`)
@@ -2153,8 +2104,6 @@ func TestForwardAsAnthropic_MissingTerminalAfterOutputRecordsOpsWithoutFailover(
 }
 
 func TestForwardAsAnthropic_MissingTerminalAfterClientDisconnectSkipsOpsAndFailover(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	c.Writer = &openAICompatFailingWriter{ResponseWriter: c.Writer, failAfter: 0}
@@ -2198,8 +2147,6 @@ func TestForwardAsAnthropic_MissingTerminalAfterClientDisconnectSkipsOpsAndFailo
 }
 
 func TestForwardAsAnthropic_CompleteStreamDoesNotRecordMissingTerminalOps(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	body := []byte(`{"model":"gpt-5.4","max_tokens":16,"messages":[{"role":"user","content":"hello"}],"stream":true}`)
@@ -2255,8 +2202,6 @@ func openAICompatOpsEvents(t *testing.T, c *gin.Context) []*OpsUpstreamErrorEven
 }
 
 func TestForwardAsAnthropic_UpstreamRequestIgnoresClientCancel(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	reqCtx, cancel := context.WithCancel(context.Background())

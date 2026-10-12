@@ -165,7 +165,9 @@ func TestFilterGrokFreeQuotaAccountsRecoversAfterRollingUsageFalls(t *testing.T)
 		if !ok {
 			return true
 		}
-		_, running := root.(*sync.Map).Load(int64(1))
+		inFlight, ok := root.(*sync.Map)
+		require.True(t, ok, "unexpected in-flight cache type")
+		_, running := inFlight.Load(int64(1))
 		return !running
 	}, 2*time.Second, time.Millisecond)
 	repo.mu.Lock()

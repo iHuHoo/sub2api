@@ -16,7 +16,6 @@ import (
 )
 
 func TestHandleCCBufferedFromAnthropic_ToolArgumentsAreValidJSON(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 	t.Parallel()
 
 	rec := httptest.NewRecorder()
@@ -103,7 +102,6 @@ func TestExtractCCReasoningEffortFromBody(t *testing.T) {
 }
 
 func TestHandleCCBufferedFromAnthropic_PreservesMessageStartCacheUsageAndReasoning(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 	t.Parallel()
 
 	rec := httptest.NewRecorder()
@@ -141,7 +139,6 @@ func TestHandleCCBufferedFromAnthropic_PreservesMessageStartCacheUsageAndReasoni
 // "event: " / "data: " 严格匹配会丢弃全部事件，最终报 "Upstream stream ended
 // without a response"（#4653 同根因；#4657 只修了 /v1/responses 桥）。
 func TestHandleCCBufferedFromAnthropic_CompactSSEFormat(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 	t.Parallel()
 
 	rec := httptest.NewRecorder()
@@ -174,7 +171,6 @@ func TestHandleCCBufferedFromAnthropic_CompactSSEFormat(t *testing.T) {
 }
 
 func TestHandleCCStreamingFromAnthropic_CompactSSEFormat(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 	t.Parallel()
 
 	rec := httptest.NewRecorder()
@@ -210,7 +206,6 @@ func TestHandleCCStreamingFromAnthropic_CompactSSEFormat(t *testing.T) {
 }
 
 func TestHandleCCStreamingFromAnthropic_PreservesMessageStartCacheUsageAndReasoning(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 	t.Parallel()
 
 	rec := httptest.NewRecorder()
