@@ -117,6 +117,7 @@ func TestIsUpstreamModelRestrictedByChannel_CompactMappingMatchesForwardPath(t *
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+			account := *account // Each case owns its lazy model-mapping cache.
 
 			channelSvc := newTestChannelService(makeStandardRepo(Channel{
 				ID:                 1,
@@ -142,10 +143,10 @@ func TestIsUpstreamModelRestrictedByChannel_CompactMappingMatchesForwardPath(t *
 				tt.useCompactModelMapping,
 			)
 			require.False(t, svc.isUpstreamModelRestrictedByChannel(
-				ctx, 10, account, "gpt-5.4", true,
+				ctx, 10, &account, "gpt-5.4", true,
 			))
 			require.True(t, svc.isUpstreamModelRestrictedByChannel(
-				context.Background(), 10, account, "gpt-5.4", true,
+				context.Background(), 10, &account, "gpt-5.4", true,
 			), "without the forward-model context the restriction check follows a different chain")
 		})
 	}
@@ -243,6 +244,7 @@ func TestIsUpstreamModelRestrictedByChannel_PassthroughFlagWithRawChatFallbackMa
 		}
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
+			account := *account // Each case owns its lazy model-mapping cache.
 
 			channelSvc := newTestChannelService(makeStandardRepo(Channel{
 				ID:                 1,
@@ -265,7 +267,7 @@ func TestIsUpstreamModelRestrictedByChannel_PassthroughFlagWithRawChatFallbackMa
 			)
 
 			require.False(t, svc.isUpstreamModelRestrictedByChannel(
-				ctx, 10, account, "gpt-5.4", true,
+				ctx, 10, &account, "gpt-5.4", true,
 			))
 		})
 	}
