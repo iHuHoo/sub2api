@@ -2,7 +2,7 @@ import { reactive, ref } from 'vue'
 import { proxiesAPI } from '@/api/admin/proxies'
 import type { ProxyDiagnosticsMode, ProxyDiagnosticsResponse } from '@/types'
 
-export type DiagnosticsError = 'service_unavailable' | 'service_auth_failed' | 'session_expired' | 'busy' | 'not_found' | 'proxy_changed' | 'proxy_address_unsupported' | 'request_invalid' | 'disabled' | 'schema_unsupported' | 'cancelled'
+export type DiagnosticsError = 'capabilities_unavailable' | 'service_unavailable' | 'service_auth_failed' | 'session_expired' | 'busy' | 'not_found' | 'proxy_changed' | 'proxy_address_unsupported' | 'request_invalid' | 'disabled' | 'schema_unsupported' | 'cancelled'
 export function diagnosticsError(error: unknown): DiagnosticsError {
   const e = error as { status?: number; reason?: string; code?: string }
   if (e?.code === 'ERR_CANCELED') return 'cancelled'
@@ -26,9 +26,20 @@ export function useProxyDiagnostics() {
   const running = ref(false)
   const busy = ref(false)
   let controller: AbortController | undefined
-  function cancel() { controller?.abort() }
-  async function run(ids: number[], mode: ProxyDiagnosticsMode) {
-    if (running.value) return
+  let pendingRun: Promise<void> | undefined
+  let cancellation = 0
+  function cancel() { cancellation++; controller?.abort() }
+  async function run(ids: number[], mode: ProxyDiagnosticsMode): Promise<void> {
+    if (pendingRun) {
+      if (controller && !controller.signal.aborted) return
+      const cancelledAt = cancellation
+      await pendingRun
+      if (cancellation !== cancelledAt || running.value) return
+    }
+    pendingRun = execute(ids, mode).finally(() => { pendingRun = undefined })
+    await pendingRun
+  }
+  async function execute(ids: number[], mode: ProxyDiagnosticsMode) {
     const unique = [...new Set(ids)]
     controller = new AbortController()
     const signal = controller.signal

@@ -18,17 +18,14 @@ func NewProxyDiagnosticsCache(rdb *redis.Client) service.ProxyDiagnosticsCache {
 }
 func diagnosticsKeys(id int64) []string {
 	prefix := fmt.Sprintf("proxy:diagnostics:{%d}:", id)
-	return []string{prefix + "sequence", prefix + "reservation", prefix + "report"}
+	return []string{prefix + "reservation", prefix + "report"}
 }
 
-// A nonce prevents reuse after Redis expiry, eviction or restore; INCR orders reservations.
+// A nonce prevents reuse after Redis expiry, eviction or restore. The latest reservation wins.
 var diagnosticsReserve = redis.NewScript(`
-local counter = redis.call('INCR', KEYS[1])
-local sequence = tostring(counter) .. ':' .. ARGV[3]
+redis.call('HSET', KEYS[1], 'sequence', ARGV[3], 'fingerprint', ARGV[1])
 redis.call('EXPIRE', KEYS[1], ARGV[2])
-redis.call('HSET', KEYS[2], 'sequence', tostring(sequence), 'fingerprint', ARGV[1])
-redis.call('EXPIRE', KEYS[2], ARGV[2])
-return sequence
+return ARGV[3]
 `)
 var diagnosticsCommit = redis.NewScript(`
 if redis.call('HGET', KEYS[1], 'sequence') ~= ARGV[1] or
@@ -39,7 +36,7 @@ return 1
 
 func (c *proxyDiagnosticsCache) Reserve(ctx context.Context, id int64, fp string) (string, error) {
 	keys := diagnosticsKeys(id)
-	return diagnosticsReserve.Run(ctx, c.rdb, keys[:2], fp, diagnosticsTTLSeconds, uuid.NewString()).Text()
+	return diagnosticsReserve.Run(ctx, c.rdb, keys[:1], fp, diagnosticsTTLSeconds, uuid.NewString()).Text()
 }
 func (c *proxyDiagnosticsCache) CommitIfLatest(ctx context.Context, id int64, seq, fp string, report json.RawMessage) (bool, error) {
 	payload, e := json.Marshal(service.CachedDiagnosticsReport{Fingerprint: fp, Sequence: seq, Report: report})
@@ -47,12 +44,12 @@ func (c *proxyDiagnosticsCache) CommitIfLatest(ctx context.Context, id int64, se
 		return false, e
 	}
 	keys := diagnosticsKeys(id)
-	n, e := diagnosticsCommit.Run(ctx, c.rdb, keys[1:], seq, fp, payload, diagnosticsTTLSeconds).Int64()
+	n, e := diagnosticsCommit.Run(ctx, c.rdb, keys, seq, fp, payload, diagnosticsTTLSeconds).Int64()
 	return n == 1, e
 }
 func (c *proxyDiagnosticsCache) Get(ctx context.Context, id int64) (service.CachedDiagnosticsReport, error) {
 	var report service.CachedDiagnosticsReport
-	b, e := c.rdb.Get(ctx, diagnosticsKeys(id)[2]).Bytes()
+	b, e := c.rdb.Get(ctx, diagnosticsKeys(id)[1]).Bytes()
 	if e != nil {
 		return report, e
 	}

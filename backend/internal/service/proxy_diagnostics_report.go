@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 )
@@ -18,22 +19,26 @@ var diagnosticsRuleset = regexp.MustCompile(`^[a-f0-9]{64}$`)
 var errDiagnosticsReport = errors.New("invalid diagnostics report")
 
 // Only known contract fields are forwarded. Optional additions in schema v1 are ignored.
-func diagnosticsObject(raw json.RawMessage, required, optional string) (map[string]json.RawMessage, error) {
+func diagnosticsObject(raw json.RawMessage, required, optional string, nullable ...string) (map[string]json.RawMessage, error) {
 	var obj map[string]json.RawMessage
 	if json.Unmarshal(raw, &obj) != nil || obj == nil {
 		return nil, errDiagnosticsReport
 	}
+	return diagnosticsFields(obj, required, optional, nullable...)
+}
+
+func diagnosticsFields(obj map[string]json.RawMessage, required, optional string, nullable ...string) (map[string]json.RawMessage, error) {
 	clean := make(map[string]json.RawMessage)
 	for _, key := range strings.Fields(required) {
 		value, ok := obj[key]
-		if !ok || (bytes.Equal(bytes.TrimSpace(value), []byte("null")) && key != "exit") {
+		if !ok || (bytes.Equal(bytes.TrimSpace(value), []byte("null")) && !slices.Contains(nullable, key)) {
 			return nil, errDiagnosticsReport
 		}
 		clean[key] = value
 	}
 	for _, key := range strings.Fields(optional) {
 		if v, ok := obj[key]; ok {
-			if bytes.Equal(bytes.TrimSpace(v), []byte("null")) {
+			if bytes.Equal(bytes.TrimSpace(v), []byte("null")) && !slices.Contains(nullable, key) {
 				return nil, errDiagnosticsReport
 			}
 			clean[key] = v
@@ -211,21 +216,23 @@ func diagnosticsItem(raw json.RawMessage) (json.RawMessage, error) {
 	}
 	return json.Marshal(obj)
 }
-func parseDiagnosticsReport(raw []byte) (json.RawMessage, error) {
+func parseDiagnosticsReport(raw []byte) (map[string]json.RawMessage, error) {
 	if len(raw) > 256*1024 {
 		return nil, errDiagnosticsReport
 	}
 	// Future majors may not have v1 fields; identify the version before validating them.
-	var header struct {
-		Version *int `json:"schema_version"`
-	}
-	if json.Unmarshal(raw, &header) != nil || header.Version == nil || *header.Version < 1 {
+	var fields map[string]json.RawMessage
+	if json.Unmarshal(raw, &fields) != nil || fields == nil {
 		return nil, errDiagnosticsReport
 	}
-	if *header.Version != 1 {
+	var version int
+	if json.Unmarshal(fields["schema_version"], &version) != nil || version < 1 {
+		return nil, errDiagnosticsReport
+	}
+	if version != 1 {
 		return nil, ErrDiagnosticsSchemaUnsupported
 	}
-	obj, e := diagnosticsObject(raw, "schema_version ruleset_version request_id checked_at mode execution connectivity exit stability items summary completion", "")
+	obj, e := diagnosticsFields(fields, "schema_version ruleset_version request_id checked_at mode execution connectivity exit stability items summary completion", "", "exit")
 	if e != nil {
 		return nil, e
 	}
@@ -271,5 +278,5 @@ func parseDiagnosticsReport(raw []byte) (json.RawMessage, error) {
 		}
 	}
 	obj["completion"], _ = json.Marshal(completion)
-	return json.Marshal(obj)
+	return obj, nil
 }

@@ -3,13 +3,16 @@
 package admin
 
 import (
+	"context"
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
+	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestDiagnosticsHandlerInputAndCapabilities(t *testing.T) {
@@ -48,5 +51,41 @@ func TestDiagnosticsHandlerInputAndCapabilities(t *testing.T) {
 			require.NotContains(t, w.Body.String(), "token")
 			require.NotContains(t, w.Body.String(), "base_url")
 		}
+	}
+}
+
+type diagnosticsHandlerRepo struct{ service.ProxyRepository }
+
+func (diagnosticsHandlerRepo) GetByID(context.Context, int64) (*service.Proxy, error) {
+	return &service.Proxy{ID: 1, Protocol: "http", Host: "proxy.example", Port: 8080}, nil
+}
+func TestDiagnosticsHandlerRetryAfter(t *testing.T) {
+	t.Setenv("DIAGNOSTICS_TEST_TOKEN", "test-token")
+	t.Setenv("DIAGNOSTICS_TEST_HMAC", strings.Repeat("h", 32))
+	for _, tc := range []struct{ name, upstream, want string }{
+		{"seconds", "37", "37"}, {"zero", "0", "0"}, {"date", time.Now().Add(time.Hour).UTC().Format(http.TimeFormat), "date"},
+		{"missing", "", "1"}, {"secret", "Bearer private-secret", "1"}, {"negative", "-3", "1"}, {"fraction", "1.5", "1"}, {"overflow", strings.Repeat("9", 64), "1"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Retry-After", tc.upstream)
+				w.WriteHeader(429)
+			}))
+			defer server.Close()
+			cfg := &config.Config{Subproxy: config.SubproxyConfig{Enabled: true, BaseURL: server.URL, AllowInternalHTTP: true, Token: config.SubproxySecretRef{Env: "DIAGNOSTICS_TEST_TOKEN"}, HMACSecret: config.SubproxySecretRef{Env: "DIAGNOSTICS_TEST_HMAC"}}}
+			svc, e := service.NewProxyDiagnosticsService(diagnosticsHandlerRepo{}, nil, cfg)
+			require.NoError(t, e)
+			r := gin.New()
+			r.POST("/:id/diagnostics", NewProxyDiagnosticsHandler(svc).Check)
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, httptest.NewRequest("POST", "/1/diagnostics", strings.NewReader(`{"mode":"quick"}`)))
+			require.Equal(t, 429, w.Code)
+			if tc.want == "date" {
+				require.Equal(t, tc.upstream, w.Header().Get("Retry-After"))
+			} else {
+				require.Equal(t, tc.want, w.Header().Get("Retry-After"))
+			}
+			require.NotContains(t, w.Body.String(), "private-secret")
+		})
 	}
 }

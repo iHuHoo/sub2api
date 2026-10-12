@@ -47,6 +47,8 @@ export default {
         run: 'Run diagnostics',
         batch: 'Batch diagnostics',
         latest: 'Latest report',
+        latestTitle: 'Latest saved diagnostics report',
+        cachedReport: 'Cached report · see original check time below',
         quick: 'Quick',
         sample: 'Sample (up to 60s)',
         chooseMode: 'Check mode',
@@ -142,6 +144,7 @@ export default {
           budget_exhausted: 'Budget exhausted'
         },
         errors: {
+          capabilities_unavailable: 'Diagnostics capabilities endpoint unavailable.',
           service_unavailable: 'Diagnostics service unavailable; this does not establish proxy failure.',
           service_auth_failed: 'Diagnostics service authentication failed.',
           session_expired: 'Administrator session expired. Sign in again.',

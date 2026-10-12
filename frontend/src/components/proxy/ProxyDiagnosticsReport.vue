@@ -67,8 +67,7 @@ const { t, tm } = useI18n()
 const k = 'admin.proxies.diagnostics.'
 const knownReasons = computed(() => new Set(Object.keys(tm(k + 'reasons'))))
 const exitFields = ['ip', 'country_code', 'country', 'region', 'city', 'asn', 'organization', 'source', 'observed_at'] as const
-const evidenceKeys = new Set(['exit_source', 'geo_source', 'geo_status', 'attempts', 'successes', 'latency_min_ms', 'latency_median_ms', 'latency_max_ms', 'distinct_ips', 'ip_changed', 'match'])
-const safeEvidence = (evidence?: Record<string, unknown>) => Object.entries(evidence ?? {}).filter(([key, value]) => evidenceKeys.has(key) && ['string', 'number', 'boolean'].includes(typeof value))
+const safeEvidence = (evidence?: Record<string, unknown>) => Object.entries(evidence ?? {}).filter(([, value]) => ['string', 'number', 'boolean'].includes(typeof value))
 const milliseconds = (value?: number) => typeof value === 'number' ? `${value} ms` : '—'
 const statusClass = (status: string) => ({ pass: 'badge-success', reachable: 'badge-success', fail: 'badge-danger', unusable: 'badge-danger', warn: 'badge-warning', challenge: 'badge-warning', degraded: 'badge-warning' } as Record<string, string>)[status] ?? 'badge-gray'
 const statusLabel = (status: string) => t(k + 'statuses.' + (['pass', 'warn', 'fail', 'challenge', 'unknown', 'skipped'].includes(status) ? status : 'unknown'))

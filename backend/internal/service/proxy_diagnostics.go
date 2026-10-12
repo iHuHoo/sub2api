@@ -11,6 +11,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -20,11 +21,11 @@ import (
 )
 
 var (
-	ErrDiagnosticsDisabled          = apperrors.New(503, "DIAGNOSTICS_DISABLED", "Proxy diagnostics is disabled")
+	ErrDiagnosticsDisabled          = apperrors.ServiceUnavailable("DIAGNOSTICS_DISABLED", "Proxy diagnostics is disabled")
 	ErrDiagnosticsReportNotFound    = apperrors.NotFound("REPORT_NOT_FOUND", "No current diagnostics report")
 	ErrDiagnosticsProxyChanged      = apperrors.Conflict("PROXY_CHANGED", "Proxy configuration changed during check")
-	ErrDiagnosticsUnavailable       = apperrors.New(503, "service_unavailable", "Diagnostics service unavailable")
-	ErrDiagnosticsSchemaUnsupported = apperrors.New(503, "schema_unsupported", "Unsupported diagnostics report schema")
+	ErrDiagnosticsUnavailable       = apperrors.ServiceUnavailable("service_unavailable", "Diagnostics service unavailable")
+	ErrDiagnosticsSchemaUnsupported = apperrors.ServiceUnavailable("schema_unsupported", "Unsupported diagnostics report schema")
 )
 
 type DiagnosticsResponse struct {
@@ -161,10 +162,10 @@ func (s *ProxyDiagnosticsService) Check(ctx context.Context, id int64, mode stri
 		switch resp.StatusCode {
 		case 401:
 			warnDiagnosticsFailure(id, "service_auth_failed")
-			return result, apperrors.New(503, "service_auth_failed", "Diagnostics service authentication failed")
+			return result, apperrors.ServiceUnavailable("service_auth_failed", "Diagnostics service authentication failed")
 		case 429:
 			warnDiagnosticsFailure(id, "busy")
-			return result, apperrors.New(429, "busy", "Diagnostics service is busy")
+			return result, apperrors.TooManyRequests("busy", "Diagnostics service is busy").WithMetadata(map[string]string{"retry_after": diagnosticsRetryAfter(resp.Header.Get("Retry-After"))})
 		case 400:
 			var remote struct {
 				Error struct {
@@ -194,12 +195,10 @@ func (s *ProxyDiagnosticsService) Check(ctx context.Context, id int64, mode stri
 		warnDiagnosticsFailure(id, "report_invalid")
 		return result, ErrDiagnosticsUnavailable
 	}
-	var identity struct {
-		RequestID string `json:"request_id"`
-		Mode      string `json:"mode"`
-	}
-	_ = json.Unmarshal(report, &identity)
-	if identity.RequestID != requestID || identity.Mode != mode {
+	var reportRequestID, reportMode string
+	_ = json.Unmarshal(report["request_id"], &reportRequestID)
+	_ = json.Unmarshal(report["mode"], &reportMode)
+	if reportRequestID != requestID || reportMode != mode {
 		warnDiagnosticsFailure(id, "report_identity_mismatch")
 		return result, ErrDiagnosticsUnavailable
 	}
@@ -212,9 +211,13 @@ func (s *ProxyDiagnosticsService) Check(ctx context.Context, id int64, mode stri
 		warnDiagnosticsFailure(id, "proxy_changed")
 		return result, ErrDiagnosticsProxyChanged
 	}
-	result.Report = report
+	result.Report, e = json.Marshal(report)
+	if e != nil {
+		warnDiagnosticsFailure(id, "report_invalid")
+		return result, ErrDiagnosticsUnavailable
+	}
 	if sequence != "" {
-		result.Saved, e = s.cache.CommitIfLatest(ctx, id, sequence, fingerprint, report)
+		result.Saved, e = s.cache.CommitIfLatest(ctx, id, sequence, fingerprint, result.Report)
 		if e != nil {
 			result.Saved = false
 			warnDiagnosticsFailure(id, "cache_commit_failed")
@@ -256,5 +259,23 @@ func (s *ProxyDiagnosticsService) Latest(ctx context.Context, id int64) (Diagnos
 		warnDiagnosticsFailure(id, "report_invalid")
 		return DiagnosticsResponse{}, ErrDiagnosticsReportNotFound
 	}
-	return DiagnosticsResponse{Report: report, Saved: true}, nil
+	raw, e := json.Marshal(report)
+	if e != nil {
+		warnDiagnosticsFailure(id, "report_invalid")
+		return DiagnosticsResponse{}, ErrDiagnosticsReportNotFound
+	}
+	return DiagnosticsResponse{Report: raw, Saved: true}, nil
+}
+
+// Only canonical standard values cross the upstream trust boundary.
+func diagnosticsRetryAfter(value string) string {
+	if value != "" && strings.Trim(value, "0123456789") == "" {
+		if seconds, err := strconv.ParseUint(value, 10, 63); err == nil {
+			return strconv.FormatUint(seconds, 10)
+		}
+	}
+	if date, err := http.ParseTime(value); err == nil {
+		return date.UTC().Format(http.TimeFormat)
+	}
+	return "1"
 }

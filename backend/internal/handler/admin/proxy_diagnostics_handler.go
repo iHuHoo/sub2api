@@ -2,6 +2,7 @@ package admin
 
 import (
 	"encoding/json"
+	apperrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/gin-gonic/gin"
@@ -38,6 +39,9 @@ func (h *ProxyDiagnosticsHandler) Check(c *gin.Context) {
 	}
 	result, e := h.svc.Check(c.Request.Context(), id, mode)
 	if e != nil {
+		if appErr := apperrors.FromError(e); appErr.Code == http.StatusTooManyRequests && appErr.Reason == "busy" {
+			c.Header("Retry-After", appErr.Metadata["retry_after"])
+		}
 		response.ErrorFrom(c, e)
 		return
 	}

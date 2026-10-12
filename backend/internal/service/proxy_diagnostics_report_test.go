@@ -16,7 +16,9 @@ func TestDiagnosticsReportFixtures(t *testing.T) {
 		require.NoError(t, e)
 		got, e := parseDiagnosticsReport(b)
 		require.NoError(t, e, name)
-		require.JSONEq(t, string(b), string(got))
+		clean, e := json.Marshal(got)
+		require.NoError(t, e)
+		require.JSONEq(t, string(b), string(clean))
 	}
 }
 func TestDiagnosticsReportValidation(t *testing.T) {
@@ -26,6 +28,10 @@ func TestDiagnosticsReportValidation(t *testing.T) {
 	}{
 		{"version", func(m map[string]any) { m["schema_version"] = 2 }},
 		{"missing", func(m map[string]any) { delete(m, "completion") }},
+		{"null_stability", func(m map[string]any) { m["stability"] = nil }},
+		{"null_summary", func(m map[string]any) { m["summary"] = nil }},
+		{"null_item_exit", func(m map[string]any) { m["items"].([]any)[0].(map[string]any)["exit"] = nil }},
+		{"null_item_duration", func(m map[string]any) { m["items"].([]any)[0].(map[string]any)["duration_ms"] = nil }},
 		{"missing_count", func(m map[string]any) { delete(m["completion"].(map[string]any), "executed") }},
 		{"null_count", func(m map[string]any) { m["completion"].(map[string]any)["executed"] = nil }},
 		{"state", func(m map[string]any) { m["connectivity"] = "good" }},
@@ -69,5 +75,22 @@ func TestDiagnosticsReportOptionalAdditionsNotForwarded(t *testing.T) {
 	require.NoError(t, e)
 	got, e := parseDiagnosticsReport(b)
 	require.NoError(t, e)
-	require.NotContains(t, string(got), "private")
+	clean, e := json.Marshal(got)
+	require.NoError(t, e)
+	require.NotContains(t, string(clean), "private")
+}
+
+func TestDiagnosticsReportNullableFieldsAreExplicit(t *testing.T) {
+	_, err := diagnosticsObject(json.RawMessage(`{"exit":null}`), "exit", "")
+	require.Error(t, err)
+	obj, err := diagnosticsObject(json.RawMessage(`{"other":null}`), "other", "", "other")
+	require.NoError(t, err)
+	require.JSONEq(t, "null", string(obj["other"]))
+	var report map[string]any
+	require.NoError(t, json.Unmarshal(diagnosticsFixture(t, "valid", "quick"), &report))
+	report["exit"] = nil
+	raw, err := json.Marshal(report)
+	require.NoError(t, err)
+	_, err = parseDiagnosticsReport(raw)
+	require.NoError(t, err)
 }

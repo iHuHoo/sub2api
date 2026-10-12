@@ -47,6 +47,8 @@ export default {
         run: '开始诊断',
         batch: '批量诊断',
         latest: '最近报告',
+        latestTitle: '最近保存的诊断报告',
+        cachedReport: '缓存报告 · 原始检测时间见下方',
         quick: '快速',
         sample: '采样（最多 60 秒）',
         chooseMode: '检测模式',
@@ -142,6 +144,7 @@ export default {
           budget_exhausted: '检测预算已用尽'
         },
         errors: {
+          capabilities_unavailable: '检测能力接口不可用。',
           service_unavailable: '检测服务不可用，不能据此判定代理故障。',
           service_auth_failed: '检测服务认证失败。',
           session_expired: '管理员会话已过期，请重新登录。',
