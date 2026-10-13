@@ -4,7 +4,7 @@
 
 | sub2api | subproxy | 报告契约 |
 | --- | --- | --- |
-| I1（PR #48）+ I2（issue #45） | S1–S5，`1f6c39d`；文档更新 `0b8e373` | schema v1 |
+| I1/I2 + race 修复 + 清口（main `41d5706d3`） | S1–S5 + 清口（main `9ea62d26a`） | schema v1 |
 
 关闭时保留旧 `quality-check`；启用时显示逐项报告，隐藏旧分数/等级。能力查询失败会提示重试，不会静默回退旧检测。未知 schema 主版本明确报错。
 
@@ -85,6 +85,8 @@ quick 报告也保留 stability 项，状态为 `skipped/mode_not_sample`；该�
 迟到报告可返回 `saved=false`，不能覆盖新预约；较新预约自身失败时也保留这一语义，不让旧请求重新取得提交资格。Redis 故障时仍可返回本次结果，但不会声称已保存。调用返回前重读代理并核对指纹；缓存读取时再次核对指纹，作为数据库修改与 Redis 写入间竞态的最终防线。
 
 ## 发布边界
+
+联合发布、生产启用顺序及回滚门槛见 [发布与上线方案](SUBPROXY_RELEASE_PLAN.md)；方案提交/合并不代表镜像发布或生产启用授权。
 
 I2 隔离容器实测（2026-10-12）：10 条授权代理 quick 均为 reachable，保存/读取报告一致；同来源 curl 出口 10/10 一致（一条走 api64 备用 IPv6 源）。sample 实测 pass。独立错误密码代理返回 unusable/proxy_auth_failed；服务停止返回 503/service_unavailable；关闭功能返回 enabled=false；供应商/普通用户三个管理接口均 403，匿名诊断 401。报告和服务日志未包含代理凭据或服务 token。浏览器桌面/手机验收另见 PR 记录。
 
