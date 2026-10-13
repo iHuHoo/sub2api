@@ -165,7 +165,15 @@ func (s *ProxyDiagnosticsService) Check(ctx context.Context, id int64, mode stri
 			return result, apperrors.ServiceUnavailable("service_auth_failed", "Diagnostics service authentication failed")
 		case 429:
 			warnDiagnosticsFailure(id, "busy")
-			return result, apperrors.TooManyRequests("busy", "Diagnostics service is busy").WithMetadata(map[string]string{"retry_after": diagnosticsRetryAfter(resp.Header.Get("Retry-After"))})
+			delay := retryAfter(resp.Header, time.Now())
+			seconds := delay / time.Second
+			if delay%time.Second > 0 {
+				seconds++
+			}
+			if seconds < 1 {
+				seconds = 1
+			}
+			return result, apperrors.TooManyRequests("busy", "Diagnostics service is busy").WithMetadata(map[string]string{"retry_after": strconv.FormatInt(int64(seconds), 10)})
 		case 400:
 			var remote struct {
 				Error struct {
@@ -265,17 +273,4 @@ func (s *ProxyDiagnosticsService) Latest(ctx context.Context, id int64) (Diagnos
 		return DiagnosticsResponse{}, ErrDiagnosticsReportNotFound
 	}
 	return DiagnosticsResponse{Report: raw, Saved: true}, nil
-}
-
-// Only canonical standard values cross the upstream trust boundary.
-func diagnosticsRetryAfter(value string) string {
-	if value != "" && strings.Trim(value, "0123456789") == "" {
-		if seconds, err := strconv.ParseUint(value, 10, 63); err == nil {
-			return strconv.FormatUint(seconds, 10)
-		}
-	}
-	if date, err := http.ParseTime(value); err == nil {
-		return date.UTC().Format(http.TimeFormat)
-	}
-	return "1"
 }

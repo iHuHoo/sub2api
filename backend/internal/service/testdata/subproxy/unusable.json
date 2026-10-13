@@ -9,7 +9,7 @@
   "exit": null,
   "stability": {
     "status": "skipped",
-    "reason_code": "dependency_unavailable",
+    "reason_code": "mode_not_sample",
     "attempted": 0,
     "succeeded": 0,
     "distinct_ips": 0,
@@ -37,9 +37,9 @@
       "rule_id": "stability",
       "rule_version": "1.0.0",
       "category": "stability",
-      "target": "exit",
+      "target": "https://example.com",
       "status": "skipped",
-      "reason_code": "dependency_unavailable",
+      "reason_code": "mode_not_sample",
       "message": "虚构样例；未验证登录、额度或推理能力。",
       "started_at": "2026-10-11T08:00:00Z"
     }

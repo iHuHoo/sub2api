@@ -50,7 +50,7 @@ Viper 环境变量也支持配置，例如 `SUBPROXY_ENABLED`、`SUBPROXY_BASE_U
 | 503 / `service_unavailable` | 网络、超时、无效报告或远端服务错误 |
 | 503 / `service_auth_failed` | subproxy 拒绝服务 token，不是用户登录失效 |
 | 503 / `schema_unsupported` | subproxy 或缓存报告使用不兼容的 schema 主版本，需核对版本对应表 |
-| 429 / `busy` | 检测服务忙；透传规范化的 `Retry-After` 秒数或 HTTP 日期，缺失/非法值回退为 1 秒 |
+| 429 / `busy` | 检测服务忙；`Retry-After` 统一返回正整数秒；上游 HTTP 日期转换为剩余秒数并向上取整，缺失/非法/过期值及零值回退为 1 秒 |
 | 400 / `proxy_address_unsupported` | subproxy 地址策略不支持该代理 |
 | 400 / `request_invalid` | subproxy 拒绝代理配置格式，例如 host 包含 scheme 或端口 |
 
@@ -78,7 +78,7 @@ Viper 环境变量也支持配置，例如 `SUBPROXY_ENABLED`、`SUBPROXY_BASE_U
 
 quick 报告也保留 stability 项，状态为 `skipped/mode_not_sample`；该项计入 `completion.planned` 和 `completion.skipped`，不计入 `executed`。
 
-接收最多 256 KiB、32 项，校验 v1 必填字段、状态、类型和数值边界。允许同版本新增可选字段，但不转发未知字段。证据只接受简单标量，单值字符串上限 2048 字节，每项最多 32 个键、16 KiB；样本最多 32 个。脱敏报告的上游生产者为受信任 subproxy，不接入任意第三方报告服务。
+接收最多 256 KiB、32 项，校验 v1 必填字段、状态、类型和数值边界。允许同版本新增可选字段，但不转发未知字段。证据只接受简单标量，单值字符串上限 2048 字节，每项最多 32 个键、16 KiB；样本最多 32 个。脱敏报告的上游生产者为受信任 subproxy，其核心按插件 Descriptor.EvidenceKeys 过滤证据；sub2api 只校验键名和标量类型，不维护每插件白名单。接入非自建报告源前必须补充生产者信任与证据过滤校验。
 
 代理指纹对固定字段顺序的 scheme/host/port/username/password 及服务 token 做 HMAC-SHA256；不返回指纹。Redis 只存指纹、预约标识和报告，不保存代理凭据。每次预约使用随机 nonce，Lua 同时比较最新预约与指纹并写报告，预约和报告 TTL 均为 24 小时。保留原预约字段和报告格式，可读取升级前的缓存；旧计数键不再使用，按原 TTL 自行过期。
 
