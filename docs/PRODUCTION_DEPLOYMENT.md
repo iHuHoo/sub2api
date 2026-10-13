@@ -1,6 +1,8 @@
 # Sub2API production deployment
 
-Verified 2026-09-24 Asia/Singapore.
+Verified 2026-09-24 Asia/Singapore. This is a historical snapshot; recheck the live version and image before the next deployment.
+
+For the planned subproxy integration rollout, see [the release and rollout plan](SUBPROXY_RELEASE_PLAN.md). Its candidate versions are not deployed production state.
 
 - SSH: `ssh -o BatchMode=yes aoxtoken@20.195.40.145` (default port; existing local SSH key).
 - Directory: `/home/aoxtoken/sub2api`.
