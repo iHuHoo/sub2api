@@ -1150,7 +1150,7 @@ func retryAfter(header http.Header, now time.Time) time.Duration {
 	if value == "" {
 		return 0
 	}
-	if seconds, err := strconv.Atoi(value); err == nil && seconds > 0 {
+	if seconds, err := strconv.Atoi(value); err == nil && seconds > 0 && int64(seconds) <= math.MaxInt64/int64(time.Second) {
 		return time.Duration(seconds) * time.Second
 	}
 	if at, err := http.ParseTime(value); err == nil {

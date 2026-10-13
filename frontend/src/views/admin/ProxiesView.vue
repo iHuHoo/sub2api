@@ -927,16 +927,16 @@
       </template>
     </BaseDialog>
 
-    <BaseDialog :show="showDiagnostics" :title="t(dk + 'title')" width="wide" @close="closeDiagnostics">
+    <BaseDialog :show="showDiagnostics" :title="t(dk + (diagnosticsLatest ? 'latestTitle' : 'title'))" width="wide" @close="closeDiagnostics">
       <div class="space-y-4">
-        <p class="text-sm text-gray-500">{{ t(dk + 'batchHint') }}</p>
+        <p v-if="!diagnosticsLatest" class="text-sm text-gray-500">{{ t(dk + 'batchHint') }}</p>
         <p v-if="diagnosticsDiscovering || latestLoading" role="status">{{ t(dk + 'loading') }}</p>
         <p v-if="diagnosticsBatch.busy.value" role="alert" class="text-amber-600">{{ t(dk + 'busyStopped') }}</p>
         <p v-if="diagnosticsDialogError" role="alert" class="text-red-600">{{ t(dk + 'errors.' + diagnosticsDialogError) }}</p>
         <div v-for="proxy in diagnosticsTargets" :key="proxy.id" class="rounded-xl border border-gray-200 p-3 dark:border-dark-600">
           <div class="flex flex-wrap items-center justify-between gap-2">
             <h3 class="break-all font-medium">{{ proxy.name }} · #{{ proxy.id }}</h3>
-            <span v-if="diagnosticsBatch.entries[proxy.id]" role="status" class="text-sm">{{ t(dk + 'states.' + diagnosticsBatch.entries[proxy.id].state) }}</span>
+            <span v-if="diagnosticsBatch.entries[proxy.id]" role="status" class="text-sm">{{ t(dk + (diagnosticsLatest ? 'cachedReport' : 'states.' + diagnosticsBatch.entries[proxy.id].state)) }}</span>
           </div>
           <p v-if="diagnosticsBatch.entries[proxy.id]?.error" role="alert" class="mt-2 text-sm text-red-600">{{ t(dk + 'errors.' + diagnosticsBatch.entries[proxy.id].error) }}</p>
           <ProxyDiagnosticsReport v-if="diagnosticsBatch.entries[proxy.id]?.result" class="mt-3" :report="diagnosticsBatch.entries[proxy.id].result!.report" :saved="diagnosticsBatch.entries[proxy.id].result!.saved" />
@@ -1054,6 +1054,7 @@ const showDiagnostics = ref(false)
 const diagnosticsTargets = ref<Array<Pick<Proxy, 'id' | 'name'>>>([])
 const diagnosticsDialogError = ref<DiagnosticsError>()
 const latestLoading = ref(false)
+const diagnosticsLatest = ref(false)
 let diagnosticsReadController: AbortController | undefined
 async function loadDiagnosticsCapabilities() {
   capabilitiesLoaded.value = false
@@ -1063,7 +1064,7 @@ async function loadDiagnosticsCapabilities() {
     diagnosticsEnabled.value = capabilities.enabled
     capabilitiesLoaded.value = true
   } catch (error) {
-    capabilitiesError.value = diagnosticsError(error)
+    capabilitiesError.value = (error as { status?: number })?.status === 404 ? 'capabilities_unavailable' : diagnosticsError(error)
   }
 }
 function closeDiagnostics() {
@@ -1075,6 +1076,7 @@ async function runDiagnostics(proxy?: Proxy) {
   if (diagnosticsUnavailable.value || diagnosticsWorking.value) return
   diagnosticsReadController?.abort()
   latestLoading.value = false
+  diagnosticsLatest.value = false
   diagnosticsBatch.busy.value = false
   const controller = new AbortController()
   diagnosticsReadController = controller
@@ -1107,6 +1109,7 @@ async function showLatestDiagnostics(proxy: Proxy) {
   delete diagnosticsBatch.entries[proxy.id]
   showDiagnostics.value = true
   latestLoading.value = true
+  diagnosticsLatest.value = true
   try {
     const result = await adminAPI.proxies.getDiagnostics(proxy.id, { signal: controller.signal })
     if (!controller.signal.aborted) diagnosticsBatch.entries[proxy.id] = { state: 'done', result }

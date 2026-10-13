@@ -31,13 +31,19 @@ it('renders new plugins, unknown reasons, challenge and missing geography as tex
   expect(wrapper.text()).toContain('admin.proxies.diagnostics.notSaved')
   expect(wrapper.text()).toContain('admin.proxies.diagnostics.noExit')
 })
-it('ignores unknown evidence keys and displays approved evidence as inert text', () => {
-  const report = structuredClone(partial)
-  const wrapper = render({ ...report, items: [{ ...report.items[0], status: 'unknown', evidence: { password: 'do-not-show', future_secret: 'also-secret', geo_status: '<img src=x onerror=alert(1)>' } }] })
-  expect(wrapper.text()).not.toContain('do-not-show')
-  expect(wrapper.text()).not.toContain('also-secret')
+it('renders backend-filtered plugin scalars as inert text and ignores structured evidence', () => {
+  const wrapper = render({ ...partial, items: [{ ...partial.items[0], evidence: {
+    future_metric: 42, future_flag: false, future_text: '<img src=x onerror=alert(1)>',
+    nested: { secret: 'nested-secret' }, list: ['array-secret'], empty: null
+  } }] })
+  expect(wrapper.text()).toContain('future_metric')
+  expect(wrapper.text()).toContain('42')
+  expect(wrapper.text()).toContain('false')
   expect(wrapper.text()).toContain('<img src=x onerror=alert(1)>')
   expect(wrapper.find('img').exists()).toBe(false)
+  expect(wrapper.text()).not.toContain('nested-secret')
+  expect(wrapper.text()).not.toContain('array-secret')
+  expect(wrapper.text()).not.toContain('empty')
 })
 it('never renders an incompatible schema as a valid report', () => {
   const wrapper = render({ ...complete, schema_version: 2 })

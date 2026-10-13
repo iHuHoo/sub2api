@@ -1,4 +1,5 @@
 import { beforeEach, expect, it, vi } from 'vitest'
+import { watch } from 'vue'
 import { flushPromises } from '@vue/test-utils'
 import { diagnosticsError, useProxyDiagnostics } from '../useProxyDiagnostics'
 import complete from '@/components/proxy/__tests__/fixtures/complete.json'
@@ -62,4 +63,51 @@ it('cancel aborts in-flight calls, stops pending work, and suppresses late respo
   expect(checkDiagnostics).toHaveBeenCalledTimes(2)
   expect(Object.values(d.entries).every(e => e.state === 'cancelled')).toBe(true)
   expect(Object.values(d.entries).every(e => !e.result)).toBe(true)
+})
+
+it('starts one replacement batch after cancelled requests finish without stale state', async () => {
+  const finishes: Array<(v: unknown) => void> = []
+  checkDiagnostics.mockImplementation(() => new Promise(resolve => finishes.push(resolve)))
+  const d = useProxyDiagnostics()
+  const old = d.run([1, 2, 3], 'quick')
+  d.cancel()
+  const next = d.run([1], 'sample')
+  const duplicate = d.run([1], 'sample')
+  finishes[0](report); finishes[1](report)
+  await old; await flushPromises()
+  expect(checkDiagnostics).toHaveBeenCalledTimes(3)
+  expect(d.entries[1].state).toBe('running')
+  expect(d.running.value).toBe(true)
+  expect(d.entries[3].state).toBe('cancelled')
+  finishes[2](report)
+  await Promise.all([next, duplicate])
+  expect(d.entries[1].result).toEqual(report)
+  expect(d.running.value).toBe(false)
+})
+it('cancels a replacement waiting for the previous batch to settle', async () => {
+  let finish!: (v: unknown) => void
+  checkDiagnostics.mockImplementation(() => new Promise(resolve => { finish = resolve }))
+  const d = useProxyDiagnostics()
+  const old = d.run([1], 'quick')
+  d.cancel()
+  const next = d.run([2], 'sample')
+  d.cancel()
+  finish(report)
+  await Promise.all([old, next])
+  expect(checkDiagnostics).toHaveBeenCalledTimes(1)
+  expect(d.entries[2]).toBeUndefined()
+  expect(d.running.value).toBe(false)
+})
+
+it('accepts a new run in the previous run cleanup window', async () => {
+  checkDiagnostics.mockResolvedValue(report)
+  const d = useProxyDiagnostics()
+  let next: Promise<void> | undefined
+  const stop = watch(d.running, running => {
+    if (!running && !next) next = d.run([2], 'sample')
+  })
+  await d.run([1], 'quick')
+  await next
+  stop()
+  expect(d.entries[2]?.state).toBe('done')
 })

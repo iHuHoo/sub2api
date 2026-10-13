@@ -13,7 +13,7 @@ const mountView = () => shallowMount(ProxiesView, {
     AppLayout: { template: '<div><slot /></div>' },
     TablePageLayout: { template: '<div><slot name="filters" /><slot name="table" /></div>' },
     DataTable: { props: ['data'], template: '<div v-for="row in data" :key="row.id"><slot name="cell-latency" :row="row" /><slot name="cell-actions" :row="row" /></div>' },
-    BaseDialog: { props: ['show'], template: '<div v-if="show"><slot /><slot name="footer" /></div>' },
+    BaseDialog: { props: ['show', 'title'], template: '<div v-if="show"><h2>{{ title }}</h2><slot /><slot name="footer" /></div>' },
     Select: { props: ['modelValue', 'options'], emits: ['update:modelValue'], template: '<select :value="modelValue" @change="$emit(\'update:modelValue\', $event.target.value)"><option v-for="option in options" :value="option.value">{{ option.label }}</option></select>' }
   } }
 })
@@ -80,6 +80,27 @@ describe('proxy diagnostics integration', () => {
     wrapper = mountView(); await flushPromises()
     expect(wrapper.text()).toContain('admin.proxies.diagnostics.errors.schema_unsupported')
     expect(api.checkProxyQuality).not.toHaveBeenCalled()
+  })
+  it('explains a missing capabilities endpoint without implying a missing report', async () => {
+    api.diagnosticsCapabilities.mockRejectedValue({ status: 404 })
+    wrapper = mountView(); await flushPromises()
+    expect(wrapper.text()).toContain('admin.proxies.diagnostics.errors.capabilities_unavailable')
+    expect(wrapper.text()).not.toContain('admin.proxies.diagnostics.errors.not_found')
+  })
+  it('labels recent reports as cached and restores live batch wording on the next run', async () => {
+    api.getDiagnostics.mockResolvedValue({ report: complete, saved: true })
+    wrapper = mountView(); await flushPromises()
+    await button('admin.proxies.diagnostics.latest').trigger('click'); await flushPromises()
+    expect(wrapper.text()).toContain('admin.proxies.diagnostics.latestTitle')
+    expect(wrapper.text()).toContain('admin.proxies.diagnostics.cachedReport')
+    expect(wrapper.text()).not.toContain('admin.proxies.diagnostics.batchHint')
+    expect(wrapper.text()).not.toContain('admin.proxies.diagnostics.states.done')
+    expect(wrapper.findComponent({ name: 'ProxyDiagnosticsReport' }).props('report').checked_at).toBe(complete.checked_at)
+    await button('admin.proxies.diagnostics.close').trigger('click')
+    await button('admin.proxies.diagnostics.run').trigger('click'); await flushPromises()
+    expect(wrapper.text()).toContain('admin.proxies.diagnostics.batchHint')
+    expect(wrapper.text()).toContain('admin.proxies.diagnostics.states.done')
+    expect(wrapper.text()).not.toContain('admin.proxies.diagnostics.cachedReport')
   })
   it('retrieves a recent report and displays a fixed missing-report error', async () => {
     api.getDiagnostics.mockRejectedValue({ status: 404, message: 'credential-do-not-show' })

@@ -38,6 +38,9 @@ func (h *ProxyDiagnosticsHandler) Check(c *gin.Context) {
 	}
 	result, e := h.svc.Check(c.Request.Context(), id, mode)
 	if e != nil {
+		if seconds := service.RetryAfterSecondsFromError(e); seconds > 0 {
+			c.Header("Retry-After", strconv.Itoa(seconds))
+		}
 		response.ErrorFrom(c, e)
 		return
 	}
