@@ -2,7 +2,7 @@
 
 状态：**待 review；未发布镜像、未部署、未启用生产**。编制日期：2026-10-13。
 
-本 PR 只批准方案评审。PR 合并不等于发布授权；执行时分别取得“发布指定版本镜像”和“指定窗口部署并启用生产”的明确授权，记录执行人、复核人及批准范围。下文命令是执行手册，不由合并触发。
+本 PR 只批准方案评审。PR 合并不等于发布授权；后续每一步镜像发布、生产部署、启用及生产回滚操作，均须单独取得明确授权，记录执行人、复核人及批准范围；不得把前一步授权延伸至下一步。下文命令是执行手册，不由合并触发。
 
 ## 1. 发布范围与版本冻结
 
@@ -35,6 +35,8 @@ subproxy 运维手册中的“sub2api 业务集成尚未实施”是历史描述
 | 发布授权 / 生产授权、窗口、执行人 / 复核人 | 待填 |
 | 生产当前版本、源码、镜像 digest、CPU 架构、Compose 版本 | 待现场核实 |
 | 当前 Compose 项目/文件、数据挂载、入口代理/负载均衡及超时 | 待现场核实 |
+| 历史 .15 → 候选的迁移范围（实际范围仍以现场源码为准） | 5 个 SQL：`241_add_payment_order_bonus_amount.sql`、`241_add_typesafe_platform.sql`、`242_drop_platform_check_constraints.sql`、`243_supplier_ownership.sql`、`244_live_proxy_references.sql`；逐项审阅、校验和及恢复演练待填 |
+| 同范围新增的迁移回归测试（不执行为 SQL） | `platform_check_constraints_drop_migration_test.go`、`typesafe_platform_migration_test.go`；迁移目录合计新增 7 个文件 |
 | 两边目标源码 CI 链接与结果、发布 run / 构建日志 | 待填；PR 的绿灯不代替实际构建源码的验证 |
 | 两个新镜像 digest、架构、sub2api 内嵌版本/commit | 待发布后核实 |
 | 同版 rules/deploy 归档校验和、实际 ruleset_version、覆盖项清单 | 待填 |
@@ -103,16 +105,16 @@ services:
       SUBPROXY_TOKEN_FILE: /run/secrets/subproxy_service_token
       SUBPROXY_HMAC_SECRET_FILE: /run/secrets/subproxy_hmac
     volumes:
-      - ${SUBPROXY_TOKEN_FILE:?set absolute host path}:/run/secrets/subproxy_service_token:ro
-      - ${SUBPROXY_HMAC_FILE:?set absolute host path}:/run/secrets/subproxy_hmac:ro
-    networks: [default, subproxy-caller]
+      - ${SUBPROXY_TOKEN_HOST_FILE:?set absolute host path}:/run/secrets/subproxy_service_token:ro
+      - ${SUBPROXY_HMAC_HOST_FILE:?set absolute host path}:/run/secrets/subproxy_hmac:ro
+    networks: [subproxy-caller]
 networks:
   subproxy-caller:
     external: true
     name: ${SUBPROXY_CALLER_NETWORK:?set caller network}
 ```
 
-`SUBPROXY_TOKEN_FILE` 在 Compose 插值时是宿主路径，传入 sub2api 容器的同名变量则固定为容器路径。先启动 subproxy 创建 caller 网络，再启动 sub2api；不能只在宿主 .env 设置开关却遗漏容器 environment。启用/关闭后使用 `up --force-recreate` 应用环境，单纯 `restart` 不更新容器环境。
+宿主路径变量使用 `SUBPROXY_TOKEN_HOST_FILE` / `SUBPROXY_HMAC_HOST_FILE`，仅用于 Compose 挂载插值；容器环境变量 `SUBPROXY_TOKEN_FILE` / `SUBPROXY_HMAC_SECRET_FILE` 固定为容器路径。subproxy 自身 Compose 的 `SUBPROXY_TOKEN_FILE` 仍按其运维手册设为同一 service token 的宿主路径，不把该栈的环境文件注入 sub2api。网络按并集合并，模板只追加 caller 网络，保留基础 Compose 的 `sub2api-network`，不额外创建 default 网络。先启动 subproxy 创建 caller 网络，再启动 sub2api；不能只在宿主 .env 设置开关却遗漏容器 environment。启用/关闭后使用 `up --force-recreate` 应用环境，单纯 `restart` 不更新容器环境。
 
 仅同机私有网络可使用上述 HTTP 配置。若实际跨主机，改为受信任 HTTPS、`SUBPROXY_ALLOW_INTERNAL_HTTP=false`，重新评审网络方案；不关闭 TLS 校验或开放公共诊断端口。
 
@@ -137,8 +139,8 @@ networks:
 1. 先按 [生产部署文档](PRODUCTION_DEPLOYMENT.md) 核实主机、目录与实际 Compose 项目。记录现有 sub2api 版本/digest、PostgreSQL/Redis 镜像、健康/重启数、磁盘余量及入口配置；记录至少 15 分钟原有网关错误率和延迟基线。若现场与假设不符，暂停修改并修订执行记录。
 2. 比较实际生产源码到冻结候选的迁移清单、校验和及行为变更。若生产确为 .22，复核迁移无差异；若更旧，逐项审阅并在隔离恢复副本上演练。特别不能仅凭“诊断功能无 SQL”跳过整包升级检查，也不能忽略旧生产文档中的迁移 239 回滚约束。
 3. 预拉两个审核 digest；建立受限的时间戳备份目录，保存实际 Compose/override/.env/config、入口配置、旧镜像 digest、secret 和规则归档。secret 不打印，完整 `docker compose config` 不写公开日志，仅用 `config --quiet` 校验。
-4. 按现有部署程序停止 **sub2api 服务** 后做 PostgreSQL custom-format dump，校验非空、`pg_restore --list`、SHA-256，并在隔离数据库完成恢复检查。确认没有其他数据库写入者；有则先协调窗口。保留旧镜像，DB/Redis 服务及数据卷不删除、不重建。
-5. 在版本目录部署 subproxy，先检查无端口发布、健康、网络与挂载规则。保留配置中的未核实目标禁用状态。subproxy 健康只证明进程存活，不作为业务验收。
+4. 在 sub2api 仍运行时，先在版本目录部署 subproxy，检查无端口发布、健康、网络与挂载规则；它不依赖 sub2api，也不访问数据库，失败时暂停，不进入停服步骤。保留配置中的未核实目标禁用状态。subproxy 健康只证明进程存活，不作为业务验收。停服前还须检查实际 config.yaml 与容器环境：`subproxy.token.env` / `subproxy.hmac_secret.env` 及对应 `SUBPROXY_TOKEN_ENV` / `SUBPROXY_HMAC_SECRET_ENV` 无非空引用，file 引用指向预演验证过的容器路径。若 config.yaml 从新示例复制，必须移除其中默认的 `token.env: SUBPROXY_SERVICE_TOKEN`，避免与 file 同时存在导致启用失败；不要输出实际 secret。
+5. 按现有部署程序停止 **sub2api 服务** 后做 PostgreSQL custom-format dump，校验非空、`pg_restore --list`、SHA-256，并在隔离数据库完成恢复检查。确认没有其他数据库写入者；有则先协调窗口。保留旧镜像，DB/Redis 服务及数据卷不删除、不重建。
 6. 给生产 sub2api 加载已验证 override，digest 固定，显式 `SUBPROXY_ENABLED=false`。每次操作使用同一现场项目名、基础文件和 override 文件组合：
 
    ```sh
