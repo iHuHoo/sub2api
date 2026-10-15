@@ -20,7 +20,7 @@
 | 目标提交 | `2d334453f0082caf09d5fedf1fa6c3291ebdbe56` |
 | 目标镜像 | `ghcr.io/ihuhoo/sub2api@sha256:13f13ed198a6d67e92e917fe308c6d33bf1b021e666324366d28ae32774d4672`，linux/amd64 |
 | 发布证据 | [Aox run 38682837539](https://github.com/iHuHoo/sub2api/actions/runs/38682837539)；本地 `runtime/sub2api-release-0.0.24-20261015/`（位于 `/Users/dalu/aiworkspace/codex/`） |
-| 目标 main CI | [run 38682638474](https://github.com/iHuHoo/sub2api/actions/runs/38682638474)，编制时仍在运行，执行前必须确认最终成功 |
+| 目标 main CI | [run 38682638474](https://github.com/iHuHoo/sub2api/actions/runs/38682638474)，2026-10-15 已完成并成功；安全扫描也已通过，执行前复核冻结提交与结果 |
 | 生产位置 | `aoxtoken@20.195.40.145:/home/aoxtoken/sub2api`，项目 `sub2api` |
 
 - [ ] **G0：** 2026-10-16 02:06 +08 之后完成阶段 D 的 24 小时复查，Claude 复核通过：诊断缓存、错误分类、网关错误/延迟、资源与重启。未通过则不部署 .24；原备份和 .22 镜像继续保留。
