@@ -4,6 +4,8 @@ Verified 2026-10-15 Asia/Singapore. Diagnostics are enabled following the author
 
 For the subproxy integration rollout, see [the release and rollout plan](SUBPROXY_RELEASE_PLAN.md). Stage D was explicitly authorized on 2026-10-15; the 24-hour follow-up remains pending.
 
+The .24 image has been published, but production remains on .23. Its proposed upgrade, Gemini explicit-cache cleanup/rollback and Compose consolidation are described in [the .24 deployment plan](AOX24_DEPLOYMENT_PLAN.md); plan approval does not authorize deployment.
+
 - SSH: `ssh -o BatchMode=yes aoxtoken@20.195.40.145` (default port; existing local SSH key).
 - Directory: `/home/aoxtoken/sub2api`.
 - Compose services: sub2api, postgres, redis. Application bound to 127.0.0.1:8080.
