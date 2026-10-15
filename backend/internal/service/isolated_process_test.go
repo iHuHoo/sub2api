@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-// Memory measurements count the whole process, including other tests' workers.
+// Isolate process-wide state changes and memory measurements from other tests' workers.
 func runTestInIsolatedProcess(t *testing.T) bool {
 	t.Helper()
 	const key = "SUB2API_ISOLATED_MEMORY_TEST"
