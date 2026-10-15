@@ -19,6 +19,10 @@ func useGroupUsageTestTimezone(t *testing.T, name string) {
 }
 
 func TestGroupUsageDateUsesConfiguredTimezoneBoundary(t *testing.T) {
+	// Changing the process timezone must not race with other tests' workers.
+	if runTestInIsolatedProcess(t) {
+		return
+	}
 	useGroupUsageTestTimezone(t, "America/New_York")
 
 	beforeMidnight := time.Date(2026, 3, 9, 3, 59, 59, 0, time.UTC)
@@ -30,6 +34,10 @@ func TestGroupUsageDateUsesConfiguredTimezoneBoundary(t *testing.T) {
 }
 
 func TestGroupUsageParseDateUsesConfiguredTimezone(t *testing.T) {
+	// Changing the process timezone must not race with other tests' workers.
+	if runTestInIsolatedProcess(t) {
+		return
+	}
 	useGroupUsageTestTimezone(t, "America/New_York")
 
 	parsed, err := ParseGroupUsageDate("2026-03-08")
@@ -39,6 +47,10 @@ func TestGroupUsageParseDateUsesConfiguredTimezone(t *testing.T) {
 }
 
 func TestGroupUsageYesterdayStartHandlesDST(t *testing.T) {
+	// Changing the process timezone must not race with other tests' workers.
+	if runTestInIsolatedProcess(t) {
+		return
+	}
 	useGroupUsageTestTimezone(t, "America/New_York")
 
 	todayStart := time.Date(2026, 3, 9, 4, 0, 0, 0, time.UTC)
