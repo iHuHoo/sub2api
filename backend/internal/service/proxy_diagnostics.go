@@ -98,6 +98,15 @@ func (s *ProxyDiagnosticsService) Enabled() bool { return s != nil && s.client !
 func warnDiagnosticsFailure(id int64, classification string) {
 	slog.Warn("proxy_diagnostics_failed", "proxy_id", id, "classification", classification)
 }
+
+// Only caller cancellation is benign; deadlines and client timeouts remain failures.
+func diagnosticsCancelled(ctx context.Context, id int64) bool {
+	if ctx.Err() != context.Canceled {
+		return false
+	}
+	slog.Debug("proxy_diagnostics_cancelled", "proxy_id", id, "classification", "cancelled")
+	return true
+}
 func (s *ProxyDiagnosticsService) fingerprint(p *Proxy) string {
 	// Fixed struct ordering is the canonical serialization; include token to invalidate on rotation.
 	b, _ := json.Marshal(struct {
@@ -110,6 +119,9 @@ func (s *ProxyDiagnosticsService) fingerprint(p *Proxy) string {
 }
 func (s *ProxyDiagnosticsService) Check(ctx context.Context, id int64, mode string) (DiagnosticsResponse, error) {
 	var result DiagnosticsResponse
+	if diagnosticsCancelled(ctx, id) {
+		return DiagnosticsResponse{}, context.Canceled
+	}
 	if !s.Enabled() {
 		slog.Debug("proxy_diagnostics_disabled", "proxy_id", id, "classification", "diagnostics_disabled")
 		return result, ErrDiagnosticsDisabled
@@ -119,6 +131,9 @@ func (s *ProxyDiagnosticsService) Check(ctx context.Context, id int64, mode stri
 		return result, apperrors.BadRequest("INVALID_MODE", "Mode must be quick or sample")
 	}
 	p, e := s.repo.GetByID(ctx, id)
+	if diagnosticsCancelled(ctx, id) {
+		return DiagnosticsResponse{}, context.Canceled
+	}
 	if e != nil {
 		warnDiagnosticsFailure(id, "proxy_read_failed")
 		return result, e
@@ -126,7 +141,11 @@ func (s *ProxyDiagnosticsService) Check(ctx context.Context, id int64, mode stri
 	fingerprint := s.fingerprint(p)
 	var sequence string
 	if s.cache != nil {
-		if seq, err := s.cache.Reserve(ctx, id, fingerprint); err == nil {
+		seq, err := s.cache.Reserve(ctx, id, fingerprint)
+		if diagnosticsCancelled(ctx, id) {
+			return DiagnosticsResponse{}, context.Canceled
+		}
+		if err == nil {
 			sequence = seq
 		} else {
 			warnDiagnosticsFailure(id, "cache_reserve_failed")
@@ -149,11 +168,17 @@ func (s *ProxyDiagnosticsService) Check(ctx context.Context, id int64, mode stri
 	req.Header.Set("Authorization", "Bearer "+s.token)
 	resp, e := s.client.Do(req)
 	if e != nil {
+		if diagnosticsCancelled(ctx, id) {
+			return DiagnosticsResponse{}, context.Canceled
+		}
 		warnDiagnosticsFailure(id, "service_unavailable")
 		return result, ErrDiagnosticsUnavailable
 	}
 	defer func() { _ = resp.Body.Close() }()
 	raw, e := io.ReadAll(io.LimitReader(resp.Body, 256*1024+1))
+	if diagnosticsCancelled(ctx, id) {
+		return DiagnosticsResponse{}, context.Canceled
+	}
 	if e != nil || len(raw) > 256*1024 {
 		warnDiagnosticsFailure(id, "response_read_failed")
 		return result, ErrDiagnosticsUnavailable
@@ -211,6 +236,9 @@ func (s *ProxyDiagnosticsService) Check(ctx context.Context, id int64, mode stri
 		return result, ErrDiagnosticsUnavailable
 	}
 	current, e := s.repo.GetByID(ctx, id)
+	if diagnosticsCancelled(ctx, id) {
+		return DiagnosticsResponse{}, context.Canceled
+	}
 	if e != nil {
 		warnDiagnosticsFailure(id, "proxy_read_failed")
 		return result, e
@@ -224,8 +252,15 @@ func (s *ProxyDiagnosticsService) Check(ctx context.Context, id int64, mode stri
 		warnDiagnosticsFailure(id, "report_invalid")
 		return result, ErrDiagnosticsUnavailable
 	}
+
+	if diagnosticsCancelled(ctx, id) {
+		return DiagnosticsResponse{}, context.Canceled
+	}
 	if sequence != "" {
 		result.Saved, e = s.cache.CommitIfLatest(ctx, id, sequence, fingerprint, result.Report)
+		if diagnosticsCancelled(ctx, id) {
+			return DiagnosticsResponse{}, context.Canceled
+		}
 		if e != nil {
 			result.Saved = false
 			warnDiagnosticsFailure(id, "cache_commit_failed")
@@ -236,11 +271,17 @@ func (s *ProxyDiagnosticsService) Check(ctx context.Context, id int64, mode stri
 	return result, nil
 }
 func (s *ProxyDiagnosticsService) Latest(ctx context.Context, id int64) (DiagnosticsResponse, error) {
+	if diagnosticsCancelled(ctx, id) {
+		return DiagnosticsResponse{}, context.Canceled
+	}
 	if !s.Enabled() {
 		slog.Debug("proxy_diagnostics_disabled", "proxy_id", id, "classification", "diagnostics_disabled")
 		return DiagnosticsResponse{}, ErrDiagnosticsDisabled
 	}
 	p, e := s.repo.GetByID(ctx, id)
+	if diagnosticsCancelled(ctx, id) {
+		return DiagnosticsResponse{}, context.Canceled
+	}
 	if e != nil {
 		warnDiagnosticsFailure(id, "proxy_read_failed")
 		return DiagnosticsResponse{}, e
@@ -250,6 +291,9 @@ func (s *ProxyDiagnosticsService) Latest(ctx context.Context, id int64) (Diagnos
 		return DiagnosticsResponse{}, ErrDiagnosticsReportNotFound
 	}
 	cached, e := s.cache.Get(ctx, id)
+	if diagnosticsCancelled(ctx, id) {
+		return DiagnosticsResponse{}, context.Canceled
+	}
 	if e != nil {
 		warnDiagnosticsFailure(id, "cache_read_failed")
 		return DiagnosticsResponse{}, ErrDiagnosticsReportNotFound

@@ -3,6 +3,7 @@
 package service
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -10,6 +11,7 @@ import (
 	apperrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 	"github.com/stretchr/testify/require"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -248,7 +250,11 @@ func TestDiagnosticsServiceCancellationAndTimeout(t *testing.T) {
 			if cancel {
 				stop()
 			}
-			require.ErrorIs(t, <-done, ErrDiagnosticsUnavailable)
+			if cancel {
+				require.ErrorIs(t, <-done, context.Canceled)
+			} else {
+				require.ErrorIs(t, <-done, ErrDiagnosticsUnavailable)
+			}
 			select {
 			case <-ended:
 			case <-time.After(time.Second):
@@ -277,4 +283,130 @@ func TestDiagnosticsDisabledHasNoClientOrSecrets(t *testing.T) {
 	require.ErrorIs(t, e, ErrDiagnosticsDisabled)
 	_, e = s.Latest(context.Background(), 1)
 	require.ErrorIs(t, e, ErrDiagnosticsDisabled)
+}
+
+// Cancellation at either HTTP boundary must preserve the last completed report.
+func TestDiagnosticsCancellationDuringHTTP(t *testing.T) {
+	for _, body := range []bool{false, true} {
+		t.Run(strconv.FormatBool(body), func(t *testing.T) {
+			var logs bytes.Buffer
+			previous := slog.Default()
+			slog.SetDefault(slog.New(slog.NewJSONHandler(&logs, &slog.HandlerOptions{Level: slog.LevelDebug})))
+			defer slog.SetDefault(previous)
+			entered := make(chan struct{})
+			release := make(chan struct{})
+			s, _, cache := diagnosticsTestService(t, func(w http.ResponseWriter, r *http.Request) {
+				_, _ = io.Copy(io.Discard, r.Body)
+				if body {
+					w.WriteHeader(200)
+					_, _ = w.Write([]byte(`{"schema_version":`))
+					w.(http.Flusher).Flush()
+				}
+				close(entered)
+				<-release
+			})
+			defer close(release)
+			cache.report = CachedDiagnosticsReport{Report: json.RawMessage(`{"previous":true}`)}
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			done := make(chan error, 1)
+			go func() { _, err := s.Check(ctx, 1, "quick"); done <- err }()
+			<-entered
+			cancel()
+			err := <-done
+			require.ErrorIs(t, err, context.Canceled)
+			require.Equal(t, `{"previous":true}`, string(cache.report.Report))
+			require.Contains(t, logs.String(), `"classification":"cancelled"`)
+			require.NotContains(t, logs.String(), `"level":"WARN"`)
+			require.NotContains(t, logs.String(), `"level":"ERROR"`)
+			require.NotContains(t, logs.String(), "proxy-password")
+			require.NotContains(t, logs.String(), "test-service-token")
+		})
+	}
+}
+
+type diagnosticsCancelRepo struct {
+	ProxyRepository
+	cancel    context.CancelFunc
+	calls, at int
+}
+
+func (r *diagnosticsCancelRepo) GetByID(ctx context.Context, id int64) (*Proxy, error) {
+	r.calls++
+	if r.calls == r.at {
+		r.cancel()
+	}
+	return r.ProxyRepository.GetByID(ctx, id)
+}
+func TestDiagnosticsCancellationAfterProxyRead(t *testing.T) {
+	for _, at := range []int{1, 2} {
+		t.Run(strconv.Itoa(at), func(t *testing.T) {
+			s, repo, cache := diagnosticsTestService(t, func(w http.ResponseWriter, r *http.Request) { diagnosticsReply(t, w, r) })
+			cache.report = CachedDiagnosticsReport{Report: json.RawMessage(`{"previous":true}`)}
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			s.repo = &diagnosticsCancelRepo{ProxyRepository: repo, cancel: cancel, at: at}
+			_, err := s.Check(ctx, 1, "quick")
+			require.ErrorIs(t, err, context.Canceled)
+			require.Equal(t, `{"previous":true}`, string(cache.report.Report))
+		})
+	}
+}
+
+type diagnosticsCancelCache struct {
+	ProxyDiagnosticsCache
+	cancel context.CancelFunc
+	stage  string
+}
+
+func (c diagnosticsCancelCache) Reserve(ctx context.Context, id int64, fp string) (string, error) {
+	if c.stage == "reserve" {
+		c.cancel()
+		return "", ctx.Err()
+	}
+	return c.ProxyDiagnosticsCache.Reserve(ctx, id, fp)
+}
+func (c diagnosticsCancelCache) CommitIfLatest(ctx context.Context, id int64, seq, fp string, r json.RawMessage) (bool, error) {
+	if c.stage == "commit" {
+		c.cancel()
+		return false, ctx.Err()
+	}
+	return c.ProxyDiagnosticsCache.CommitIfLatest(ctx, id, seq, fp, r)
+}
+func (c diagnosticsCancelCache) Get(ctx context.Context, id int64) (CachedDiagnosticsReport, error) {
+	c.cancel()
+	return CachedDiagnosticsReport{}, ctx.Err()
+}
+func TestDiagnosticsCancellationDuringCache(t *testing.T) {
+	for _, stage := range []string{"reserve", "commit", "latest"} {
+		t.Run(stage, func(t *testing.T) {
+			var logs bytes.Buffer
+			previous := slog.Default()
+			slog.SetDefault(slog.New(slog.NewJSONHandler(&logs, &slog.HandlerOptions{Level: slog.LevelDebug})))
+			defer slog.SetDefault(previous)
+			s, _, cache := diagnosticsTestService(t, func(w http.ResponseWriter, r *http.Request) { diagnosticsReply(t, w, r) })
+			cache.report = CachedDiagnosticsReport{Report: json.RawMessage(`{"previous":true}`)}
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			s.cache = diagnosticsCancelCache{cache, cancel, stage}
+			var err error
+			if stage == "latest" {
+				_, err = s.Latest(ctx, 1)
+			} else {
+				_, err = s.Check(ctx, 1, "quick")
+			}
+			require.ErrorIs(t, err, context.Canceled)
+			require.Equal(t, `{"previous":true}`, string(cache.report.Report))
+			require.Contains(t, logs.String(), `"classification":"cancelled"`)
+			require.NotContains(t, logs.String(), `"level":"WARN"`)
+		})
+	}
+}
+
+func TestDiagnosticsCallerDeadlineRemainsFailure(t *testing.T) {
+	s, _, _ := diagnosticsTestService(t, func(w http.ResponseWriter, r *http.Request) {})
+	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(-time.Second))
+	defer cancel()
+	_, err := s.Check(ctx, 1, "quick")
+	require.ErrorIs(t, err, ErrDiagnosticsUnavailable)
 }

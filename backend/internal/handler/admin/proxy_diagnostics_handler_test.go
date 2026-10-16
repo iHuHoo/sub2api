@@ -3,11 +3,13 @@
 package admin
 
 import (
+	"bytes"
 	"context"
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
+	"log"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -91,6 +93,34 @@ func TestDiagnosticsHandlerRetryAfter(t *testing.T) {
 				require.Equal(t, tc.want, w.Header().Get("Retry-After"))
 			}
 			require.NotContains(t, w.Body.String(), "private-secret")
+		})
+	}
+}
+
+func TestDiagnosticsHandlerCancellation(t *testing.T) {
+	t.Setenv("DIAGNOSTICS_TEST_TOKEN", "test-token")
+	t.Setenv("DIAGNOSTICS_TEST_HMAC", strings.Repeat("h", 32))
+	cfg := &config.Config{Subproxy: config.SubproxyConfig{Enabled: true, BaseURL: "http://127.0.0.1:1", AllowInternalHTTP: true, Token: config.SubproxySecretRef{Env: "DIAGNOSTICS_TEST_TOKEN"}, HMACSecret: config.SubproxySecretRef{Env: "DIAGNOSTICS_TEST_HMAC"}}}
+	svc, err := service.NewProxyDiagnosticsService(diagnosticsHandlerRepo{}, nil, cfg)
+	require.NoError(t, err)
+	h := NewProxyDiagnosticsHandler(svc)
+	r := gin.New()
+	r.POST("/:id/diagnostics", h.Check)
+	r.GET("/:id/diagnostics", h.Latest)
+	for _, method := range []string{"POST", "GET"} {
+		t.Run(method, func(t *testing.T) {
+			var logs bytes.Buffer
+			previous := log.Writer()
+			log.SetOutput(&logs)
+			defer log.SetOutput(previous)
+			ctx, cancel := context.WithCancel(context.Background())
+			cancel()
+			req := httptest.NewRequest(method, "/1/diagnostics", strings.NewReader(`{"mode":"quick"}`)).WithContext(ctx)
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
+			require.Equal(t, 499, w.Code)
+			require.Empty(t, w.Body.String())
+			require.NotContains(t, logs.String(), "ERROR")
 		})
 	}
 }
