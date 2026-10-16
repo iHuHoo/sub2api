@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	apperrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/gin-gonic/gin"
@@ -47,6 +48,11 @@ func (h *ProxyDiagnosticsHandler) Check(c *gin.Context) {
 		if seconds := service.RetryAfterSecondsFromError(e); seconds > 0 {
 			c.Header("Retry-After", strconv.Itoa(seconds))
 		}
+		if errors.Is(e, service.ErrDiagnosticsDisabled) {
+			statusCode, status := apperrors.ToHTTP(e)
+			response.ErrorWithDetails(c, statusCode, status.Message, status.Reason, status.Metadata)
+			return
+		}
 		response.ErrorFrom(c, e)
 		return
 	}
@@ -62,6 +68,11 @@ func (h *ProxyDiagnosticsHandler) Latest(c *gin.Context) {
 	if e != nil {
 		if errors.Is(e, context.Canceled) && c.Request.Context().Err() == context.Canceled {
 			c.AbortWithStatus(499) // Client closed request; keep it out of server-error logs.
+			return
+		}
+		if errors.Is(e, service.ErrDiagnosticsDisabled) {
+			statusCode, status := apperrors.ToHTTP(e)
+			response.ErrorWithDetails(c, statusCode, status.Message, status.Reason, status.Metadata)
 			return
 		}
 		response.ErrorFrom(c, e)
