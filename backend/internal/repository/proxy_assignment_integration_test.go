@@ -44,6 +44,9 @@ func TestProxyAssignmentFirstAssignmentAndRevoke(t *testing.T) {
 	got, err := r.AssignSupplier(ctx, p.ID, nil, &u.ID)
 	require.NoError(t, err)
 	require.True(t, got.AssignmentValid)
+	var assignmentEvents int
+	require.NoError(t, scanSingleRow(ctx, tx, `SELECT count(*) FROM scheduler_outbox WHERE account_id=$1 AND event_type=$2`, []any{a.ID, service.SchedulerOutboxEventAccountChanged}, &assignmentEvents))
+	require.Positive(t, assignmentEvents, "first assignment refreshes existing bound accounts without probe metadata")
 	_, err = r.AssignSupplier(ctx, p.ID, &u.ID, &u.ID)
 	require.NoError(t, err)
 	_, err = r.AssignSupplier(ctx, p.ID, &u.ID, nil)
@@ -305,4 +308,43 @@ func TestProxyAssignmentDerivedParentBindingSerialization(t *testing.T) {
 	require.NoError(t, childTx.Commit())
 	require.Error(t, <-done)
 	require.NoError(t, parentTx.Rollback())
+}
+
+func TestAssignedProxyExpiryFallbackIntegration(t *testing.T) {
+	for _, backup := range []bool{true, false} {
+		t.Run(fmt.Sprintf("backup=%v", backup), func(t *testing.T) {
+			ctx := context.Background()
+			tx := testEntTx(t)
+			c := tx.Client()
+			r := newProxyRepositoryWithSQL(c, tx)
+			u, err := c.User.Create().SetEmail(fmt.Sprintf("expiry-%v@test.invalid", backup)).SetPasswordHash("unused").SetRole("supplier").SetStatus("active").Save(ctx)
+			require.NoError(t, err)
+			p := &service.Proxy{Name: "expired-assigned", Protocol: "http", Host: "private.internal", Port: 80, Status: service.StatusActive}
+			require.NoError(t, r.Create(ctx, p))
+			_, err = r.AssignSupplier(ctx, p.ID, nil, &u.ID)
+			require.NoError(t, err)
+			wantID := p.ID
+			if backup {
+				b := &service.Proxy{Name: "same-owner-backup", Protocol: "http", Host: "backup.internal", Port: 80, Status: service.StatusActive, SupplierUserID: &u.ID}
+				require.NoError(t, r.Create(ctx, b))
+				_, err = c.Proxy.UpdateOneID(p.ID).SetFallbackMode(service.FallbackModeProxy).SetBackupProxyID(b.ID).Save(ctx)
+				require.NoError(t, err)
+				wantID = b.ID
+			}
+			a, err := c.Account.Create().SetName("expiry-account").SetPlatform("openai").SetType("apikey").SetCredentials(map[string]any{}).SetSupplierUserID(u.ID).SetProxyID(p.ID).SetSchedulable(true).Save(ctx)
+			require.NoError(t, err)
+			_, err = c.Proxy.UpdateOneID(p.ID).SetExpiresAt(time.Now().Add(-time.Hour)).Save(ctx)
+			require.NoError(t, err)
+			_, err = r.SweepExpiredProxies(ctx, time.Now())
+			require.NoError(t, err)
+			fresh, err := newAccountRepositoryWithSQL(c, tx, nil).GetByID(ctx, a.ID)
+			require.NoError(t, err)
+			require.NotNil(t, fresh.ProxyID, "expiry must never enable direct egress")
+			require.Equal(t, wantID, *fresh.ProxyID)
+			require.Equal(t, backup, fresh.IsSchedulable())
+			var events int
+			require.NoError(t, scanSingleRow(ctx, tx, `SELECT count(*) FROM scheduler_outbox WHERE account_id=$1 OR payload @> jsonb_build_object('account_ids',jsonb_build_array($1::bigint))`, []any{a.ID}, &events))
+			require.Positive(t, events, "expiry refreshes the bound account even without a fallback")
+		})
+	}
 }

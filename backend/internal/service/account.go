@@ -22,7 +22,6 @@ import (
 )
 
 type Account struct {
-	ProxyBindingMissing     bool `json:"-"`
 	SupplierUserID          *int64
 	SupplierName            string
 	SupplierPaused          bool
@@ -3283,16 +3282,7 @@ func (a *Account) QuotaDimensionOrDefault() string {
 
 // An expired assigned proxy must await a validated fallback, never direct egress.
 func (a *Account) proxyAssignmentUsable() bool {
-	if a.ProxyBindingMissing {
-		return false
-	}
-	if a.ProxyID == nil {
-		return true
-	}
-	if a.Proxy == nil {
-		return false
-	}
-	if a.Proxy.AssignedSupplierUserID == nil {
+	if a.Proxy == nil || a.Proxy.AssignedSupplierUserID == nil {
 		return true
 	}
 	return a.SupplierUserID != nil && *a.SupplierUserID == *a.Proxy.AssignedSupplierUserID && a.Proxy.AssignmentValid && a.Proxy.IsActive() && !a.Proxy.IsExpired(time.Now())

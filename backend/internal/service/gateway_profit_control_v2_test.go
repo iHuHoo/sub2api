@@ -303,8 +303,6 @@ type gatewayProfitSnapshotCache struct {
 }
 
 func (c *gatewayProfitSnapshotCache) GetAccount(context.Context, int64) (*Account, error) {
-	if c.account != nil {
-	}
 	return c.account, c.err
 }
 
@@ -327,7 +325,7 @@ func TestGatewayProfitControlTerminalRefreshUsesReplacementObject(t *testing.T) 
 	snapshot := NewSchedulerSnapshotService(
 		&gatewayProfitSnapshotCache{account: &replacement},
 		nil,
-		gatewayProfitAccountRepo{account: &replacement},
+		gatewayProfitAccountRepo{},
 		nil,
 		nil,
 	)
@@ -476,11 +474,4 @@ func (c *sentinelMissGatewayCache) GetSessionAccountID(ctx context.Context, grou
 		return id, nil
 	}
 	return 0, ErrStickySessionNotFound
-}
-
-func (r gatewayProfitAccountRepo) RefreshAccountProxies(ctx context.Context, accounts []*Account) error {
-	if r.err != nil {
-		return r.err
-	}
-	return bindingFixtures(r.account).RefreshAccountProxies(ctx, accounts)
 }

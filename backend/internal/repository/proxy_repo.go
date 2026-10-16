@@ -192,6 +192,11 @@ func updateProxyAndInvalidateProbeSnapshots(ctx context.Context, client *dbent.C
 	if err != nil {
 		return nil, err
 	}
+	if updated.AssignedSupplierUserID != nil {
+		if err := enqueueAssignedProxyChanged(ctx, client, proxyIn.ID); err != nil {
+			return nil, err
+		}
+	}
 	if currentIdentity == proxyProbeIdentityFromService(proxyIn) {
 		return updated, nil
 	}
@@ -798,6 +803,11 @@ func (r *proxyRepository) sweepOneExpiredProxyOnExec(ctx context.Context, exec s
 		return nil, nil
 	}
 	if !change {
+		if snapshot.AssignedSupplierUserID != nil {
+			if err := enqueueAssignedProxyChanged(ctx, exec, proxyID); err != nil {
+				return nil, err
+			}
+		}
 		accountIDs, err := invalidateProxyProbeSnapshots(ctx, exec, proxyID)
 		if err != nil {
 			return nil, err
@@ -873,4 +883,11 @@ func (r *proxyRepository) CountExpiringSoon(ctx context.Context, now time.Time) 
 		  AND expires_at > $2 AND expires_at <= $2 + (expiry_warn_days || ' days')::interval`,
 		[]any{service.StatusActive, now}, &c)
 	return c, err
+}
+
+// Assigned proxy changes affect scheduling even when accounts have no probe snapshot.
+func enqueueAssignedProxyChanged(ctx context.Context, exec sqlExecutor, proxyID int64) error {
+	_, err := exec.ExecContext(ctx, `INSERT INTO scheduler_outbox (event_type, account_id, created_at)
+ SELECT $1,id,NOW() FROM accounts WHERE proxy_id=$2 AND deleted_at IS NULL`, service.SchedulerOutboxEventAccountChanged, proxyID)
+	return err
 }

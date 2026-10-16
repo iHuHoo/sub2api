@@ -4,8 +4,10 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	entsql "entgo.io/ent/dialect/sql"
 	"errors"
 	"fmt"
+	"github.com/Wei-Shaw/sub2api/ent/predicate"
 	"strings"
 	"time"
 
@@ -304,7 +306,9 @@ func (r *supplierRepository) PauseAccount(ctx context.Context, owner, id int64, 
 	return r.GetAccount(ctx, owner, id)
 }
 func (r *supplierRepository) ListProxies(ctx context.Context, owner int64, p pagination.PaginationParams) ([]service.Proxy, int64, error) {
-	q := r.client.Proxy.Query().Where(proxy.Or(proxy.SupplierUserIDEQ(owner), proxy.AssignedSupplierUserIDEQ(owner)))
+	q := r.client.Proxy.Query().Where(proxy.Or(proxy.SupplierUserIDEQ(owner), proxy.And(proxy.AssignedSupplierUserIDEQ(owner), predicate.Proxy(func(s *entsql.Selector) {
+		s.Where(entsql.ExprP("EXISTS (SELECT 1 FROM users au WHERE au.id = " + s.C("assigned_supplier_user_id") + " AND au.deleted_at IS NULL AND au.status = 'active' AND au.role = 'supplier')"))
+	}))))
 	total, err := q.Clone().Count(ctx)
 	if err != nil {
 		return nil, 0, err

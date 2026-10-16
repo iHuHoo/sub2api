@@ -472,14 +472,7 @@ func (s *OpenAIGatewayService) validateCurrentGrokCredentialFailure(
 		}
 		return "", fmt.Errorf("%w: %v", errOAuthRefreshAccountRereadFailed, err)
 	}
-	// Validate account state separately so a missing proxy retains its dedicated quarantine reason.
-	eligibility := latest
-	if latest != nil && class.reason == GrokCredentialReasonProxyInvalid && latest.ProxyID != nil && latest.Proxy == nil {
-		copy := *latest
-		copy.ProxyID = nil
-		eligibility = &copy
-	}
-	if latest == nil || !latest.IsGrokOAuth() || !eligibility.IsSchedulable() || s.isOpenAIAccountRuntimeBlocked(latest) {
+	if latest == nil || !latest.IsGrokOAuth() || !latest.IsSchedulable() || s.isOpenAIAccountRuntimeBlocked(latest) {
 		return "", errOAuthRefreshAccountStateChanged
 	}
 	latestSnapshot := grokCredentialMutationSnapshot(latest)

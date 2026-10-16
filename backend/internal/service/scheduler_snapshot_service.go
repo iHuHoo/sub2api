@@ -226,16 +226,7 @@ func (s *SchedulerSnapshotService) ListSchedulableAccounts(ctx context.Context, 
 		if err != nil {
 			logger.LegacyPrintf("service.scheduler_snapshot", "[Scheduler] cache read failed: bucket=%s err=%v", bucket.String(), err)
 		} else if hit {
-			if err := s.refreshCachedAccountProxies(ctx, cached); err != nil {
-				return nil, useMixed, err
-			}
-			eligible := make([]*Account, 0, len(cached))
-			for _, a := range cached {
-				if a != nil && a.proxyAssignmentUsable() {
-					eligible = append(eligible, a)
-				}
-			}
-			return derefAccounts(eligible), useMixed, nil
+			return derefAccounts(cached), useMixed, nil
 		}
 		token, err := s.cache.CaptureBucketWriteToken(ctx, bucket)
 		if ctxErr := ctx.Err(); ctxErr != nil {
@@ -296,12 +287,6 @@ func (s *SchedulerSnapshotService) GetAccount(ctx context.Context, accountID int
 		if err != nil {
 			logger.LegacyPrintf("service.scheduler_snapshot", "[Scheduler] account cache read failed: id=%d err=%v", accountID, err)
 		} else if account != nil {
-			if err := s.refreshCachedAccountProxies(ctx, []*Account{account}); err != nil {
-				return nil, err
-			}
-			if account.ProxyBindingMissing {
-				return nil, ErrAccountNotFound
-			}
 			return account, nil
 		}
 	}
@@ -1747,18 +1732,4 @@ func (l *fallbackLimiter) Allow() bool {
 	}
 	l.count++
 	return true
-}
-
-// Even a cached direct binding can have changed since the snapshot was written.
-func (s *SchedulerSnapshotService) refreshCachedAccountProxies(ctx context.Context, accounts []*Account) error {
-	if len(accounts) == 0 {
-		return nil
-	}
-	repo, ok := s.accountRepo.(interface {
-		RefreshAccountProxies(context.Context, []*Account) error
-	})
-	if !ok {
-		return fmt.Errorf("scheduler proxy assignment validation unavailable")
-	}
-	return repo.RefreshAccountProxies(ctx, accounts)
 }

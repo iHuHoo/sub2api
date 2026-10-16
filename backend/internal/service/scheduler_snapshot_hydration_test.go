@@ -85,7 +85,8 @@ func (c *snapshotHydrationCache) SetOutboxWatermark(ctx context.Context, id int6
 func TestOpenAISelectAccountWithLoadAwareness_HydratesSelectedAccountFromSchedulerSnapshot(t *testing.T) {
 	cache := &snapshotHydrationCache{
 		snapshot: []*Account{
-			{ID: 1,
+			{
+				ID:          1,
 				Platform:    PlatformOpenAI,
 				Type:        AccountTypeAPIKey,
 				Status:      StatusActive,
@@ -100,7 +101,8 @@ func TestOpenAISelectAccountWithLoadAwareness_HydratesSelectedAccountFromSchedul
 			},
 		},
 		accounts: map[int64]*Account{
-			1: {ID: 1,
+			1: {
+				ID:          1,
 				Platform:    PlatformOpenAI,
 				Type:        AccountTypeAPIKey,
 				Status:      StatusActive,
@@ -115,7 +117,7 @@ func TestOpenAISelectAccountWithLoadAwareness_HydratesSelectedAccountFromSchedul
 		},
 	}
 
-	schedulerSnapshot := NewSchedulerSnapshotService(cache, nil, hydrationBindings(cache), nil, nil)
+	schedulerSnapshot := NewSchedulerSnapshotService(cache, nil, nil, nil, nil)
 	groupID := int64(2)
 	svc := &OpenAIGatewayService{
 		schedulerSnapshot: schedulerSnapshot,
@@ -162,7 +164,8 @@ func TestOpenAINewAcquiredSelectionResult_ReleasesSlotWhenHydrationFails(t *test
 func TestGatewaySelectAccountWithLoadAwareness_HydratesSelectedAccountFromSchedulerSnapshot(t *testing.T) {
 	cache := &snapshotHydrationCache{
 		snapshot: []*Account{
-			{ID: 9,
+			{
+				ID:          9,
 				Platform:    PlatformAnthropic,
 				Type:        AccountTypeAPIKey,
 				Status:      StatusActive,
@@ -172,7 +175,8 @@ func TestGatewaySelectAccountWithLoadAwareness_HydratesSelectedAccountFromSchedu
 			},
 		},
 		accounts: map[int64]*Account{
-			9: {ID: 9,
+			9: {
+				ID:          9,
 				Platform:    PlatformAnthropic,
 				Type:        AccountTypeAPIKey,
 				Status:      StatusActive,
@@ -186,7 +190,7 @@ func TestGatewaySelectAccountWithLoadAwareness_HydratesSelectedAccountFromSchedu
 		},
 	}
 
-	schedulerSnapshot := NewSchedulerSnapshotService(cache, nil, hydrationBindings(cache), nil, nil)
+	schedulerSnapshot := NewSchedulerSnapshotService(cache, nil, nil, nil, nil)
 	svc := &GatewayService{
 		schedulerSnapshot: schedulerSnapshot,
 		cache:             &mockGatewayCacheForPlatform{},
@@ -209,7 +213,8 @@ func TestGatewaySelectAccountWithLoadAwareness_SkipsAntigravityGeminiFamilyRateL
 	resetAt := time.Now().Add(10 * time.Minute).Format(time.RFC3339)
 	cache := &snapshotHydrationCache{
 		snapshot: []*Account{
-			{ID: 1,
+			{
+				ID:          1,
 				Platform:    PlatformAntigravity,
 				Type:        AccountTypeOAuth,
 				Status:      StatusActive,
@@ -253,7 +258,7 @@ func TestGatewaySelectAccountWithLoadAwareness_SkipsAntigravityGeminiFamilyRateL
 	}
 	groupID := int64(22)
 	svc := &GatewayService{
-		schedulerSnapshot: NewSchedulerSnapshotService(cache, nil, hydrationBindings(cache), nil, nil),
+		schedulerSnapshot: NewSchedulerSnapshotService(cache, nil, nil, nil, nil),
 		groupRepo: &mockGroupRepoForGateway{
 			groups: map[int64]*Group{
 				groupID: {
@@ -287,49 +292,5 @@ func TestGatewaySelectAccountWithLoadAwareness_SkipsAntigravityGeminiFamilyRateL
 	}
 	if result.Account.ID != 2 {
 		t.Fatalf("expected scheduler to skip Gemini-family limited antigravity account 1, got %d", result.Account.ID)
-	}
-}
-
-func hydrationBindings(c *snapshotHydrationCache) bindingFixtureRepo {
-	accounts := append([]*Account{}, c.snapshot...)
-	for _, a := range c.accounts {
-		accounts = append(accounts, a)
-	}
-	return bindingFixtures(accounts...)
-}
-func TestFinalHydrationUsesCurrentBindings(t *testing.T) {
-	owner, proxy := int64(9), int64(8)
-	for _, change := range []string{"unbind-revoke", "unbind-reassign", "direct-to-unavailable", "deleted"} {
-		t.Run(change, func(t *testing.T) {
-			old := &Account{ID: 1, SupplierUserID: &owner, ProxyID: &proxy, Proxy: &Proxy{AssignedSupplierUserID: &owner, Status: StatusActive, AssignmentValid: true}}
-			live := *old
-			live.ProxyID = nil
-			live.Proxy = nil
-			if change == "direct-to-unavailable" {
-				old.ProxyID = nil
-				old.Proxy = nil
-				live.ProxyID = &proxy
-				live.Proxy = &Proxy{AssignedSupplierUserID: &owner, Status: StatusDisabled, AssignmentValid: true}
-			}
-			repo := bindingFixtures(&live)
-			if change == "deleted" {
-				delete(repo.bindings, 1)
-			}
-			cache := &snapshotHydrationCache{accounts: map[int64]*Account{1: old}}
-			snapshot := NewSchedulerSnapshotService(cache, nil, repo, nil, nil)
-			checks := []func(context.Context, *Account) (*Account, error){(&GatewayService{schedulerSnapshot: snapshot}).hydrateSelectedAccount, (&GeminiMessagesCompatService{schedulerSnapshot: snapshot}).hydrateSelectedAccount}
-			for _, check := range checks {
-				got, err := check(context.Background(), old)
-				if change == "direct-to-unavailable" || change == "deleted" {
-					if err == nil {
-						t.Fatal("unavailable binding accepted")
-					}
-				} else {
-					if err != nil || got.Proxy != nil || got.ProxyID != nil {
-						t.Fatalf("stale proxy retained: %v %v", got, err)
-					}
-				}
-			}
-		})
 	}
 }

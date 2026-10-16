@@ -75,7 +75,8 @@ func TestGatewayOpenAICompatibleHandlersClaudeCodeOnlyFallback(t *testing.T) {
 
 	// 账号不带 api_key：转发在取令牌时失败，请求不会触达上游，断言只看选号结果。
 	newAccount := func(id, groupID int64) *service.Account {
-		return &service.Account{ID: id, Platform: service.PlatformAnthropic, Type: service.AccountTypeAPIKey,
+		return &service.Account{
+			ID: id, Platform: service.PlatformAnthropic, Type: service.AccountTypeAPIKey,
 			Status: service.StatusActive, Schedulable: true, Concurrency: 1,
 			AccountGroups: []service.AccountGroup{{AccountID: id, GroupID: groupID}},
 		}
@@ -130,7 +131,7 @@ func TestGatewayOpenAICompatibleHandlersClaudeCodeOnlyFallback(t *testing.T) {
 						primaryGroupID:  primary,
 						fallbackGroupID: fallback,
 					}}, nil, nil, nil, nil, nil, nil, nil,
-					service.NewSchedulerSnapshotService(schedulerCache, nil, fixtureBindingRepo(schedulerCache.accounts), nil, nil),
+					service.NewSchedulerSnapshotService(schedulerCache, nil, nil, nil, nil),
 					nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
 				)
 				cfg := &config.Config{RunMode: config.RunModeSimple}

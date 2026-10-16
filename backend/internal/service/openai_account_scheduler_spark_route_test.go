@@ -16,14 +16,9 @@ func TestSparkRoutingByModel(t *testing.T) {
 	sparkCreds := map[string]any{"model_mapping": defaultSparkShadowModelMapping()}
 
 	newScheduler := func(snapshot map[int64]*Account) *defaultOpenAIAccountScheduler {
-		accounts := make([]*Account, 0, len(snapshot))
-		for _, a := range snapshot {
-			accounts = append(accounts, a)
-		}
 		return &defaultOpenAIAccountScheduler{service: &OpenAIGatewayService{
 			schedulerSnapshot: &SchedulerSnapshotService{
-				cache:       &openAISnapshotCacheStub{accountsByID: snapshot},
-				accountRepo: bindingFixtures(accounts...),
+				cache: &openAISnapshotCacheStub{accountsByID: snapshot},
 			},
 			cfg: &config.Config{},
 		}}
@@ -101,7 +96,7 @@ func TestParentHealthSchedulerIntegration(t *testing.T) {
 		snapshotCache := &openAISnapshotCacheStub{
 			accountsByID: map[int64]*Account{parent.ID: parent},
 		}
-		snapshotSvc := &SchedulerSnapshotService{cache: snapshotCache, accountRepo: bindingFixtures(parent)}
+		snapshotSvc := &SchedulerSnapshotService{cache: snapshotCache}
 		svc := &OpenAIGatewayService{
 			schedulerSnapshot: snapshotSvc,
 			cfg:               &config.Config{},

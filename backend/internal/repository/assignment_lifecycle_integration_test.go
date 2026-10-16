@@ -4,8 +4,8 @@ package repository
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/stretchr/testify/require"
 	"testing"
@@ -70,10 +70,6 @@ func TestAssignedProxySupplierLifecycleIntegration(t *testing.T) {
 	}
 	check := func(want bool) {
 		t.Helper()
-		legacy := []*service.Account{{ID: a.ID, Status: service.StatusActive, Schedulable: true}}
-		require.NoError(t, ar.RefreshAccountProxies(ctx, legacy))
-		require.Equal(t, &p.ID, legacy[0].ProxyID)
-		require.Equal(t, want, legacy[0].IsSchedulable())
 		fresh, e := ar.GetByID(ctx, a.ID)
 		require.NoError(t, e)
 		require.Equal(t, want, fresh.IsSchedulable())
@@ -90,6 +86,15 @@ func TestAssignedProxySupplierLifecycleIntegration(t *testing.T) {
 		rows, e := ar.ListSchedulableCapacityByGroupIDs(ctx, []int64{g.ID})
 		require.NoError(t, e)
 		require.Equal(t, want, len(rows) > 0)
+		visible, total, e := newSupplierRepository(c, c, nil).ListProxies(ctx, u.ID, pagination.PaginationParams{Page: 1, PageSize: 10})
+		require.NoError(t, e)
+		if want {
+			require.EqualValues(t, 1, total)
+			require.Len(t, visible, 1)
+		} else {
+			require.Zero(t, total)
+			require.Empty(t, visible)
+		}
 		live, e := pr.GetByID(ctx, p.ID)
 		require.NoError(t, e)
 		require.Equal(t, &u.ID, live.AssignedSupplierUserID)
@@ -107,6 +112,41 @@ func TestAssignedProxySupplierLifecycleIntegration(t *testing.T) {
 		require.NoError(t, e)
 		require.Greater(t, after, before)
 	}
+	check(true)
+	// Proxy changes must refresh accounts without billing probe metadata, including expiry-only edits.
+	for _, expire := range []bool{true, false} {
+		live, e := pr.GetByID(ctx, p.ID)
+		require.NoError(t, e)
+		if expire {
+			past := time.Now().Add(-time.Hour)
+			live.ExpiresAt = &past
+		} else {
+			live.ExpiresAt = nil
+		}
+		before, e := countEvents(a.ID)
+		require.NoError(t, e)
+		require.NoError(t, pr.Update(ctx, live))
+		after, e := countEvents(a.ID)
+		require.NoError(t, e)
+		require.Greater(t, after, before)
+		fresh, e := ar.GetByID(ctx, a.ID)
+		require.NoError(t, e)
+		require.Equal(t, !expire, fresh.IsSchedulable())
+	}
+	beforeProxyRollback, e := countEvents(a.ID)
+	require.NoError(t, e)
+	proxyTx, e := c.Tx(ctx)
+	require.NoError(t, e)
+	proxyClient := proxyTx.Client()
+	proxyRepo := newProxyRepositoryWithSQL(proxyClient, proxyClient)
+	live, e := proxyRepo.GetByID(ctx, p.ID)
+	require.NoError(t, e)
+	live.Status = service.StatusDisabled
+	require.NoError(t, proxyRepo.Update(ctx, live))
+	require.NoError(t, proxyTx.Rollback())
+	afterProxyRollback, e := countEvents(a.ID)
+	require.NoError(t, e)
+	require.Equal(t, beforeProxyRollback, afterProxyRollback)
 	check(true)
 	update("supplier", "disabled")
 	check(false)
@@ -160,55 +200,4 @@ func TestAssignedProxySupplierLifecycleIntegration(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, fresh.SupplierPaused)
 	require.False(t, fresh.IsSchedulable())
-	// Retain production payloads across committed binding and assignment changes.
-	_, err = c.Account.UpdateOneID(a.ID).SetSupplierPaused(false).Save(ctx)
-	require.NoError(t, err)
-	fresh, err = ar.GetByID(ctx, a.ID)
-	require.NoError(t, err)
-	full, meta, err := marshalSchedulerCacheAccount(*fresh)
-	require.NoError(t, err)
-	verifyPayload := func(payload []byte, bound bool, usable bool) {
-		t.Helper()
-		var cached service.Account
-		require.NoError(t, json.Unmarshal(payload, &cached))
-		snapshot := service.NewSchedulerSnapshotService(&assignmentBoundaryCache{snapshot: []*service.Account{&cached}}, nil, ar, nil, nil)
-		got, e := snapshot.GetAccount(ctx, a.ID)
-		require.NoError(t, e)
-		require.Equal(t, usable, got.IsSchedulable())
-		if bound {
-			require.Equal(t, &p.ID, got.ProxyID)
-		} else {
-			require.Nil(t, got.ProxyID)
-			require.Nil(t, got.Proxy)
-		}
-	}
-	_, err = c.Account.UpdateOneID(a.ID).ClearProxyID().Save(ctx)
-	require.NoError(t, err)
-	_, err = pr.AssignSupplier(ctx, p.ID, &u.ID, nil)
-	require.NoError(t, err)
-	for _, payload := range [][]byte{full, meta} {
-		verifyPayload(payload, false, true)
-	}
-	other, err := c.User.Create().SetEmail(fmt.Sprintf("binding-other-%d@test.invalid", time.Now().UnixNano())).SetPasswordHash("unused").SetRole("supplier").SetStatus("active").Save(ctx)
-	require.NoError(t, err)
-	defer func() { _, e := c.ExecContext(ctx, "DELETE FROM users WHERE id=$1", other.ID); require.NoError(t, e) }()
-	_, err = pr.AssignSupplier(ctx, p.ID, nil, &other.ID)
-	require.NoError(t, err)
-	for _, payload := range [][]byte{full, meta} {
-		verifyPayload(payload, false, true)
-	}
-	_, err = pr.AssignSupplier(ctx, p.ID, &other.ID, &u.ID)
-	require.NoError(t, err)
-	fresh, err = ar.GetByID(ctx, a.ID)
-	require.NoError(t, err)
-	full, meta, err = marshalSchedulerCacheAccount(*fresh)
-	require.NoError(t, err)
-	_, err = c.Account.UpdateOneID(a.ID).SetProxyID(p.ID).Save(ctx)
-	require.NoError(t, err)
-	_, err = c.Proxy.UpdateOneID(p.ID).SetStatus("disabled").Save(ctx)
-	require.NoError(t, err)
-	for _, payload := range [][]byte{full, meta} {
-		verifyPayload(payload, true, false)
-	}
-
 }

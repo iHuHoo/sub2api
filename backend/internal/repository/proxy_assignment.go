@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	dbent "github.com/Wei-Shaw/sub2api/ent"
+	"github.com/Wei-Shaw/sub2api/ent/proxy"
 	"github.com/Wei-Shaw/sub2api/ent/user"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 )
@@ -46,7 +47,7 @@ func (r *proxyRepository) AssignSupplier(ctx context.Context, id int64, expected
 	client, exec := r.client, r.sql
 	if tx != nil {
 		client, exec = tx.Client(), tx
-		defer tx.Rollback()
+		defer func() { _ = tx.Rollback() }()
 	}
 	// Reference triggers hold FOR SHARE on this row until commit. Lock it before
 	// scanning references so committed bindings are visible and new bindings wait.
@@ -115,7 +116,7 @@ func (r *proxyRepository) AssignSupplier(ctx context.Context, id int64, expected
 			return proxyEntityToService(p), service.ErrProxyAssignmentInvalid
 		}
 		if p.BackupProxyID != nil {
-			b, err := client.Proxy.Get(ctx, *p.BackupProxyID)
+			b, err := client.Proxy.Query().Where(proxy.IDEQ(*p.BackupProxyID), proxy.DeletedAtIsNil()).Only(ctx)
 			if err != nil {
 				return proxyEntityToService(p), service.ErrProxyAssignmentInvalid
 			}
@@ -129,6 +130,11 @@ func (r *proxyRepository) AssignSupplier(ctx context.Context, id int64, expected
 		}
 		if _, err = exec.ExecContext(ctx, `UPDATE proxies SET assigned_supplier_user_id=$2,updated_at=NOW() WHERE id=$1`, id, target); err != nil {
 			return nil, normalizeProxyOwnershipError(err)
+		}
+		if target != nil {
+			if err := enqueueAssignedProxyChanged(ctx, exec, id); err != nil {
+				return nil, err
+			}
 		}
 		changed, err := invalidateProxyProbeSnapshots(ctx, exec, id)
 		if err != nil {

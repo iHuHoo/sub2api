@@ -2136,7 +2136,7 @@ func (r *accountRepository) ListSchedulableCapacityByGroupIDs(ctx context.Contex
 			AND a.status = $2
 			AND a.schedulable = TRUE
 			AND a.supplier_paused = FALSE
-            AND (a.proxy_id IS NULL OR EXISTS (SELECT 1 FROM proxies ap WHERE ap.id = a.proxy_id AND ap.deleted_at IS NULL AND (ap.assigned_supplier_user_id IS NULL OR (ap.status = 'active' AND (ap.expires_at IS NULL OR ap.expires_at > NOW()) AND EXISTS (SELECT 1 FROM users au WHERE au.id = ap.assigned_supplier_user_id AND au.deleted_at IS NULL AND au.status = 'active' AND au.role = 'supplier')))))
+            AND (NOT EXISTS (SELECT 1 FROM proxies ap WHERE ap.id = a.proxy_id AND ap.deleted_at IS NULL AND ap.assigned_supplier_user_id IS NOT NULL AND NOT (ap.status = 'active' AND (ap.expires_at IS NULL OR ap.expires_at > NOW()) AND EXISTS (SELECT 1 FROM users au WHERE au.id = ap.assigned_supplier_user_id AND au.deleted_at IS NULL AND au.status = 'active' AND au.role = 'supplier'))))
 			AND (a.parent_account_id IS NULL OR EXISTS (SELECT 1 FROM accounts parent WHERE parent.id = a.parent_account_id AND parent.deleted_at IS NULL AND parent.supplier_paused = FALSE))
 			AND (a.temp_unschedulable_until IS NULL OR a.temp_unschedulable_until <= $3)
 			AND (a.expires_at IS NULL OR a.expires_at > $3 OR a.auto_pause_on_expired = FALSE)
@@ -4157,60 +4157,8 @@ func (r *accountRepository) ListShadowsByParent(ctx context.Context, parentID in
 	return out, nil
 }
 
-// RefreshAccountProxies validates every cached binding against the current account row.
-func (r *accountRepository) RefreshAccountProxies(ctx context.Context, accounts []*service.Account) error {
-	accountIDs := make([]int64, 0, len(accounts))
-	for _, a := range accounts {
-		if a != nil {
-			accountIDs = append(accountIDs, a.ID)
-		}
-	}
-	if len(accountIDs) == 0 {
-		return nil
-	}
-	var bindings []struct {
-		ID             int64
-		ProxyID        *int64 `json:"proxy_id"`
-		SupplierUserID *int64 `json:"supplier_user_id"`
-	}
-	if err := r.client.Account.Query().Where(dbaccount.IDIn(accountIDs...)).Select(dbaccount.FieldID, dbaccount.FieldProxyID, dbaccount.FieldSupplierUserID).Scan(ctx, &bindings); err != nil {
-		return err
-	}
-	byID := make(map[int64]int, len(bindings))
-	for i, b := range bindings {
-		byID[b.ID] = i
-	}
-	ids := make([]int64, 0, len(accounts))
-	for _, a := range accounts {
-		if a == nil {
-			continue
-		}
-		i, ok := byID[a.ID]
-		a.ProxyBindingMissing = !ok
-		a.ProxyID, a.Proxy = nil, nil
-		if !ok {
-			continue
-		}
-		a.ProxyID = bindings[i].ProxyID
-		a.SupplierUserID = bindings[i].SupplierUserID
-		if a.ProxyID != nil {
-			ids = append(ids, *a.ProxyID)
-		}
-	}
-	proxies, err := r.loadProxies(ctx, ids)
-	if err != nil {
-		return err
-	}
-	for _, a := range accounts {
-		if a != nil && a.ProxyID != nil {
-			a.Proxy = proxies[*a.ProxyID]
-		}
-	}
-	return nil
-}
-
 func proxyAssignmentAvailablePredicate() dbpredicate.Account {
 	return dbpredicate.Account(func(s *entsql.Selector) {
-		s.Where(entsql.ExprP("(" + s.C("proxy_id") + " IS NULL OR EXISTS (SELECT 1 FROM proxies ap WHERE ap.id = " + s.C("proxy_id") + " AND ap.deleted_at IS NULL AND (ap.assigned_supplier_user_id IS NULL OR (ap.status = 'active' AND (ap.expires_at IS NULL OR ap.expires_at > NOW()) AND EXISTS (SELECT 1 FROM users au WHERE au.id = ap.assigned_supplier_user_id AND au.deleted_at IS NULL AND au.status = 'active' AND au.role = 'supplier')))))"))
+		s.Where(entsql.ExprP("NOT EXISTS (SELECT 1 FROM proxies ap WHERE ap.id = " + s.C("proxy_id") + " AND ap.deleted_at IS NULL AND ap.assigned_supplier_user_id IS NOT NULL AND NOT (ap.status = 'active' AND (ap.expires_at IS NULL OR ap.expires_at > NOW()) AND EXISTS (SELECT 1 FROM users au WHERE au.id = ap.assigned_supplier_user_id AND au.deleted_at IS NULL AND au.status = 'active' AND au.role = 'supplier')))"))
 	})
 }
