@@ -79,6 +79,20 @@ func (_c *ProxyCreate) SetNillableSupplierUserID(v *int64) *ProxyCreate {
 	return _c
 }
 
+// SetAssignedSupplierUserID sets the "assigned_supplier_user_id" field.
+func (_c *ProxyCreate) SetAssignedSupplierUserID(v int64) *ProxyCreate {
+	_c.mutation.SetAssignedSupplierUserID(v)
+	return _c
+}
+
+// SetNillableAssignedSupplierUserID sets the "assigned_supplier_user_id" field if the given value is not nil.
+func (_c *ProxyCreate) SetNillableAssignedSupplierUserID(v *int64) *ProxyCreate {
+	if v != nil {
+		_c.SetAssignedSupplierUserID(*v)
+	}
+	return _c
+}
+
 // SetName sets the "name" field.
 func (_c *ProxyCreate) SetName(v string) *ProxyCreate {
 	_c.mutation.SetName(v)
@@ -409,6 +423,10 @@ func (_c *ProxyCreate) createSpec() (*Proxy, *sqlgraph.CreateSpec) {
 		_spec.SetField(proxy.FieldSupplierUserID, field.TypeInt64, value)
 		_node.SupplierUserID = &value
 	}
+	if value, ok := _c.mutation.AssignedSupplierUserID(); ok {
+		_spec.SetField(proxy.FieldAssignedSupplierUserID, field.TypeInt64, value)
+		_node.AssignedSupplierUserID = &value
+	}
 	if value, ok := _c.mutation.Name(); ok {
 		_spec.SetField(proxy.FieldName, field.TypeString, value)
 		_node.Name = value
@@ -577,6 +595,30 @@ func (u *ProxyUpsert) UpdateDeletedAt() *ProxyUpsert {
 // ClearDeletedAt clears the value of the "deleted_at" field.
 func (u *ProxyUpsert) ClearDeletedAt() *ProxyUpsert {
 	u.SetNull(proxy.FieldDeletedAt)
+	return u
+}
+
+// SetAssignedSupplierUserID sets the "assigned_supplier_user_id" field.
+func (u *ProxyUpsert) SetAssignedSupplierUserID(v int64) *ProxyUpsert {
+	u.Set(proxy.FieldAssignedSupplierUserID, v)
+	return u
+}
+
+// UpdateAssignedSupplierUserID sets the "assigned_supplier_user_id" field to the value that was provided on create.
+func (u *ProxyUpsert) UpdateAssignedSupplierUserID() *ProxyUpsert {
+	u.SetExcluded(proxy.FieldAssignedSupplierUserID)
+	return u
+}
+
+// AddAssignedSupplierUserID adds v to the "assigned_supplier_user_id" field.
+func (u *ProxyUpsert) AddAssignedSupplierUserID(v int64) *ProxyUpsert {
+	u.Add(proxy.FieldAssignedSupplierUserID, v)
+	return u
+}
+
+// ClearAssignedSupplierUserID clears the value of the "assigned_supplier_user_id" field.
+func (u *ProxyUpsert) ClearAssignedSupplierUserID() *ProxyUpsert {
+	u.SetNull(proxy.FieldAssignedSupplierUserID)
 	return u
 }
 
@@ -828,6 +870,34 @@ func (u *ProxyUpsertOne) UpdateDeletedAt() *ProxyUpsertOne {
 func (u *ProxyUpsertOne) ClearDeletedAt() *ProxyUpsertOne {
 	return u.Update(func(s *ProxyUpsert) {
 		s.ClearDeletedAt()
+	})
+}
+
+// SetAssignedSupplierUserID sets the "assigned_supplier_user_id" field.
+func (u *ProxyUpsertOne) SetAssignedSupplierUserID(v int64) *ProxyUpsertOne {
+	return u.Update(func(s *ProxyUpsert) {
+		s.SetAssignedSupplierUserID(v)
+	})
+}
+
+// AddAssignedSupplierUserID adds v to the "assigned_supplier_user_id" field.
+func (u *ProxyUpsertOne) AddAssignedSupplierUserID(v int64) *ProxyUpsertOne {
+	return u.Update(func(s *ProxyUpsert) {
+		s.AddAssignedSupplierUserID(v)
+	})
+}
+
+// UpdateAssignedSupplierUserID sets the "assigned_supplier_user_id" field to the value that was provided on create.
+func (u *ProxyUpsertOne) UpdateAssignedSupplierUserID() *ProxyUpsertOne {
+	return u.Update(func(s *ProxyUpsert) {
+		s.UpdateAssignedSupplierUserID()
+	})
+}
+
+// ClearAssignedSupplierUserID clears the value of the "assigned_supplier_user_id" field.
+func (u *ProxyUpsertOne) ClearAssignedSupplierUserID() *ProxyUpsertOne {
+	return u.Update(func(s *ProxyUpsert) {
+		s.ClearAssignedSupplierUserID()
 	})
 }
 
@@ -1273,6 +1343,34 @@ func (u *ProxyUpsertBulk) UpdateDeletedAt() *ProxyUpsertBulk {
 func (u *ProxyUpsertBulk) ClearDeletedAt() *ProxyUpsertBulk {
 	return u.Update(func(s *ProxyUpsert) {
 		s.ClearDeletedAt()
+	})
+}
+
+// SetAssignedSupplierUserID sets the "assigned_supplier_user_id" field.
+func (u *ProxyUpsertBulk) SetAssignedSupplierUserID(v int64) *ProxyUpsertBulk {
+	return u.Update(func(s *ProxyUpsert) {
+		s.SetAssignedSupplierUserID(v)
+	})
+}
+
+// AddAssignedSupplierUserID adds v to the "assigned_supplier_user_id" field.
+func (u *ProxyUpsertBulk) AddAssignedSupplierUserID(v int64) *ProxyUpsertBulk {
+	return u.Update(func(s *ProxyUpsert) {
+		s.AddAssignedSupplierUserID(v)
+	})
+}
+
+// UpdateAssignedSupplierUserID sets the "assigned_supplier_user_id" field to the value that was provided on create.
+func (u *ProxyUpsertBulk) UpdateAssignedSupplierUserID() *ProxyUpsertBulk {
+	return u.Update(func(s *ProxyUpsert) {
+		s.UpdateAssignedSupplierUserID()
+	})
+}
+
+// ClearAssignedSupplierUserID clears the value of the "assigned_supplier_user_id" field.
+func (u *ProxyUpsertBulk) ClearAssignedSupplierUserID() *ProxyUpsertBulk {
+	return u.Update(func(s *ProxyUpsert) {
+		s.ClearAssignedSupplierUserID()
 	})
 }
 

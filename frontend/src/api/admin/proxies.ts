@@ -115,6 +115,14 @@ export async function update(id: number, updates: UpdateProxyRequest): Promise<P
  * @param id - Proxy ID
  * @returns Success confirmation
  */
+export async function assignSupplier(id: number, assignment: {
+  expected_supplier_user_id: number | null
+  supplier_user_id: number | null
+}): Promise<Proxy> {
+  const { data } = await apiClient.put<Proxy>(`/admin/proxies/${id}/assignment`, assignment)
+  return data
+}
+
 export async function deleteProxy(id: number): Promise<{ message: string }> {
   const { data } = await apiClient.delete<{ message: string }>(`/admin/proxies/${id}`)
   return data
@@ -294,6 +302,7 @@ export async function getDiagnostics(id: number, options?: { signal?: AbortSigna
 }
 
 export const proxiesAPI = {
+  assignSupplier,
   diagnosticsCapabilities,
   checkDiagnostics,
   getDiagnostics,

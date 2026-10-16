@@ -25,6 +25,8 @@ type Proxy struct {
 	DeletedAt *time.Time `json:"deleted_at,omitempty"`
 	// SupplierUserID holds the value of the "supplier_user_id" field.
 	SupplierUserID *int64 `json:"supplier_user_id,omitempty"`
+	// AssignedSupplierUserID holds the value of the "assigned_supplier_user_id" field.
+	AssignedSupplierUserID *int64 `json:"assigned_supplier_user_id,omitempty"`
 	// Name holds the value of the "name" field.
 	Name string `json:"name,omitempty"`
 	// Protocol holds the value of the "protocol" field.
@@ -100,7 +102,7 @@ func (*Proxy) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
-		case proxy.FieldID, proxy.FieldSupplierUserID, proxy.FieldPort, proxy.FieldBackupProxyID, proxy.FieldExpiryWarnDays:
+		case proxy.FieldID, proxy.FieldSupplierUserID, proxy.FieldAssignedSupplierUserID, proxy.FieldPort, proxy.FieldBackupProxyID, proxy.FieldExpiryWarnDays:
 			values[i] = new(sql.NullInt64)
 		case proxy.FieldName, proxy.FieldProtocol, proxy.FieldHost, proxy.FieldUsername, proxy.FieldPassword, proxy.FieldStatus, proxy.FieldFallbackMode:
 			values[i] = new(sql.NullString)
@@ -152,6 +154,13 @@ func (_m *Proxy) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.SupplierUserID = new(int64)
 				*_m.SupplierUserID = value.Int64
+			}
+		case proxy.FieldAssignedSupplierUserID:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field assigned_supplier_user_id", values[i])
+			} else if value.Valid {
+				_m.AssignedSupplierUserID = new(int64)
+				*_m.AssignedSupplierUserID = value.Int64
 			}
 		case proxy.FieldName:
 			if value, ok := values[i].(*sql.NullString); !ok {
@@ -287,6 +296,11 @@ func (_m *Proxy) String() string {
 	builder.WriteString(", ")
 	if v := _m.SupplierUserID; v != nil {
 		builder.WriteString("supplier_user_id=")
+		builder.WriteString(fmt.Sprintf("%v", *v))
+	}
+	builder.WriteString(", ")
+	if v := _m.AssignedSupplierUserID; v != nil {
+		builder.WriteString("assigned_supplier_user_id=")
 		builder.WriteString(fmt.Sprintf("%v", *v))
 	}
 	builder.WriteString(", ")

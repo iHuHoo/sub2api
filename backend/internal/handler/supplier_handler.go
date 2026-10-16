@@ -78,7 +78,7 @@ func bindSupplierJSON(c *gin.Context, v any) bool {
 	return true
 }
 func supplierError(c *gin.Context, err error) {
-	for _, safe := range []error{service.ErrSupplierUnavailable, service.ErrSupplierInvalid, service.ErrSupplierReadOnly, service.ErrSupplierProxyInUse} {
+	for _, safe := range []error{service.ErrSupplierUnavailable, service.ErrSupplierInvalid, service.ErrSupplierReadOnly, service.ErrSupplierProxyInUse, service.ErrSupplierProxyReadOnly} {
 		if errors.Is(err, safe) {
 			response.ErrorFrom(c, safe)
 			return

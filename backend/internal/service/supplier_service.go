@@ -16,10 +16,11 @@ import (
 )
 
 var (
-	ErrSupplierUnavailable = infraerrors.NotFound("SUPPLIER_RESOURCE_UNAVAILABLE", "Resource unavailable")
-	ErrSupplierInvalid     = infraerrors.BadRequest("SUPPLIER_INVALID_INPUT", "Invalid supplier input")
-	ErrSupplierReadOnly    = infraerrors.Conflict("SUPPLIER_ACCOUNT_READ_ONLY", "Derived account is read-only")
-	ErrSupplierProxyInUse  = infraerrors.Conflict("SUPPLIER_PROXY_IN_USE", "Proxy is in use")
+	ErrSupplierUnavailable   = infraerrors.NotFound("SUPPLIER_RESOURCE_UNAVAILABLE", "Resource unavailable")
+	ErrSupplierInvalid       = infraerrors.BadRequest("SUPPLIER_INVALID_INPUT", "Invalid supplier input")
+	ErrSupplierReadOnly      = infraerrors.Conflict("SUPPLIER_ACCOUNT_READ_ONLY", "Derived account is read-only")
+	ErrSupplierProxyReadOnly = infraerrors.Forbidden("SUPPLIER_PROXY_READ_ONLY", "Assigned proxy is read-only")
+	ErrSupplierProxyInUse    = infraerrors.Conflict("SUPPLIER_PROXY_IN_USE", "Proxy is in use")
 )
 
 type SupplierAccountCreate struct {
@@ -66,16 +67,18 @@ type SupplierProxyInput struct {
 }
 
 type SupplierProxy struct {
-	ID          int64     `json:"id"`
-	Name        string    `json:"name"`
-	Protocol    string    `json:"protocol"`
-	Host        string    `json:"host"`
-	Port        int       `json:"port"`
-	Username    string    `json:"username"`
-	HasPassword bool      `json:"has_password"`
-	Status      string    `json:"status"`
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
+	ReadOnly    bool       `json:"read_only"`
+	ExpiresAt   *time.Time `json:"expires_at"`
+	ID          int64      `json:"id"`
+	Name        string     `json:"name"`
+	Protocol    string     `json:"protocol"`
+	Host        string     `json:"host"`
+	Port        int        `json:"port"`
+	Username    string     `json:"username"`
+	HasPassword bool       `json:"has_password"`
+	Status      string     `json:"status"`
+	CreatedAt   time.Time  `json:"created_at"`
+	UpdatedAt   time.Time  `json:"updated_at"`
 }
 
 type SupplierTokens struct {
@@ -124,13 +127,13 @@ func NewSupplierService(repo SupplierRepository, tokenInvalidator TokenCacheInva
 
 func supplierAccountView(a *Account, owner int64) SupplierAccount {
 	out := SupplierAccount{ID: a.ID, Name: a.Name, Notes: a.SupplierNotes, Platform: a.Platform, Type: a.Type, Status: a.Status, SupplierPaused: a.SupplierPaused, ReadOnly: a.ParentAccountID != nil, ExpiresAt: a.ExpiresAt, CreatedAt: a.CreatedAt, UpdatedAt: a.UpdatedAt}
-	if a.Proxy != nil && a.Proxy.SupplierUserID != nil && *a.Proxy.SupplierUserID == owner {
+	if a.Proxy.AccessibleToSupplier(owner) {
 		out.ProxyID = a.ProxyID
 	}
 	return out
 }
 func supplierProxyView(p *Proxy) SupplierProxy {
-	return SupplierProxy{ID: p.ID, Name: p.Name, Protocol: p.Protocol, Host: p.Host, Port: p.Port, Username: p.Username, HasPassword: p.Password != "", Status: p.Status, CreatedAt: p.CreatedAt, UpdatedAt: p.UpdatedAt}
+	return SupplierProxy{ReadOnly: p.AssignedSupplierUserID != nil, ExpiresAt: p.ExpiresAt, ID: p.ID, Name: p.Name, Protocol: p.Protocol, Host: p.Host, Port: p.Port, Username: p.Username, HasPassword: p.Password != "", Status: p.Status, CreatedAt: p.CreatedAt, UpdatedAt: p.UpdatedAt}
 }
 func (s *SupplierService) ListAccounts(ctx context.Context, owner int64, p pagination.PaginationParams) ([]SupplierAccount, int64, error) {
 	rows, total, err := s.repo.ListAccounts(ctx, owner, p)
@@ -271,6 +274,9 @@ func (s *SupplierService) UpdateProxy(ctx context.Context, owner, id int64, in S
 	if err != nil {
 		return nil, err
 	}
+	if p.AssignedSupplierUserID != nil {
+		return nil, ErrSupplierProxyReadOnly
+	}
 	applySupplierProxyInput(p, in)
 	if err = validateSupplierProxy(p); err != nil {
 		return nil, err
@@ -283,6 +289,13 @@ func (s *SupplierService) UpdateProxy(ctx context.Context, owner, id int64, in S
 	return &out, nil
 }
 func (s *SupplierService) DeleteProxy(ctx context.Context, owner, id int64) error {
+	p, err := s.repo.GetProxy(ctx, owner, id)
+	if err != nil {
+		return err
+	}
+	if p.AssignedSupplierUserID != nil {
+		return ErrSupplierProxyReadOnly
+	}
 	return s.repo.DeleteProxy(ctx, owner, id)
 }
 func (s *SupplierService) TestProxy(ctx context.Context, owner, id int64) (*SupplierProxyTest, error) {
@@ -290,8 +303,13 @@ func (s *SupplierService) TestProxy(ctx context.Context, owner, id int64) (*Supp
 	if err != nil {
 		return nil, err
 	}
-	if err = validateSupplierProxy(p); err != nil {
-		return nil, ErrSupplierInvalid
+	if !p.AccessibleToSupplier(owner) {
+		return nil, ErrSupplierUnavailable
+	}
+	if p.AssignedSupplierUserID == nil {
+		if err = validateSupplierProxy(p); err != nil {
+			return nil, ErrSupplierInvalid
+		}
 	}
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
@@ -624,4 +642,20 @@ func validateSupplierServiceAccount(raw string) (string, error) {
 		return "", ErrSupplierInvalid
 	}
 	return string(normalized), nil
+}
+
+// MarshalJSON enforces the assigned-proxy allowlist at every response boundary.
+func (p SupplierProxy) MarshalJSON() ([]byte, error) {
+	if p.ReadOnly {
+		return json.Marshal(struct {
+			ID        int64      `json:"id"`
+			Name      string     `json:"name"`
+			Protocol  string     `json:"protocol"`
+			Status    string     `json:"status"`
+			ReadOnly  bool       `json:"read_only"`
+			ExpiresAt *time.Time `json:"expires_at"`
+		}{p.ID, p.Name, p.Protocol, p.Status, true, p.ExpiresAt})
+	}
+	type plain SupplierProxy
+	return json.Marshal(plain(p))
 }

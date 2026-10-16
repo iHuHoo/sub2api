@@ -956,6 +956,9 @@ export interface ClaudeModel {
 }
 
 export interface Proxy {
+  supplier_user_id?: number | null
+  assigned_supplier_user_id?: number | null
+  assignment_valid?: boolean
   id: number
   name: string
   protocol: ProxyProtocol

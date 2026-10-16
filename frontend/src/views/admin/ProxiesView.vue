@@ -277,8 +277,13 @@
             </span>
           </template>
 
+          <template #cell-assignment="{ row }">
+            <span>{{ row.assigned_supplier_user_id ? '#' + row.assigned_supplier_user_id : '—' }}</span>
+            <span v-if="row.assignment_valid === false" class="block text-sm text-red-600">{{ t('supplier.invalidAssignment') }}</span>
+          </template>
           <template #cell-actions="{ row }">
             <div class="flex items-center gap-1">
+              <button v-if="!row.supplier_user_id" class="btn btn-secondary btn-sm" @click="openAssignment(row)">{{ t('supplier.assignProxy') }}</button>
               <button
                 @click="handleTestConnection(row)"
                 :disabled="testingProxyIds.has(row.id)"
@@ -377,6 +382,21 @@
       </template>
     </TablePageLayout>
 
+    <BaseDialog :show="!!assignmentProxy" :title="t('supplier.assignProxy')" width="normal" @close="!assignmentSaving && (assignmentProxy = null)">
+      <form id="proxy-assignment-form" class="space-y-4" @submit.prevent="saveAssignment">
+        <p>{{ t('supplier.currentAssignment') }}: {{ currentSupplierLabel }}</p>
+        <p v-if="assignmentProxy?.assignment_valid === false" class="text-red-600">{{ t('supplier.invalidAssignment') }}</p>
+        <label class="block"><span class="input-label">{{ t('common.search') }}</span><input v-model="supplierSearch" name="supplier_search" class="input" :disabled="assignmentSaving || suppliersLoading" @keydown.enter.prevent="loadSuppliers(1)" /></label>
+        <button type="button" data-testid="supplier-search" class="btn btn-secondary" :disabled="assignmentSaving || suppliersLoading" @click="loadSuppliers(1)">{{ t('common.search') }}</button>
+        <label class="block"><span class="input-label">{{ t('supplier.assignment') }}</span><select v-model="assignmentTarget" name="supplier_assignment" class="input" :disabled="assignmentSaving || suppliersLoading">
+          <option value="">{{ t('supplier.revokeAssignment') }}</option>
+          <option v-if="assignmentTarget && !supplierChoices.some(user => String(user.id) === assignmentTarget)" :value="assignmentTarget">#{{ assignmentTarget }}</option>
+          <option v-for="user in supplierChoices" :key="user.id" :value="String(user.id)">{{ user.username || user.email }} · #{{ user.id }}</option>
+        </select></label>
+        <div class="flex items-center gap-3"><button type="button" class="btn btn-secondary" :disabled="supplierPage <= 1 || suppliersLoading || assignmentSaving" @click="loadSuppliers(supplierPage - 1)">{{ t('common.back') }}</button><span>{{ supplierPage }} / {{ supplierPages }}</span><button type="button" data-testid="supplier-next" class="btn btn-secondary" :disabled="supplierPage >= supplierPages || suppliersLoading || assignmentSaving" @click="loadSuppliers(supplierPage + 1)">{{ t('common.next') }}</button></div>
+      </form>
+      <template #footer><button class="btn btn-secondary" :disabled="assignmentSaving" @click="assignmentProxy = null">{{ t('common.cancel') }}</button><button form="proxy-assignment-form" type="submit" class="btn btn-primary" :disabled="assignmentSaving || suppliersLoading">{{ t('common.save') }}</button></template>
+    </BaseDialog>
     <!-- Create Proxy Modal -->
     <BaseDialog
       :show="showCreateModal"
@@ -998,7 +1018,7 @@ import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { adminAPI } from '@/api/admin'
-import type { Proxy, ProxyAccountSummary, ProxyProtocol, ProxyQualityCheckResult, ProxyDiagnosticsMode } from '@/types'
+import type { AdminUser, Proxy, ProxyAccountSummary, ProxyProtocol, ProxyQualityCheckResult, ProxyDiagnosticsMode } from '@/types'
 import type { Column } from '@/components/common/types'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import TablePageLayout from '@/components/layout/TablePageLayout.vue'
@@ -1025,6 +1045,61 @@ const { t } = useI18n()
 const appStore = useAppStore()
 const { copyToClipboard } = useClipboard()
 
+const assignmentProxy = ref<Proxy | null>(null)
+const assignmentTarget = ref('')
+const currentSupplier = ref<AdminUser | null>(null)
+const currentSupplierLabel = computed(() => {
+  const id = assignmentProxy.value?.assigned_supplier_user_id
+  if (!id) return '—'
+  const user = currentSupplier.value?.id === id ? currentSupplier.value : supplierChoices.value.find(user => user.id === id)
+  return user ? `${user.username || user.email} · #${id}` : `#${id}`
+})
+const assignmentSaving = ref(false)
+const supplierChoices = ref<AdminUser[]>([])
+const supplierSearch = ref('')
+const supplierPage = ref(1)
+const supplierPages = ref(1)
+const suppliersLoading = ref(false)
+async function loadSuppliers(page: number) {
+  suppliersLoading.value = true
+  try {
+    const response = await adminAPI.users.list(page, 20, { role: 'supplier', status: 'active', search: supplierSearch.value })
+    supplierChoices.value = response.items
+    supplierPage.value = page
+    supplierPages.value = Math.max(1, response.pages)
+  } catch { appStore.showError(t('supplier.failed')) }
+  finally { suppliersLoading.value = false }
+}
+function openAssignment(proxy: Proxy) {
+  if (proxy.supplier_user_id) return
+  assignmentProxy.value = proxy
+  assignmentTarget.value = proxy.assigned_supplier_user_id ? String(proxy.assigned_supplier_user_id) : ''
+  currentSupplier.value = null
+  if (proxy.assigned_supplier_user_id) {
+    void adminAPI.users.getById(proxy.assigned_supplier_user_id, true).then(user => {
+      if (assignmentProxy.value?.id === proxy.id) currentSupplier.value = user
+    }).catch(() => { /* Keep the supplier ID available for deleted or unavailable users. */ })
+  }
+  supplierSearch.value = ''
+  supplierChoices.value = []
+  void loadSuppliers(1)
+}
+async function saveAssignment() {
+  if (!assignmentProxy.value || assignmentSaving.value || suppliersLoading.value) return
+  assignmentSaving.value = true
+  try {
+    await adminAPI.proxies.assignSupplier(assignmentProxy.value.id, {
+      expected_supplier_user_id: assignmentProxy.value.assigned_supplier_user_id ?? null,
+      supplier_user_id: assignmentTarget.value ? Number(assignmentTarget.value) : null
+    })
+    assignmentProxy.value = null
+    appStore.showSuccess(t('supplier.saved'))
+    await loadProxies()
+  } catch (error) {
+    appStore.showError(t((error as { status?: number })?.status === 409 ? 'supplier.assignmentConflict' : 'supplier.failed'))
+  } finally { assignmentSaving.value = false }
+}
+
 const columns = computed<Column[]>(() => [
   { key: 'select', label: '', sortable: false },
   { key: 'name', label: t('admin.proxies.columns.name'), sortable: true },
@@ -1037,6 +1112,7 @@ const columns = computed<Column[]>(() => [
   { key: 'expiry', label: t('admin.proxies.columns.expiry'), sortable: true },
   { key: 'created_at', label: t('admin.proxies.columns.createdAt'), sortable: true },
   { key: 'status', label: t('admin.proxies.columns.status'), sortable: true },
+  { key: 'assignment', label: t('supplier.assignment'), sortable: false },
   { key: 'actions', label: t('admin.proxies.columns.actions'), sortable: false }
 ])
 

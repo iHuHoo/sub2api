@@ -1569,7 +1569,7 @@ func (s *GatewayService) hydrateSelectedAccount(ctx context.Context, account *Ac
 	if hydrated == nil {
 		return nil, fmt.Errorf("selected gateway account %d not found during hydration", account.ID)
 	}
-	if hydrated.SupplierPaused {
+	if hydrated.SupplierPaused || !hydrated.proxyAssignmentUsable() {
 		return nil, ErrNoAvailableAccounts
 	}
 	return hydrated, nil

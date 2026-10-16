@@ -55,6 +55,33 @@ func (_u *ProxyUpdate) ClearDeletedAt() *ProxyUpdate {
 	return _u
 }
 
+// SetAssignedSupplierUserID sets the "assigned_supplier_user_id" field.
+func (_u *ProxyUpdate) SetAssignedSupplierUserID(v int64) *ProxyUpdate {
+	_u.mutation.ResetAssignedSupplierUserID()
+	_u.mutation.SetAssignedSupplierUserID(v)
+	return _u
+}
+
+// SetNillableAssignedSupplierUserID sets the "assigned_supplier_user_id" field if the given value is not nil.
+func (_u *ProxyUpdate) SetNillableAssignedSupplierUserID(v *int64) *ProxyUpdate {
+	if v != nil {
+		_u.SetAssignedSupplierUserID(*v)
+	}
+	return _u
+}
+
+// AddAssignedSupplierUserID adds value to the "assigned_supplier_user_id" field.
+func (_u *ProxyUpdate) AddAssignedSupplierUserID(v int64) *ProxyUpdate {
+	_u.mutation.AddAssignedSupplierUserID(v)
+	return _u
+}
+
+// ClearAssignedSupplierUserID clears the value of the "assigned_supplier_user_id" field.
+func (_u *ProxyUpdate) ClearAssignedSupplierUserID() *ProxyUpdate {
+	_u.mutation.ClearAssignedSupplierUserID()
+	return _u
+}
+
 // SetName sets the "name" field.
 func (_u *ProxyUpdate) SetName(v string) *ProxyUpdate {
 	_u.mutation.SetName(v)
@@ -441,6 +468,15 @@ func (_u *ProxyUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	if _u.mutation.SupplierUserIDCleared() {
 		_spec.ClearField(proxy.FieldSupplierUserID, field.TypeInt64)
 	}
+	if value, ok := _u.mutation.AssignedSupplierUserID(); ok {
+		_spec.SetField(proxy.FieldAssignedSupplierUserID, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedAssignedSupplierUserID(); ok {
+		_spec.AddField(proxy.FieldAssignedSupplierUserID, field.TypeInt64, value)
+	}
+	if _u.mutation.AssignedSupplierUserIDCleared() {
+		_spec.ClearField(proxy.FieldAssignedSupplierUserID, field.TypeInt64)
+	}
 	if value, ok := _u.mutation.Name(); ok {
 		_spec.SetField(proxy.FieldName, field.TypeString, value)
 	}
@@ -648,6 +684,33 @@ func (_u *ProxyUpdateOne) SetNillableDeletedAt(v *time.Time) *ProxyUpdateOne {
 // ClearDeletedAt clears the value of the "deleted_at" field.
 func (_u *ProxyUpdateOne) ClearDeletedAt() *ProxyUpdateOne {
 	_u.mutation.ClearDeletedAt()
+	return _u
+}
+
+// SetAssignedSupplierUserID sets the "assigned_supplier_user_id" field.
+func (_u *ProxyUpdateOne) SetAssignedSupplierUserID(v int64) *ProxyUpdateOne {
+	_u.mutation.ResetAssignedSupplierUserID()
+	_u.mutation.SetAssignedSupplierUserID(v)
+	return _u
+}
+
+// SetNillableAssignedSupplierUserID sets the "assigned_supplier_user_id" field if the given value is not nil.
+func (_u *ProxyUpdateOne) SetNillableAssignedSupplierUserID(v *int64) *ProxyUpdateOne {
+	if v != nil {
+		_u.SetAssignedSupplierUserID(*v)
+	}
+	return _u
+}
+
+// AddAssignedSupplierUserID adds value to the "assigned_supplier_user_id" field.
+func (_u *ProxyUpdateOne) AddAssignedSupplierUserID(v int64) *ProxyUpdateOne {
+	_u.mutation.AddAssignedSupplierUserID(v)
+	return _u
+}
+
+// ClearAssignedSupplierUserID clears the value of the "assigned_supplier_user_id" field.
+func (_u *ProxyUpdateOne) ClearAssignedSupplierUserID() *ProxyUpdateOne {
+	_u.mutation.ClearAssignedSupplierUserID()
 	return _u
 }
 
@@ -1066,6 +1129,15 @@ func (_u *ProxyUpdateOne) sqlSave(ctx context.Context) (_node *Proxy, err error)
 	}
 	if _u.mutation.SupplierUserIDCleared() {
 		_spec.ClearField(proxy.FieldSupplierUserID, field.TypeInt64)
+	}
+	if value, ok := _u.mutation.AssignedSupplierUserID(); ok {
+		_spec.SetField(proxy.FieldAssignedSupplierUserID, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedAssignedSupplierUserID(); ok {
+		_spec.AddField(proxy.FieldAssignedSupplierUserID, field.TypeInt64, value)
+	}
+	if _u.mutation.AssignedSupplierUserIDCleared() {
+		_spec.ClearField(proxy.FieldAssignedSupplierUserID, field.TypeInt64)
 	}
 	if value, ok := _u.mutation.Name(); ok {
 		_spec.SetField(proxy.FieldName, field.TypeString, value)

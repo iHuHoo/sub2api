@@ -60,7 +60,7 @@ func (r *proxyRepository) Create(ctx context.Context, proxyIn *service.Proxy) er
 	if err == nil {
 		applyProxyEntityToService(proxyIn, created)
 	}
-	return err
+	return normalizeProxyOwnershipError(err)
 }
 
 func (r *proxyRepository) GetByID(ctx context.Context, id int64) (*service.Proxy, error) {
@@ -71,7 +71,11 @@ func (r *proxyRepository) GetByID(ctx context.Context, id int64) (*service.Proxy
 		}
 		return nil, err
 	}
-	return proxyEntityToService(m), nil
+	out := proxyEntityToService(m)
+	if err := hydrateProxyAssignmentValidity(ctx, r.client, []*service.Proxy{out}); err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func (r *proxyRepository) ListByIDs(ctx context.Context, ids []int64) ([]service.Proxy, error) {
@@ -89,6 +93,9 @@ func (r *proxyRepository) ListByIDs(ctx context.Context, ids []int64) ([]service
 	out := make([]service.Proxy, 0, len(proxies))
 	for i := range proxies {
 		out = append(out, *proxyEntityToService(proxies[i]))
+	}
+	if err := hydrateProxyAssignmentValues(ctx, r.client, out); err != nil {
+		return nil, err
 	}
 	return out, nil
 }
@@ -113,7 +120,7 @@ func (r *proxyRepository) Update(ctx context.Context, proxyIn *service.Proxy) er
 
 	updated, err := updateProxyAndInvalidateProbeSnapshots(ctx, client, proxyIn)
 	if err != nil {
-		return err
+		return normalizeProxyOwnershipError(err)
 	}
 	if tx != nil {
 		if err := tx.Commit(); err != nil {
@@ -184,6 +191,11 @@ func updateProxyAndInvalidateProbeSnapshots(ctx context.Context, client *dbent.C
 	}
 	if err != nil {
 		return nil, err
+	}
+	if updated.AssignedSupplierUserID != nil {
+		if err := enqueueAssignedProxyChanged(ctx, client, proxyIn.ID); err != nil {
+			return nil, err
+		}
 	}
 	if currentIdentity == proxyProbeIdentityFromService(proxyIn) {
 		return updated, nil
@@ -323,6 +335,9 @@ func (r *proxyRepository) ListWithFilters(ctx context.Context, params pagination
 		outProxies = append(outProxies, *proxyEntityToService(proxies[i]))
 	}
 
+	if err := hydrateProxyAssignmentValues(ctx, r.client, outProxies); err != nil {
+		return nil, nil, err
+	}
 	return outProxies, paginationResultFromTotal(int64(total), params), nil
 }
 
@@ -408,6 +423,9 @@ func (r *proxyRepository) buildProxyWithAccountCountResult(ctx context.Context, 
 		})
 	}
 
+	if err := hydrateProxyAssignmentCounts(ctx, r.client, result); err != nil {
+		return nil, nil, err
+	}
 	return result, paginationResultFromTotal(total, params), nil
 }
 
@@ -451,6 +469,9 @@ func (r *proxyRepository) ListActive(ctx context.Context) ([]service.Proxy, erro
 	outProxies := make([]service.Proxy, 0, len(proxies))
 	for i := range proxies {
 		outProxies = append(outProxies, *proxyEntityToService(proxies[i]))
+	}
+	if err := hydrateProxyAssignmentValues(ctx, r.client, outProxies); err != nil {
+		return nil, err
 	}
 	return outProxies, nil
 }
@@ -582,6 +603,9 @@ func (r *proxyRepository) ListActiveWithAccountCount(ctx context.Context) ([]ser
 		})
 	}
 
+	if err := hydrateProxyAssignmentCounts(ctx, r.client, result); err != nil {
+		return nil, err
+	}
 	return result, nil
 }
 
@@ -590,19 +614,20 @@ func proxyEntityToService(m *dbent.Proxy) *service.Proxy {
 		return nil
 	}
 	out := &service.Proxy{
-		ID:             m.ID,
-		Name:           m.Name,
-		SupplierUserID: m.SupplierUserID,
-		Protocol:       m.Protocol,
-		Host:           m.Host,
-		Port:           m.Port,
-		Status:         m.Status,
-		CreatedAt:      m.CreatedAt,
-		UpdatedAt:      m.UpdatedAt,
-		ExpiresAt:      m.ExpiresAt,
-		FallbackMode:   m.FallbackMode,
-		BackupProxyID:  m.BackupProxyID,
-		ExpiryWarnDays: m.ExpiryWarnDays,
+		ID:                     m.ID,
+		Name:                   m.Name,
+		SupplierUserID:         m.SupplierUserID,
+		AssignedSupplierUserID: m.AssignedSupplierUserID,
+		Protocol:               m.Protocol,
+		Host:                   m.Host,
+		Port:                   m.Port,
+		Status:                 m.Status,
+		CreatedAt:              m.CreatedAt,
+		UpdatedAt:              m.UpdatedAt,
+		ExpiresAt:              m.ExpiresAt,
+		FallbackMode:           m.FallbackMode,
+		BackupProxyID:          m.BackupProxyID,
+		ExpiryWarnDays:         m.ExpiryWarnDays,
 	}
 	if m.Username != nil {
 		out.Username = *m.Username
@@ -631,6 +656,9 @@ func (r *proxyRepository) ListAllForFallback(ctx context.Context) ([]service.Pro
 	out := make([]service.Proxy, 0, len(proxies))
 	for i := range proxies {
 		out = append(out, *proxyEntityToService(proxies[i]))
+	}
+	if err := hydrateProxyAssignmentValues(ctx, r.client, out); err != nil {
+		return nil, err
 	}
 	return out, nil
 }
@@ -731,6 +759,28 @@ func (r *proxyRepository) sweepOneExpiredProxy(ctx context.Context, snapshot ser
 // sweepOneExpiredProxyOnExec 在给定的 sqlExecutor 上执行：标记 expired + 改投账号。
 func (r *proxyRepository) sweepOneExpiredProxyOnExec(ctx context.Context, exec sqlExecutor, snapshot service.Proxy, now time.Time, target *int64, change bool) ([]int64, error) {
 	proxyID := snapshot.ID
+
+	if snapshot.AssignedSupplierUserID != nil {
+		// Recheck the entitlement after the snapshot and hold it through fallback.
+		locked, err := exec.QueryContext(ctx, `SELECT id FROM proxies WHERE id=$1 AND deleted_at IS NULL FOR UPDATE`, proxyID)
+		if err != nil {
+			return nil, err
+		}
+		found := locked.Next()
+		_ = locked.Close()
+		if !found {
+			return nil, nil
+		}
+		live, err := exec.QueryContext(ctx, `SELECT id FROM users WHERE id=$1 AND role='supplier' AND status='active' AND deleted_at IS NULL FOR SHARE`, *snapshot.AssignedSupplierUserID)
+		if err != nil {
+			return nil, err
+		}
+		valid := live.Next()
+		_ = live.Close()
+		if !valid {
+			change = false
+		}
+	}
 	// The UPDATE locks the row and rechecks its predicates after concurrent writes.
 	// If an administrator renewed, disabled or reconfigured the proxy after the
 	// snapshot, leave its accounts untouched and reconsider it on the next sweep.
@@ -738,9 +788,10 @@ func (r *proxyRepository) sweepOneExpiredProxyOnExec(ctx context.Context, exec s
 		UPDATE proxies SET status=$1, updated_at=NOW()
 		WHERE id=$2 AND deleted_at IS NULL AND status=$3
 		  AND expires_at <= $4 AND expires_at = $5
-		  AND fallback_mode=$6 AND backup_proxy_id IS NOT DISTINCT FROM $7`,
+		  AND fallback_mode=$6 AND backup_proxy_id IS NOT DISTINCT FROM $7
+ AND supplier_user_id IS NOT DISTINCT FROM $8 AND assigned_supplier_user_id IS NOT DISTINCT FROM $9`,
 		service.StatusExpired, proxyID, service.StatusActive, now, snapshot.ExpiresAt,
-		snapshot.FallbackMode, snapshot.BackupProxyID)
+		snapshot.FallbackMode, snapshot.BackupProxyID, snapshot.SupplierUserID, snapshot.AssignedSupplierUserID)
 	if err != nil {
 		return nil, err
 	}
@@ -752,6 +803,11 @@ func (r *proxyRepository) sweepOneExpiredProxyOnExec(ctx context.Context, exec s
 		return nil, nil
 	}
 	if !change {
+		if snapshot.AssignedSupplierUserID != nil {
+			if err := enqueueAssignedProxyChanged(ctx, exec, proxyID); err != nil {
+				return nil, err
+			}
+		}
 		accountIDs, err := invalidateProxyProbeSnapshots(ctx, exec, proxyID)
 		if err != nil {
 			return nil, err
@@ -827,4 +883,11 @@ func (r *proxyRepository) CountExpiringSoon(ctx context.Context, now time.Time) 
 		  AND expires_at > $2 AND expires_at <= $2 + (expiry_warn_days || ' days')::interval`,
 		[]any{service.StatusActive, now}, &c)
 	return c, err
+}
+
+// Assigned proxy changes affect scheduling even when accounts have no probe snapshot.
+func enqueueAssignedProxyChanged(ctx context.Context, exec sqlExecutor, proxyID int64) error {
+	_, err := exec.ExecContext(ctx, `INSERT INTO scheduler_outbox (event_type, account_id, created_at)
+ SELECT $1,id,NOW() FROM accounts WHERE proxy_id=$2 AND deleted_at IS NULL`, service.SchedulerOutboxEventAccountChanged, proxyID)
+	return err
 }

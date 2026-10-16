@@ -38907,38 +38907,40 @@ func (m *PromoCodeUsageMutation) ResetEdge(name string) error {
 // ProxyMutation represents an operation that mutates the Proxy nodes in the graph.
 type ProxyMutation struct {
 	config
-	op                     Op
-	typ                    string
-	id                     *int64
-	created_at             *time.Time
-	updated_at             *time.Time
-	deleted_at             *time.Time
-	supplier_user_id       *int64
-	addsupplier_user_id    *int64
-	name                   *string
-	protocol               *string
-	host                   *string
-	port                   *int
-	addport                *int
-	username               *string
-	password               *string
-	status                 *string
-	expires_at             *time.Time
-	fallback_mode          *string
-	expiry_warn_days       *int
-	addexpiry_warn_days    *int
-	clearedFields          map[string]struct{}
-	accounts               map[int64]struct{}
-	removedaccounts        map[int64]struct{}
-	clearedaccounts        bool
-	primary_proxies        map[int64]struct{}
-	removedprimary_proxies map[int64]struct{}
-	clearedprimary_proxies bool
-	backup_proxy           *int64
-	clearedbackup_proxy    bool
-	done                   bool
-	oldValue               func(context.Context) (*Proxy, error)
-	predicates             []predicate.Proxy
+	op                           Op
+	typ                          string
+	id                           *int64
+	created_at                   *time.Time
+	updated_at                   *time.Time
+	deleted_at                   *time.Time
+	supplier_user_id             *int64
+	addsupplier_user_id          *int64
+	assigned_supplier_user_id    *int64
+	addassigned_supplier_user_id *int64
+	name                         *string
+	protocol                     *string
+	host                         *string
+	port                         *int
+	addport                      *int
+	username                     *string
+	password                     *string
+	status                       *string
+	expires_at                   *time.Time
+	fallback_mode                *string
+	expiry_warn_days             *int
+	addexpiry_warn_days          *int
+	clearedFields                map[string]struct{}
+	accounts                     map[int64]struct{}
+	removedaccounts              map[int64]struct{}
+	clearedaccounts              bool
+	primary_proxies              map[int64]struct{}
+	removedprimary_proxies       map[int64]struct{}
+	clearedprimary_proxies       bool
+	backup_proxy                 *int64
+	clearedbackup_proxy          bool
+	done                         bool
+	oldValue                     func(context.Context) (*Proxy, error)
+	predicates                   []predicate.Proxy
 }
 
 var _ ent.Mutation = (*ProxyMutation)(nil)
@@ -39228,6 +39230,76 @@ func (m *ProxyMutation) ResetSupplierUserID() {
 	m.supplier_user_id = nil
 	m.addsupplier_user_id = nil
 	delete(m.clearedFields, proxy.FieldSupplierUserID)
+}
+
+// SetAssignedSupplierUserID sets the "assigned_supplier_user_id" field.
+func (m *ProxyMutation) SetAssignedSupplierUserID(i int64) {
+	m.assigned_supplier_user_id = &i
+	m.addassigned_supplier_user_id = nil
+}
+
+// AssignedSupplierUserID returns the value of the "assigned_supplier_user_id" field in the mutation.
+func (m *ProxyMutation) AssignedSupplierUserID() (r int64, exists bool) {
+	v := m.assigned_supplier_user_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAssignedSupplierUserID returns the old "assigned_supplier_user_id" field's value of the Proxy entity.
+// If the Proxy object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ProxyMutation) OldAssignedSupplierUserID(ctx context.Context) (v *int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAssignedSupplierUserID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAssignedSupplierUserID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAssignedSupplierUserID: %w", err)
+	}
+	return oldValue.AssignedSupplierUserID, nil
+}
+
+// AddAssignedSupplierUserID adds i to the "assigned_supplier_user_id" field.
+func (m *ProxyMutation) AddAssignedSupplierUserID(i int64) {
+	if m.addassigned_supplier_user_id != nil {
+		*m.addassigned_supplier_user_id += i
+	} else {
+		m.addassigned_supplier_user_id = &i
+	}
+}
+
+// AddedAssignedSupplierUserID returns the value that was added to the "assigned_supplier_user_id" field in this mutation.
+func (m *ProxyMutation) AddedAssignedSupplierUserID() (r int64, exists bool) {
+	v := m.addassigned_supplier_user_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearAssignedSupplierUserID clears the value of the "assigned_supplier_user_id" field.
+func (m *ProxyMutation) ClearAssignedSupplierUserID() {
+	m.assigned_supplier_user_id = nil
+	m.addassigned_supplier_user_id = nil
+	m.clearedFields[proxy.FieldAssignedSupplierUserID] = struct{}{}
+}
+
+// AssignedSupplierUserIDCleared returns if the "assigned_supplier_user_id" field was cleared in this mutation.
+func (m *ProxyMutation) AssignedSupplierUserIDCleared() bool {
+	_, ok := m.clearedFields[proxy.FieldAssignedSupplierUserID]
+	return ok
+}
+
+// ResetAssignedSupplierUserID resets all changes to the "assigned_supplier_user_id" field.
+func (m *ProxyMutation) ResetAssignedSupplierUserID() {
+	m.assigned_supplier_user_id = nil
+	m.addassigned_supplier_user_id = nil
+	delete(m.clearedFields, proxy.FieldAssignedSupplierUserID)
 }
 
 // SetName sets the "name" field.
@@ -39887,7 +39959,7 @@ func (m *ProxyMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *ProxyMutation) Fields() []string {
-	fields := make([]string, 0, 15)
+	fields := make([]string, 0, 16)
 	if m.created_at != nil {
 		fields = append(fields, proxy.FieldCreatedAt)
 	}
@@ -39899,6 +39971,9 @@ func (m *ProxyMutation) Fields() []string {
 	}
 	if m.supplier_user_id != nil {
 		fields = append(fields, proxy.FieldSupplierUserID)
+	}
+	if m.assigned_supplier_user_id != nil {
+		fields = append(fields, proxy.FieldAssignedSupplierUserID)
 	}
 	if m.name != nil {
 		fields = append(fields, proxy.FieldName)
@@ -39949,6 +40024,8 @@ func (m *ProxyMutation) Field(name string) (ent.Value, bool) {
 		return m.DeletedAt()
 	case proxy.FieldSupplierUserID:
 		return m.SupplierUserID()
+	case proxy.FieldAssignedSupplierUserID:
+		return m.AssignedSupplierUserID()
 	case proxy.FieldName:
 		return m.Name()
 	case proxy.FieldProtocol:
@@ -39988,6 +40065,8 @@ func (m *ProxyMutation) OldField(ctx context.Context, name string) (ent.Value, e
 		return m.OldDeletedAt(ctx)
 	case proxy.FieldSupplierUserID:
 		return m.OldSupplierUserID(ctx)
+	case proxy.FieldAssignedSupplierUserID:
+		return m.OldAssignedSupplierUserID(ctx)
 	case proxy.FieldName:
 		return m.OldName(ctx)
 	case proxy.FieldProtocol:
@@ -40046,6 +40125,13 @@ func (m *ProxyMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetSupplierUserID(v)
+		return nil
+	case proxy.FieldAssignedSupplierUserID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAssignedSupplierUserID(v)
 		return nil
 	case proxy.FieldName:
 		v, ok := value.(string)
@@ -40135,6 +40221,9 @@ func (m *ProxyMutation) AddedFields() []string {
 	if m.addsupplier_user_id != nil {
 		fields = append(fields, proxy.FieldSupplierUserID)
 	}
+	if m.addassigned_supplier_user_id != nil {
+		fields = append(fields, proxy.FieldAssignedSupplierUserID)
+	}
 	if m.addport != nil {
 		fields = append(fields, proxy.FieldPort)
 	}
@@ -40151,6 +40240,8 @@ func (m *ProxyMutation) AddedField(name string) (ent.Value, bool) {
 	switch name {
 	case proxy.FieldSupplierUserID:
 		return m.AddedSupplierUserID()
+	case proxy.FieldAssignedSupplierUserID:
+		return m.AddedAssignedSupplierUserID()
 	case proxy.FieldPort:
 		return m.AddedPort()
 	case proxy.FieldExpiryWarnDays:
@@ -40170,6 +40261,13 @@ func (m *ProxyMutation) AddField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.AddSupplierUserID(v)
+		return nil
+	case proxy.FieldAssignedSupplierUserID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddAssignedSupplierUserID(v)
 		return nil
 	case proxy.FieldPort:
 		v, ok := value.(int)
@@ -40198,6 +40296,9 @@ func (m *ProxyMutation) ClearedFields() []string {
 	}
 	if m.FieldCleared(proxy.FieldSupplierUserID) {
 		fields = append(fields, proxy.FieldSupplierUserID)
+	}
+	if m.FieldCleared(proxy.FieldAssignedSupplierUserID) {
+		fields = append(fields, proxy.FieldAssignedSupplierUserID)
 	}
 	if m.FieldCleared(proxy.FieldUsername) {
 		fields = append(fields, proxy.FieldUsername)
@@ -40231,6 +40332,9 @@ func (m *ProxyMutation) ClearField(name string) error {
 	case proxy.FieldSupplierUserID:
 		m.ClearSupplierUserID()
 		return nil
+	case proxy.FieldAssignedSupplierUserID:
+		m.ClearAssignedSupplierUserID()
+		return nil
 	case proxy.FieldUsername:
 		m.ClearUsername()
 		return nil
@@ -40262,6 +40366,9 @@ func (m *ProxyMutation) ResetField(name string) error {
 		return nil
 	case proxy.FieldSupplierUserID:
 		m.ResetSupplierUserID()
+		return nil
+	case proxy.FieldAssignedSupplierUserID:
+		m.ResetAssignedSupplierUserID()
 		return nil
 	case proxy.FieldName:
 		m.ResetName()

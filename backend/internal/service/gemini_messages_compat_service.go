@@ -451,6 +451,9 @@ func (s *GeminiMessagesCompatService) hydrateSelectedAccount(ctx context.Context
 	if hydrated == nil {
 		return nil, fmt.Errorf("selected gemini account %d not found during hydration", account.ID)
 	}
+	if !hydrated.proxyAssignmentUsable() {
+		return nil, ErrNoAvailableAccounts
+	}
 	return hydrated, nil
 }
 

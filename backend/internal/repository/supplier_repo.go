@@ -4,8 +4,10 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	entsql "entgo.io/ent/dialect/sql"
 	"errors"
 	"fmt"
+	"github.com/Wei-Shaw/sub2api/ent/predicate"
 	"strings"
 	"time"
 
@@ -54,13 +56,20 @@ func (r *supplierRepository) accountRows(ctx context.Context, owner int64, rows 
 	}
 	proxies := map[int64]*service.Proxy{}
 	if len(ids) > 0 {
-		ps, err := r.client.Proxy.Query().Where(proxy.IDIn(ids...), proxy.SupplierUserIDEQ(owner)).All(ctx)
+		ps, err := r.client.Proxy.Query().Where(proxy.IDIn(ids...), proxy.Or(proxy.SupplierUserIDEQ(owner), proxy.AssignedSupplierUserIDEQ(owner))).All(ctx)
 		if err != nil {
 			return nil, err
 		}
 		for _, p := range ps {
 			proxies[p.ID] = proxyEntityToService(p)
 		}
+	}
+	ps := make([]*service.Proxy, 0, len(proxies))
+	for _, p := range proxies {
+		ps = append(ps, p)
+	}
+	if err := hydrateProxyAssignmentValidity(ctx, r.client, ps); err != nil {
+		return nil, err
 	}
 	for _, row := range rows {
 		a := accountEntityToService(row)
@@ -149,7 +158,7 @@ func (r *supplierRepository) ownedProxyBinding(ctx context.Context, owner int64,
 	if *id < 0 {
 		return service.ErrSupplierInvalid
 	}
-	rows, err := r.sql.QueryContext(ctx, `SELECT id FROM proxies WHERE id=$1 AND supplier_user_id=$2 AND deleted_at IS NULL FOR SHARE`, *id, owner)
+	rows, err := r.sql.QueryContext(ctx, `SELECT id FROM proxies WHERE id=$1 AND (supplier_user_id=$2 OR (assigned_supplier_user_id=$2 AND EXISTS(SELECT 1 FROM users WHERE id=$2 AND role='supplier' AND status='active' AND deleted_at IS NULL))) AND deleted_at IS NULL FOR SHARE`, *id, owner)
 	if err != nil {
 		return err
 	}
@@ -297,7 +306,9 @@ func (r *supplierRepository) PauseAccount(ctx context.Context, owner, id int64, 
 	return r.GetAccount(ctx, owner, id)
 }
 func (r *supplierRepository) ListProxies(ctx context.Context, owner int64, p pagination.PaginationParams) ([]service.Proxy, int64, error) {
-	q := r.client.Proxy.Query().Where(proxy.SupplierUserIDEQ(owner))
+	q := r.client.Proxy.Query().Where(proxy.Or(proxy.SupplierUserIDEQ(owner), proxy.And(proxy.AssignedSupplierUserIDEQ(owner), predicate.Proxy(func(s *entsql.Selector) {
+		s.Where(entsql.ExprP("EXISTS (SELECT 1 FROM users au WHERE au.id = " + s.C("assigned_supplier_user_id") + " AND au.deleted_at IS NULL AND au.status = 'active' AND au.role = 'supplier')"))
+	}))))
 	total, err := q.Clone().Count(ctx)
 	if err != nil {
 		return nil, 0, err
@@ -310,17 +321,33 @@ func (r *supplierRepository) ListProxies(ctx context.Context, owner int64, p pag
 	for _, row := range rows {
 		out = append(out, *proxyEntityToService(row))
 	}
-	return out, int64(total), nil
+	if err := hydrateProxyAssignmentValues(ctx, r.client, out); err != nil {
+		return nil, 0, err
+	}
+	filtered := out[:0]
+	for _, p := range out {
+		if p.AccessibleToSupplier(owner) {
+			filtered = append(filtered, p)
+		}
+	}
+	return filtered, int64(total), nil
 }
 func (r *supplierRepository) GetProxy(ctx context.Context, owner, id int64) (*service.Proxy, error) {
-	row, err := r.client.Proxy.Query().Where(proxy.IDEQ(id), proxy.SupplierUserIDEQ(owner)).Only(ctx)
+	row, err := r.client.Proxy.Query().Where(proxy.IDEQ(id), proxy.Or(proxy.SupplierUserIDEQ(owner), proxy.AssignedSupplierUserIDEQ(owner))).Only(ctx)
 	if dbent.IsNotFound(err) {
 		return nil, service.ErrSupplierUnavailable
 	}
 	if err != nil {
 		return nil, err
 	}
-	return proxyEntityToService(row), nil
+	out := proxyEntityToService(row)
+	if err := hydrateProxyAssignmentValidity(ctx, r.client, []*service.Proxy{out}); err != nil {
+		return nil, err
+	}
+	if !out.AccessibleToSupplier(owner) {
+		return nil, service.ErrSupplierUnavailable
+	}
+	return out, nil
 }
 func (r *supplierRepository) CreateProxy(ctx context.Context, owner int64, p *service.Proxy) error {
 	p.SupplierUserID = &owner

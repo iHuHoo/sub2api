@@ -578,7 +578,8 @@ func ProxyFromServiceAdmin(p *service.Proxy) *AdminProxy {
 		return nil
 	}
 	return &AdminProxy{
-		Proxy:    *base,
+		Proxy:          *base,
+		SupplierUserID: p.SupplierUserID, AssignedSupplierUserID: p.AssignedSupplierUserID, AssignmentValid: p.AssignedSupplierUserID == nil || p.AssignmentValid,
 		Password: p.Password,
 	}
 }
