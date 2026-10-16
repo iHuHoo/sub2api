@@ -1354,6 +1354,7 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_AccountModelRouteDBRech
 			acquiredIDs: &acquiredIDs, releasedIDs: &releasedIDs,
 		}),
 	}
+	svc.schedulerSnapshot.accountRepo = svc.accountRepo
 
 	selection, _, err := svc.SelectAccountWithScheduler(
 		ctx, &groupID, "", "", "team-alias", nil, OpenAIUpstreamTransportAny, false,
@@ -1704,9 +1705,9 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_SkipsQuarantinedSharedP
 	proxyA := int64(4698)
 	proxyB := int64(4699)
 	accounts := []Account{
-		{ID: 469801, Platform: PlatformOpenAI, Type: AccountTypeOAuth, Status: StatusActive, Schedulable: true, Concurrency: 1, Priority: 0, ProxyID: &proxyA},
-		{ID: 469802, Platform: PlatformOpenAI, Type: AccountTypeOAuth, Status: StatusActive, Schedulable: true, Concurrency: 1, Priority: 0, ProxyID: &proxyA},
-		{ID: 469803, Platform: PlatformOpenAI, Type: AccountTypeOAuth, Status: StatusActive, Schedulable: true, Concurrency: 1, Priority: 5, ProxyID: &proxyB},
+		{ID: 469801, Platform: PlatformOpenAI, Type: AccountTypeOAuth, Status: StatusActive, Schedulable: true, Concurrency: 1, Priority: 0, ProxyID: &proxyA, Proxy: &Proxy{ID: proxyA, Status: StatusActive}},
+		{ID: 469802, Platform: PlatformOpenAI, Type: AccountTypeOAuth, Status: StatusActive, Schedulable: true, Concurrency: 1, Priority: 0, ProxyID: &proxyA, Proxy: &Proxy{ID: proxyA, Status: StatusActive}},
+		{ID: 469803, Platform: PlatformOpenAI, Type: AccountTypeOAuth, Status: StatusActive, Schedulable: true, Concurrency: 1, Priority: 5, ProxyID: &proxyB, Proxy: &Proxy{ID: proxyB, Status: StatusActive}},
 	}
 	cfg := &config.Config{}
 	cfg.Gateway.Scheduling.LoadBatchEnabled = false
@@ -1739,8 +1740,8 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_FailsOpenWhenAllProxies
 	// degrade to a preference instead of zeroing out capacity (#5056).
 	proxyA := int64(5056)
 	accounts := []Account{
-		{ID: 505601, Platform: PlatformOpenAI, Type: AccountTypeOAuth, Status: StatusActive, Schedulable: true, Concurrency: 1, Priority: 0, ProxyID: &proxyA},
-		{ID: 505602, Platform: PlatformOpenAI, Type: AccountTypeOAuth, Status: StatusActive, Schedulable: true, Concurrency: 1, Priority: 5, ProxyID: &proxyA},
+		{ID: 505601, Platform: PlatformOpenAI, Type: AccountTypeOAuth, Status: StatusActive, Schedulable: true, Concurrency: 1, Priority: 0, ProxyID: &proxyA, Proxy: &Proxy{ID: proxyA, Status: StatusActive}},
+		{ID: 505602, Platform: PlatformOpenAI, Type: AccountTypeOAuth, Status: StatusActive, Schedulable: true, Concurrency: 1, Priority: 5, ProxyID: &proxyA, Proxy: &Proxy{ID: proxyA, Status: StatusActive}},
 	}
 	cfg := &config.Config{}
 	cfg.Gateway.Scheduling.LoadBatchEnabled = false
@@ -1789,6 +1790,7 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_SessionStickyRateLimite
 		schedulerSnapshot:  snapshotService,
 		concurrencyService: NewConcurrencyService(schedulerTestConcurrencyCache{}),
 	}
+	svc.schedulerSnapshot.accountRepo = svc.accountRepo
 
 	selection, decision, err := svc.SelectAccountWithScheduler(ctx, &groupID, "", "session_hash_rate_limited", "gpt-5.1", nil, OpenAIUpstreamTransportAny, false)
 	require.NoError(t, err)
@@ -2094,6 +2096,7 @@ func TestOpenAIGatewayService_SelectAccountForModelWithExclusions_SkipsFreshlyRa
 		rateLimitService:  newOpenAIAdvancedSchedulerRateLimitService("true"),
 		schedulerSnapshot: snapshotService,
 	}
+	svc.schedulerSnapshot.accountRepo = svc.accountRepo
 
 	account, err := svc.SelectAccountForModelWithExclusions(ctx, &groupID, "", "gpt-5.1", nil)
 	require.NoError(t, err)
@@ -2167,6 +2170,7 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_SessionStickyDBRuntimeR
 		schedulerSnapshot:  snapshotService,
 		concurrencyService: NewConcurrencyService(schedulerTestConcurrencyCache{}),
 	}
+	svc.schedulerSnapshot.accountRepo = svc.accountRepo
 
 	selection, decision, err := svc.SelectAccountWithScheduler(ctx, &groupID, "", "session_hash_db_runtime_recheck", "gpt-5.1", nil, OpenAIUpstreamTransportAny, false)
 	require.NoError(t, err)
@@ -2195,6 +2199,7 @@ func TestOpenAIGatewayService_SelectAccountForModelWithExclusions_DBRuntimeReche
 		rateLimitService:  newOpenAIAdvancedSchedulerRateLimitService("true"),
 		schedulerSnapshot: snapshotService,
 	}
+	svc.schedulerSnapshot.accountRepo = svc.accountRepo
 
 	account, err := svc.SelectAccountForModelWithExclusions(ctx, &groupID, "", "gpt-5.1", nil)
 	require.NoError(t, err)
@@ -2225,6 +2230,7 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_DBFreshGroupRecheckRele
 			releasedIDs: &releasedIDs,
 		}),
 	}
+	svc.schedulerSnapshot.accountRepo = svc.accountRepo
 	scheduler := &defaultOpenAIAccountScheduler{service: svc}
 
 	selection, _, err := scheduler.tryAcquireOpenAISelectionOrder(ctx, OpenAIAccountScheduleRequest{
@@ -2262,6 +2268,7 @@ func TestOpenAIGatewayService_SelectAccountWithLoadAwareness_DBFreshGroupRecheck
 			acquireResults: map[int64]bool{staleBackup.ID: false},
 		}),
 	}
+	svc.schedulerSnapshot.accountRepo = svc.accountRepo
 
 	selection, err := svc.SelectAccountWithLoadAwareness(ctx, &groupID, "", "gpt-5.1", nil)
 	require.NoError(t, err)
@@ -2277,6 +2284,7 @@ func TestOpenAIGatewayService_RecheckSelectedOpenAIAccountFromDB_SimpleModeUsesF
 		cfg:               &config.Config{RunMode: config.RunModeSimple},
 		schedulerSnapshot: &SchedulerSnapshotService{cache: &openAISnapshotCacheStub{}},
 	}
+	svc.schedulerSnapshot.accountRepo = svc.accountRepo
 	requestedGroupID := int64(100)
 
 	for _, groupID := range []*int64{nil, &requestedGroupID} {
@@ -4032,6 +4040,7 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_LegacyAccountModelRoute
 			acquiredIDs: &acquiredIDs, releasedIDs: &releasedIDs,
 		}),
 	}
+	svc.schedulerSnapshot.accountRepo = svc.accountRepo
 	require.Nil(t, svc.getOpenAIAccountScheduler(ctx), "test precondition: advanced scheduler disabled")
 
 	selection, _, err := svc.SelectAccountWithScheduler(
@@ -4048,4 +4057,12 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_LegacyAccountModelRoute
 	if selection.ReleaseFunc != nil {
 		selection.ReleaseFunc()
 	}
+}
+
+func (r schedulerTestOpenAIAccountRepo) RefreshAccountProxies(ctx context.Context, accounts []*Account) error {
+	current := make([]*Account, 0, len(r.accounts))
+	for i := range r.accounts {
+		current = append(current, &r.accounts[i])
+	}
+	return bindingFixtures(current...).RefreshAccountProxies(ctx, accounts)
 }

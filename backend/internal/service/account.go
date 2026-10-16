@@ -22,6 +22,7 @@ import (
 )
 
 type Account struct {
+	ProxyBindingMissing     bool `json:"-"`
 	SupplierUserID          *int64
 	SupplierName            string
 	SupplierPaused          bool
@@ -193,7 +194,7 @@ func (a *Account) EffectiveLoadFactor() int {
 }
 
 func (a *Account) IsSchedulable() bool {
-	if !a.IsActive() || !a.Schedulable || a.SupplierPaused {
+	if !a.IsActive() || !a.Schedulable || a.SupplierPaused || !a.proxyAssignmentUsable() {
 		return false
 	}
 	now := time.Now()
@@ -228,7 +229,7 @@ func (a *Account) IsSchedulable() bool {
 // 手动 Schedulable 开关:spark 影子拥有独立 spark 配额窗口,母账号 global 429(走 RateLimitResetAt)
 // 不应连坐 spark(否则重新耦合影子架构本应解耦的两条 429 道)。nil receiver 返回 false。
 func (a *Account) IsCredentialUsableForShadow() bool {
-	if a == nil || !a.IsActive() || a.SupplierPaused {
+	if a == nil || !a.IsActive() || a.SupplierPaused || !a.proxyAssignmentUsable() {
 		return false
 	}
 	now := time.Now()
@@ -3278,4 +3279,21 @@ func (a *Account) QuotaDimensionOrDefault() string {
 		return QuotaDimensionGlobal
 	}
 	return a.QuotaDimension
+}
+
+// An expired assigned proxy must await a validated fallback, never direct egress.
+func (a *Account) proxyAssignmentUsable() bool {
+	if a.ProxyBindingMissing {
+		return false
+	}
+	if a.ProxyID == nil {
+		return true
+	}
+	if a.Proxy == nil {
+		return false
+	}
+	if a.Proxy.AssignedSupplierUserID == nil {
+		return true
+	}
+	return a.SupplierUserID != nil && *a.SupplierUserID == *a.Proxy.AssignedSupplierUserID && a.Proxy.AssignmentValid && a.Proxy.IsActive() && !a.Proxy.IsExpired(time.Now())
 }

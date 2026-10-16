@@ -50,7 +50,7 @@ func TestListModelAvailabilityCandidates_GroupQueryIgnoresTransientState(t *test
 		"rate_limit_reset_at",
 		"overload_until",
 		"temp_unschedulable_until",
-		"expires_at",
+		`"accounts"."expires_at"`,
 		"auto_pause_on_expired",
 	} {
 		require.NotContains(t, whereClause, transientPredicate, "configured-state diagnosis must not filter transient predicate %q", transientPredicate)

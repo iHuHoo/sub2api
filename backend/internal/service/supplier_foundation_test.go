@@ -98,7 +98,7 @@ func TestSupplierNamesLoadedInBatchWithIDFallback(t *testing.T) {
 func TestSupplierPauseFiltersCachedSnapshot(t *testing.T) {
 	owner := int64(7)
 	cache := &snapshotHydrationCache{snapshot: []*Account{{ID: 1, SupplierUserID: &owner, SupplierPaused: true}, {ID: 2, SupplierUserID: &owner}}}
-	snapshot := NewSchedulerSnapshotService(cache, nil, nil, nil, nil)
+	snapshot := NewSchedulerSnapshotService(cache, nil, hydrationBindings(cache), nil, nil)
 	candidates, _, err := snapshot.ListSchedulableAccounts(context.Background(), nil, PlatformOpenAI, true)
 	require.NoError(t, err)
 	require.Len(t, candidates, 1)
@@ -152,7 +152,7 @@ func TestSupplierPrivilegeChangesRevokeJWTAndRefresh(t *testing.T) {
 
 func TestSupplierPauseAfterSnapshotBlocksHydratedSelection(t *testing.T) {
 	cache := &snapshotHydrationCache{accounts: map[int64]*Account{1: {ID: 1, SupplierPaused: true}}}
-	snapshot := NewSchedulerSnapshotService(cache, nil, nil, nil, nil)
+	snapshot := NewSchedulerSnapshotService(cache, nil, hydrationBindings(cache), nil, nil)
 	candidate := &Account{ID: 1}
 	releases := 0
 	openai := &OpenAIGatewayService{schedulerSnapshot: snapshot}

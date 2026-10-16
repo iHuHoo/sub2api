@@ -89,7 +89,7 @@ func TestSupplierLiveProxyReferenceSerialization(t *testing.T) {
 			require.NoError(t, pr.Create(ctx, target))
 			source := &service.Account{Name: "source", Platform: service.PlatformOpenAI, Type: service.AccountTypeAPIKey, Status: "active"}
 			require.NoError(t, ar.Create(ctx, source))
-			backup := &service.Proxy{Name: "backup", Host: "8.8.4.4", Protocol: "http", Port: 80, Status: "active"}
+			backup := &service.Proxy{SupplierUserID: &owner, Name: "backup", Host: "8.8.4.4", Protocol: "http", Port: 80, Status: "active"}
 			require.NoError(t, pr.Create(ctx, backup))
 			t.Cleanup(func() {
 				_, _ = integrationDB.Exec(`DELETE FROM scheduler_outbox WHERE account_id=$1`, source.ID)

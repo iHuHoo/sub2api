@@ -38,7 +38,7 @@ func TestGatewayHandlerPreCancelledCompatibleRequestsDoNotSelectAccount(t *testi
 		AccountGroups: []service.AccountGroup{{AccountID: 9101, GroupID: groupID}},
 	}
 	schedulerCache := &countingGatewaySchedulerCache{fakeSchedulerCache: &fakeSchedulerCache{accounts: []*service.Account{account}}}
-	schedulerSnapshot := service.NewSchedulerSnapshotService(schedulerCache, nil, nil, nil, nil)
+	schedulerSnapshot := service.NewSchedulerSnapshotService(schedulerCache, nil, fixtureBindingRepo(schedulerCache.accounts), nil, nil)
 	gatewayService := service.NewGatewayService(
 		nil, &fakeGroupRepo{group: group}, nil, nil, nil, nil, nil, nil, nil,
 		schedulerSnapshot, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,

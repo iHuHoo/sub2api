@@ -327,6 +327,19 @@ func (r *accountRepository) GetByIDs(ctx context.Context, ids []int64) ([]*servi
 		return nil, err
 	}
 
+	proxyModels := make([]*service.Proxy, 0, len(entAccounts))
+	for _, entAcc := range entAccounts {
+		if entAcc.Edges.Proxy != nil {
+			proxyModels = append(proxyModels, proxyEntityToService(entAcc.Edges.Proxy))
+		}
+	}
+	if err := hydrateProxyAssignmentValidity(ctx, r.client, proxyModels); err != nil {
+		return nil, err
+	}
+	proxyByID := make(map[int64]*service.Proxy, len(proxyModels))
+	for _, p := range proxyModels {
+		proxyByID[p.ID] = p
+	}
 	outByID := make(map[int64]*service.Account, len(entAccounts))
 	for _, entAcc := range entAccounts {
 		out := accountEntityToService(entAcc)
@@ -336,7 +349,7 @@ func (r *accountRepository) GetByIDs(ctx context.Context, ids []int64) ([]*servi
 
 		// Prefer the preloaded proxy edge when available.
 		if entAcc.Edges.Proxy != nil {
-			out.Proxy = proxyEntityToService(entAcc.Edges.Proxy)
+			out.Proxy = proxyByID[entAcc.Edges.Proxy.ID]
 		}
 
 		if groups, ok := groupsByAccount[entAcc.ID]; ok {
@@ -2123,6 +2136,7 @@ func (r *accountRepository) ListSchedulableCapacityByGroupIDs(ctx context.Contex
 			AND a.status = $2
 			AND a.schedulable = TRUE
 			AND a.supplier_paused = FALSE
+            AND (a.proxy_id IS NULL OR EXISTS (SELECT 1 FROM proxies ap WHERE ap.id = a.proxy_id AND ap.deleted_at IS NULL AND (ap.assigned_supplier_user_id IS NULL OR (ap.status = 'active' AND (ap.expires_at IS NULL OR ap.expires_at > NOW()) AND EXISTS (SELECT 1 FROM users au WHERE au.id = ap.assigned_supplier_user_id AND au.deleted_at IS NULL AND au.status = 'active' AND au.role = 'supplier')))))
 			AND (a.parent_account_id IS NULL OR EXISTS (SELECT 1 FROM accounts parent WHERE parent.id = a.parent_account_id AND parent.deleted_at IS NULL AND parent.supplier_paused = FALSE))
 			AND (a.temp_unschedulable_until IS NULL OR a.temp_unschedulable_until <= $3)
 			AND (a.expires_at IS NULL OR a.expires_at > $3 OR a.auto_pause_on_expired = FALSE)
@@ -3294,7 +3308,7 @@ func (r *accountRepository) BulkUpdate(ctx context.Context, ids []int64, updates
 
 	result, err := exec.ExecContext(ctx, query, args...)
 	if err != nil {
-		return 0, err
+		return 0, normalizeProxyOwnershipError(err)
 	}
 	rows, err := result.RowsAffected()
 	if err != nil {
@@ -3471,7 +3485,7 @@ func (r *accountRepository) accountsToService(ctx context.Context, accounts []*d
 }
 
 func supplierAvailablePredicate() dbpredicate.Account {
-	return dbaccount.And(dbaccount.SupplierPausedEQ(false), dbaccount.Or(dbaccount.ParentAccountIDIsNil(), dbaccount.HasParentWith(dbaccount.DeletedAtIsNil(), dbaccount.SupplierPausedEQ(false))))
+	return dbaccount.And(proxyAssignmentAvailablePredicate(), dbaccount.SupplierPausedEQ(false), dbaccount.Or(dbaccount.ParentAccountIDIsNil(), dbaccount.HasParentWith(dbaccount.DeletedAtIsNil(), dbaccount.SupplierPausedEQ(false))))
 }
 
 func tempUnschedulablePredicate() dbpredicate.Account {
@@ -3511,6 +3525,13 @@ func (r *accountRepository) loadProxies(ctx context.Context, proxyIDs []int64) (
 		for _, p := range proxies {
 			proxyMap[p.ID] = proxyEntityToService(p)
 		}
+	}
+	proxies := make([]*service.Proxy, 0, len(proxyMap))
+	for _, p := range proxyMap {
+		proxies = append(proxies, p)
+	}
+	if err := hydrateProxyAssignmentValidity(ctx, r.client, proxies); err != nil {
+		return nil, err
 	}
 	return proxyMap, nil
 }
@@ -4134,4 +4155,62 @@ func (r *accountRepository) ListShadowsByParent(ctx context.Context, parentID in
 		out = append(out, accountEntityToService(m))
 	}
 	return out, nil
+}
+
+// RefreshAccountProxies validates every cached binding against the current account row.
+func (r *accountRepository) RefreshAccountProxies(ctx context.Context, accounts []*service.Account) error {
+	accountIDs := make([]int64, 0, len(accounts))
+	for _, a := range accounts {
+		if a != nil {
+			accountIDs = append(accountIDs, a.ID)
+		}
+	}
+	if len(accountIDs) == 0 {
+		return nil
+	}
+	var bindings []struct {
+		ID             int64
+		ProxyID        *int64 `json:"proxy_id"`
+		SupplierUserID *int64 `json:"supplier_user_id"`
+	}
+	if err := r.client.Account.Query().Where(dbaccount.IDIn(accountIDs...)).Select(dbaccount.FieldID, dbaccount.FieldProxyID, dbaccount.FieldSupplierUserID).Scan(ctx, &bindings); err != nil {
+		return err
+	}
+	byID := make(map[int64]int, len(bindings))
+	for i, b := range bindings {
+		byID[b.ID] = i
+	}
+	ids := make([]int64, 0, len(accounts))
+	for _, a := range accounts {
+		if a == nil {
+			continue
+		}
+		i, ok := byID[a.ID]
+		a.ProxyBindingMissing = !ok
+		a.ProxyID, a.Proxy = nil, nil
+		if !ok {
+			continue
+		}
+		a.ProxyID = bindings[i].ProxyID
+		a.SupplierUserID = bindings[i].SupplierUserID
+		if a.ProxyID != nil {
+			ids = append(ids, *a.ProxyID)
+		}
+	}
+	proxies, err := r.loadProxies(ctx, ids)
+	if err != nil {
+		return err
+	}
+	for _, a := range accounts {
+		if a != nil && a.ProxyID != nil {
+			a.Proxy = proxies[*a.ProxyID]
+		}
+	}
+	return nil
+}
+
+func proxyAssignmentAvailablePredicate() dbpredicate.Account {
+	return dbpredicate.Account(func(s *entsql.Selector) {
+		s.Where(entsql.ExprP("(" + s.C("proxy_id") + " IS NULL OR EXISTS (SELECT 1 FROM proxies ap WHERE ap.id = " + s.C("proxy_id") + " AND ap.deleted_at IS NULL AND (ap.assigned_supplier_user_id IS NULL OR (ap.status = 'active' AND (ap.expires_at IS NULL OR ap.expires_at > NOW()) AND EXISTS (SELECT 1 FROM users au WHERE au.id = ap.assigned_supplier_user_id AND au.deleted_at IS NULL AND au.status = 'active' AND au.role = 'supplier')))))"))
+	})
 }

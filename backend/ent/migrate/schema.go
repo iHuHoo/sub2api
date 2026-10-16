@@ -1470,6 +1470,7 @@ var (
 		{Name: "updated_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
 		{Name: "deleted_at", Type: field.TypeTime, Nullable: true, SchemaType: map[string]string{"postgres": "timestamptz"}},
 		{Name: "supplier_user_id", Type: field.TypeInt64, Nullable: true},
+		{Name: "assigned_supplier_user_id", Type: field.TypeInt64, Nullable: true},
 		{Name: "name", Type: field.TypeString, Size: 100},
 		{Name: "protocol", Type: field.TypeString, Size: 20},
 		{Name: "host", Type: field.TypeString, Size: 255},
@@ -1490,7 +1491,7 @@ var (
 		ForeignKeys: []*schema.ForeignKey{
 			{
 				Symbol:     "proxies_proxies_backup_proxy",
-				Columns:    []*schema.Column{ProxiesColumns[15]},
+				Columns:    []*schema.Column{ProxiesColumns[16]},
 				RefColumns: []*schema.Column{ProxiesColumns[0]},
 				OnDelete:   schema.SetNull,
 			},
@@ -1502,9 +1503,14 @@ var (
 				Columns: []*schema.Column{ProxiesColumns[4]},
 			},
 			{
+				Name:    "proxy_assigned_supplier_user_id",
+				Unique:  false,
+				Columns: []*schema.Column{ProxiesColumns[5]},
+			},
+			{
 				Name:    "proxy_status",
 				Unique:  false,
-				Columns: []*schema.Column{ProxiesColumns[11]},
+				Columns: []*schema.Column{ProxiesColumns[12]},
 			},
 			{
 				Name:    "proxy_deleted_at",
@@ -1514,12 +1520,12 @@ var (
 			{
 				Name:    "proxy_expires_at",
 				Unique:  false,
-				Columns: []*schema.Column{ProxiesColumns[12]},
+				Columns: []*schema.Column{ProxiesColumns[13]},
 			},
 			{
 				Name:    "proxy_backup_proxy_id",
 				Unique:  false,
-				Columns: []*schema.Column{ProxiesColumns[15]},
+				Columns: []*schema.Column{ProxiesColumns[16]},
 			},
 		},
 	}

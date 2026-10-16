@@ -8,6 +8,7 @@ import (
 
 	dbent "github.com/Wei-Shaw/sub2api/ent"
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
+	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/lib/pq"
 )
 
@@ -65,7 +66,7 @@ func translatePersistenceError(err error, notFound, conflict *infraerrors.Applic
 	}
 
 	// 未匹配任何规则，返回原始错误
-	return err
+	return normalizeProxyOwnershipError(err)
 }
 
 // isUniqueConstraintViolation 判断错误是否为唯一约束冲突。
@@ -94,4 +95,18 @@ func isUniqueConstraintViolation(err error) bool {
 	return strings.Contains(msg, "duplicate key") ||
 		strings.Contains(msg, "unique constraint") ||
 		strings.Contains(msg, "duplicate entry")
+}
+
+// normalizeProxyOwnershipError maps only the assignment migration's named constraints.
+func normalizeProxyOwnershipError(err error) error {
+	var pg *pq.Error
+	if errors.As(err, &pg) {
+		switch pg.Constraint {
+		case "proxy_supplier_ownership", "proxy_assignment_target", "assigned_proxy_no_direct", "proxy_distinct_supplier_origin":
+			return service.ErrProxyAssignmentInvalid.WithCause(err)
+		case "proxy_assignment_in_use":
+			return service.ErrProxyAssignmentConflict.WithCause(err)
+		}
+	}
+	return err
 }

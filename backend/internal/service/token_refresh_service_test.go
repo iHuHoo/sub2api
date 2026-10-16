@@ -171,7 +171,13 @@ func (r *tokenRefreshAccountRepo) SetGrokCredentialTempUnschedulableIfMatch(
 }
 
 func grokCredentialSnapshotMatchesAccount(account *Account, snapshot GrokCredentialMutationSnapshot) bool {
-	return account != nil && account.IsGrokOAuth() && account.IsSchedulable() &&
+	if account == nil {
+		return false
+	}
+	// The repository CAS validates account state, including when persisting a missing-proxy error.
+	eligibility := *account
+	eligibility.ProxyID = nil
+	return account.IsGrokOAuth() && eligibility.IsSchedulable() &&
 		grokCredentialMutationSnapshot(account).CredentialsJSON == snapshot.CredentialsJSON &&
 		grokCredentialProxyIDsEqual(account.ProxyID, snapshot.ProxyID)
 }

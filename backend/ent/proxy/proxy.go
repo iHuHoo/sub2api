@@ -23,6 +23,8 @@ const (
 	FieldDeletedAt = "deleted_at"
 	// FieldSupplierUserID holds the string denoting the supplier_user_id field in the database.
 	FieldSupplierUserID = "supplier_user_id"
+	// FieldAssignedSupplierUserID holds the string denoting the assigned_supplier_user_id field in the database.
+	FieldAssignedSupplierUserID = "assigned_supplier_user_id"
 	// FieldName holds the string denoting the name field in the database.
 	FieldName = "name"
 	// FieldProtocol holds the string denoting the protocol field in the database.
@@ -77,6 +79,7 @@ var Columns = []string{
 	FieldUpdatedAt,
 	FieldDeletedAt,
 	FieldSupplierUserID,
+	FieldAssignedSupplierUserID,
 	FieldName,
 	FieldProtocol,
 	FieldHost,
@@ -162,6 +165,11 @@ func ByDeletedAt(opts ...sql.OrderTermOption) OrderOption {
 // BySupplierUserID orders the results by the supplier_user_id field.
 func BySupplierUserID(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldSupplierUserID, opts...).ToFunc()
+}
+
+// ByAssignedSupplierUserID orders the results by the assigned_supplier_user_id field.
+func ByAssignedSupplierUserID(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldAssignedSupplierUserID, opts...).ToFunc()
 }
 
 // ByName orders the results by the name field.

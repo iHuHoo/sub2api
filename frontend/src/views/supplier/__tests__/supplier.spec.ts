@@ -128,9 +128,9 @@ describe('supplier account editor', () => {
     wrapper.unmount()
   })
 
-  it('opens the shared supplier creation modal with every own proxy page', async () => {
+  it('opens the shared supplier creation modal with owned and assigned proxy pages', async () => {
     api.proxies.list.mockImplementation((pageNumber: number) => Promise.resolve({
-      ...page([pageNumber === 1 ? proxy : { ...proxy, id: 8 }]), total: 2, pages: 2, page: pageNumber
+      ...page([pageNumber === 1 ? proxy : { id: 8, name: 'Assigned proxy', protocol: 'http', status: 'active', read_only: true, expires_at: null }]), total: 2, pages: 2, page: pageNumber
     }))
     const wrapper = render(AccountsView)
     await flushPromises()
@@ -221,5 +221,37 @@ describe('supplier usage', () => {
     expect(wrapper.text()).toContain('2026-10-01')
     expect(wrapper.text()).toContain('Calls recorded in usage records')
     expect(wrapper.text()).not.toContain('$')
+  })
+})
+
+
+describe('assigned supplier proxy', () => {
+  it('renders the minimal DTO with read-only actions', async () => {
+    api.proxies.list.mockResolvedValue(page([{ id: 19, name: 'Assigned', protocol: 'socks5', status: 'active', read_only: true, expires_at: null }]))
+    const wrapper = render(ProxiesView)
+    await flushPromises()
+    expect(wrapper.text()).toContain('Administrator assigned · Read only')
+    expect(wrapper.text()).toContain('socks5')
+    expect(wrapper.text()).not.toContain('undefined')
+    expect(wrapper.findAll('button').map(b => b.text())).not.toContain('Edit')
+    expect(wrapper.findAll('button').map(b => b.text())).not.toContain('Delete')
+    expect(wrapper.text()).toContain('Test TCP')
+    expect(wrapper.text()).not.toContain('Password saved')
+    api.proxies.test.mockResolvedValue({ reachable: true, latency_ms: 5 })
+    await wrapper.findAll('button').find(button => button.text().includes('Test TCP'))!.trigger('click')
+    await flushPromises()
+    expect(api.proxies.test).toHaveBeenCalledWith(19)
+  })
+  it('preserves an assigned proxy when editing only the account name', async () => {
+    api.accounts.list.mockResolvedValue(page([{ ...account, proxy_id: 19 }]))
+    api.proxies.list.mockResolvedValue(page([{ id: 19, name: 'Assigned', protocol: 'http', status: 'active', read_only: true, expires_at: null }]))
+    const wrapper = render(AccountsView)
+    await flushPromises()
+    await click(wrapper, 'Edit')
+    expect(wrapper.get('[name="proxy_id"]').text()).toContain('Assigned')
+    await wrapper.get('[name="name"]').setValue('Renamed')
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+    expect(api.accounts.update).toHaveBeenCalledWith(3, { name: 'Renamed' })
   })
 })

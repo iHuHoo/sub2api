@@ -10,12 +10,14 @@ import (
 	"time"
 
 	dbent "github.com/Wei-Shaw/sub2api/ent"
+	dbaccount "github.com/Wei-Shaw/sub2api/ent/account"
 	"github.com/Wei-Shaw/sub2api/ent/apikey"
 	"github.com/Wei-Shaw/sub2api/ent/authidentity"
 	"github.com/Wei-Shaw/sub2api/ent/authidentitychannel"
 	dbgroup "github.com/Wei-Shaw/sub2api/ent/group"
 	"github.com/Wei-Shaw/sub2api/ent/identityadoptiondecision"
 	"github.com/Wei-Shaw/sub2api/ent/predicate"
+	dbproxy "github.com/Wei-Shaw/sub2api/ent/proxy"
 	"github.com/Wei-Shaw/sub2api/ent/schema/mixins"
 	dbuser "github.com/Wei-Shaw/sub2api/ent/user"
 	"github.com/Wei-Shaw/sub2api/ent/userallowedgroup"
@@ -353,6 +355,11 @@ func (r *userRepository) Update(ctx context.Context, userIn *service.User, field
 		return translatePersistenceError(err, service.ErrUserNotFound, service.ErrEmailExists)
 	}
 
+	if fields.Role || fields.Status {
+		if err := enqueueAssignedProxyAccountsChanged(txCtx, txClient, updated.ID); err != nil {
+			return err
+		}
+	}
 	if fields.AllowedGroups {
 		if err := r.syncUserAllowedGroupsWithClient(txCtx, txClient, updated.ID, userIn.AllowedGroups); err != nil {
 			return err
@@ -519,6 +526,9 @@ func (r *userRepository) deleteUser(ctx context.Context, exec *dbent.Client, id 
 		}
 	}
 
+	if err := enqueueAssignedProxyAccountsChanged(ctx, exec, id); err != nil {
+		return err
+	}
 	affected, err := exec.User.Delete().Where(dbuser.IDEQ(id)).Exec(ctx)
 	if err != nil {
 		return translatePersistenceError(err, service.ErrUserNotFound, nil)
@@ -1632,4 +1642,17 @@ func (r *userRepository) GetSupplierNames(ctx context.Context, ids []int64) (map
 		names[user.ID] = name
 	}
 	return names, nil
+}
+
+// Lifecycle events preserve manual scheduling and supplier pause preferences.
+func enqueueAssignedProxyAccountsChanged(ctx context.Context, client *dbent.Client, userID int64) error {
+	affected, err := client.Account.Query().Where(dbaccount.HasProxyWith(dbproxy.AssignedSupplierUserIDEQ(userID))).Exist(ctx)
+	if err != nil || !affected {
+		return err
+	}
+
+	_, err = client.ExecContext(ctx, `INSERT INTO scheduler_outbox (event_type, account_id, created_at)
+ SELECT $1, a.id, NOW() FROM accounts a JOIN proxies p ON p.id = a.proxy_id
+ WHERE a.deleted_at IS NULL AND p.assigned_supplier_user_id = $2`, service.SchedulerOutboxEventAccountChanged, userID)
+	return err
 }

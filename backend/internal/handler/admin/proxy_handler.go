@@ -2,6 +2,8 @@ package admin
 
 import (
 	"context"
+	"encoding/json"
+	"github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"strconv"
 	"strings"
 	"time"
@@ -401,4 +403,47 @@ func (h *ProxyHandler) BatchCreate(c *gin.Context) {
 		"created": created,
 		"skipped": skipped,
 	})
+}
+
+// AssignSupplier uses explicit nullable fields so omission cannot revoke ownership.
+func (h *ProxyHandler) AssignSupplier(c *gin.Context) {
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil || id <= 0 {
+		response.BadRequest(c, "Invalid proxy ID")
+		return
+	}
+	var body map[string]json.RawMessage
+	if err = c.ShouldBindJSON(&body); err != nil {
+		response.BadRequest(c, "Invalid assignment")
+		return
+	}
+	old, okOld := body["expected_supplier_user_id"]
+	next, okNext := body["supplier_user_id"]
+	if !okOld || !okNext {
+		response.BadRequest(c, "Both assignment fields are required")
+		return
+	}
+	var expected, target *int64
+	if json.Unmarshal(old, &expected) != nil || json.Unmarshal(next, &target) != nil {
+		response.BadRequest(c, "Invalid assignment")
+		return
+	}
+	scalar := func(p *int64) any {
+		if p == nil {
+			return "none"
+		}
+		return *p
+	}
+	middleware.SetAuditAction(c, "proxy.assign_supplier")
+	middleware.SetAuditExtra(c, map[string]any{"resource_id": id, "expected_supplier_user_id": scalar(expected), "requested_supplier_user_id": scalar(target), "old_supplier_user_id": "unknown", "result": "failed"})
+	p, err := h.adminService.AssignProxySupplier(c.Request.Context(), id, expected, target)
+	if err != nil && p != nil {
+		middleware.SetAuditExtra(c, map[string]any{"old_supplier_user_id": scalar(p.AssignedSupplierUserID)})
+	}
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	middleware.SetAuditExtra(c, map[string]any{"result": "success", "old_supplier_user_id": scalar(expected), "new_supplier_user_id": scalar(target)})
+	response.Success(c, dto.ProxyFromServiceAdmin(p))
 }

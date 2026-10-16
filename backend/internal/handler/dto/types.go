@@ -481,6 +481,9 @@ type ProxyWithAccountCount struct {
 // AdminProxy 是管理员接口使用的 proxy DTO（包含密码等敏感字段）。
 // 注意：普通接口不得使用此 DTO。
 type AdminProxy struct {
+	SupplierUserID         *int64 `json:"supplier_user_id"`
+	AssignedSupplierUserID *int64 `json:"assigned_supplier_user_id"`
+	AssignmentValid        bool   `json:"assignment_valid"`
 	Proxy
 	Password string `json:"password,omitempty"`
 }

@@ -10,8 +10,10 @@ import (
 )
 
 var (
-	ErrProxyNotFound = infraerrors.NotFound("PROXY_NOT_FOUND", "proxy not found")
-	ErrProxyInUse    = infraerrors.Conflict("PROXY_IN_USE", "proxy is in use by accounts")
+	ErrProxyAssignmentConflict = infraerrors.Conflict("PROXY_ASSIGNMENT_CONFLICT", "Proxy assignment changed or proxy is in use")
+	ErrProxyAssignmentInvalid  = infraerrors.BadRequest("PROXY_ASSIGNMENT_INVALID", "Invalid proxy assignment")
+	ErrProxyNotFound           = infraerrors.NotFound("PROXY_NOT_FOUND", "proxy not found")
+	ErrProxyInUse              = infraerrors.Conflict("PROXY_IN_USE", "proxy is in use by accounts")
 )
 
 type ProxyRepository interface {
@@ -197,4 +199,9 @@ func (s *ProxyService) GetURL(ctx context.Context, id int64) (string, error) {
 	}
 
 	return proxy.URL(), nil
+}
+
+// ProxyAssignmentRepository is the transactional assignment capability.
+type ProxyAssignmentRepository interface {
+	AssignSupplier(context.Context, int64, *int64, *int64) (*Proxy, error)
 }

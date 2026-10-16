@@ -313,7 +313,17 @@ func (p *GrokTokenProvider) waitForRefreshedToken(ctx context.Context, account *
 }
 
 func grokOAuthRequestAccountEligibilityError(account *Account) error {
-	if account == nil || !account.IsGrokOAuth() || !account.IsSchedulable() {
+	if account == nil || !account.IsGrokOAuth() {
+		return errOAuthRefreshAccountStateChanged
+	}
+	// Preserve the existing missing-proxy classification after account-state checks.
+	eligibility := account
+	if account.ProxyID != nil && account.Proxy == nil {
+		copy := *account
+		copy.ProxyID = nil
+		eligibility = &copy
+	}
+	if !eligibility.IsSchedulable() {
 		return errOAuthRefreshAccountStateChanged
 	}
 	if account.ProxyID != nil && account.Proxy == nil {

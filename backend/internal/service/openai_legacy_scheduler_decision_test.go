@@ -207,6 +207,8 @@ func TestLegacySchedulerDecision_PreviousResponseRouting(t *testing.T) {
 		released := make([]int64, 0)
 		healthyProxy, quarantinedProxy := int64(38113), int64(38114)
 		accounts := newLegacySchedulerDecisionTestAccounts(groupID, true)
+		accounts[0].Proxy = &Proxy{ID: healthyProxy, Status: StatusActive}
+		accounts[1].Proxy = &Proxy{ID: quarantinedProxy, Status: StatusActive}
 		accounts[0].ProxyID = &healthyProxy
 		accounts[1].ProxyID = &quarantinedProxy
 		svc := newLegacySchedulerDecisionTestService(accounts, false, schedulerTestConcurrencyCache{releasedIDs: &released})
@@ -237,6 +239,8 @@ func TestLegacySchedulerDecision_PreviousResponseRouting(t *testing.T) {
 	t.Run("all proxies quarantined fails open to the owner", func(t *testing.T) {
 		proxy := int64(38115)
 		accounts := newLegacySchedulerDecisionTestAccounts(groupID, true)
+		accounts[0].Proxy = &Proxy{ID: proxy, Status: StatusActive}
+		accounts[1].Proxy = &Proxy{ID: proxy, Status: StatusActive}
 		accounts[0].ProxyID = &proxy
 		accounts[1].ProxyID = &proxy
 		svc := newLegacySchedulerDecisionTestService(accounts, false, schedulerTestConcurrencyCache{})

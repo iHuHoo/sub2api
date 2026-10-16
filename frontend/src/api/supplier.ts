@@ -35,13 +35,15 @@ export interface SupplierProxy {
   id: number
   name: string
   protocol: string
-  host: string
-  port: number
-  username: string
-  has_password: boolean
   status: string
-  created_at: string
-  updated_at: string
+  read_only: boolean
+  expires_at?: string | null
+  host?: string
+  port?: number
+  username?: string
+  has_password?: boolean
+  created_at?: string
+  updated_at?: string
 }
 export interface SupplierProxyInput {
   name?: string | null

@@ -1,4 +1,13 @@
 export default {
+  "expired": "Expired",
+  "assignedReadOnly": "Administrator assigned · Read only",
+  "assignment": "Supplier assignment",
+  "assignProxy": "Assign supplier",
+  "invalidAssignment": "Assigned supplier is unavailable. This proxy cannot be used until the assignment is repaired.",
+  "currentAssignment": "Current supplier",
+  "revokeAssignment": "Unassigned / Revoke assignment",
+  "assignmentConflict": "Assignment changed or proxy is in use. Refresh the proxy list and reopen this dialog before retrying.",
+
   "role": "Supplier",
   "accounts": "My upstream accounts",
   "proxies": "My proxies",

@@ -232,7 +232,7 @@ func TestAdvancedSchedulerSharesProbeBudgetWithFallbackDBRechecks(t *testing.T) 
 	cache := &upstreamCostTrackingConcurrencyCache{}
 	scheduler := &defaultOpenAIAccountScheduler{service: &OpenAIGatewayService{
 		accountRepo:        repo,
-		schedulerSnapshot:  &SchedulerSnapshotService{cache: &openAISnapshotCacheStub{accountsByID: snapshotAccounts}},
+		schedulerSnapshot:  &SchedulerSnapshotService{accountRepo: repo, cache: &openAISnapshotCacheStub{accountsByID: snapshotAccounts}},
 		concurrencyService: NewConcurrencyService(cache),
 	}}
 	budget := newOpenAISelectionProbeBudget()
@@ -316,7 +316,7 @@ func TestAdvancedSchedulerReleasesSlotWhenDBDisablesCandidate(t *testing.T) {
 	cache := &upstreamCostTrackingConcurrencyCache{}
 	scheduler := &defaultOpenAIAccountScheduler{service: &OpenAIGatewayService{
 		accountRepo:        repo,
-		schedulerSnapshot:  &SchedulerSnapshotService{cache: snapshot},
+		schedulerSnapshot:  &SchedulerSnapshotService{accountRepo: repo, cache: snapshot},
 		concurrencyService: NewConcurrencyService(cache),
 	}}
 
@@ -339,7 +339,7 @@ func TestAdvancedSchedulerReacquiresOnceWhenDBConcurrencyChanges(t *testing.T) {
 	cache := &upstreamCostTrackingConcurrencyCache{}
 	scheduler := &defaultOpenAIAccountScheduler{service: &OpenAIGatewayService{
 		accountRepo:        repo,
-		schedulerSnapshot:  &SchedulerSnapshotService{cache: snapshot},
+		schedulerSnapshot:  &SchedulerSnapshotService{accountRepo: repo, cache: snapshot},
 		concurrencyService: NewConcurrencyService(cache),
 	}}
 
@@ -371,7 +371,7 @@ func TestAdvancedSchedulerKnownFullPoolsDoNotRecheckDB(t *testing.T) {
 			cache := &upstreamCostTrackingConcurrencyCache{}
 			scheduler := &defaultOpenAIAccountScheduler{service: &OpenAIGatewayService{
 				accountRepo:        repo,
-				schedulerSnapshot:  &SchedulerSnapshotService{cache: &openAISnapshotCacheStub{accountsByID: accounts}},
+				schedulerSnapshot:  &SchedulerSnapshotService{accountRepo: repo, cache: &openAISnapshotCacheStub{accountsByID: accounts}},
 				concurrencyService: NewConcurrencyService(cache),
 			}}
 
@@ -852,4 +852,16 @@ func TestBuildOpenAIAccountSchedulerScoreSnapshotUsesUpstreamCostSignal(t *testi
 	scores := buildOpenAIAccountSchedulerScoreSnapshot(accounts, nil, weights, false, floatPtr(defaultOpenAIOAuthSchedulingRateMultiplier))
 
 	require.Greater(t, scores[1].BaseScore, scores[2].BaseScore)
+}
+
+func (r *upstreamCostCountingAccountRepo) RefreshAccountProxies(_ context.Context, accounts []*Account) error {
+	for _, a := range accounts {
+		b, ok := r.accounts[a.ID]
+		a.ProxyBindingMissing = !ok
+		a.ProxyID, a.Proxy, a.SupplierUserID = nil, nil, nil
+		if ok {
+			a.ProxyID, a.Proxy, a.SupplierUserID = b.ProxyID, b.Proxy, b.SupplierUserID
+		}
+	}
+	return nil
 }

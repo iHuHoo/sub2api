@@ -23,6 +23,7 @@ const results = reactive<Record<number, { reachable: boolean; latency_ms: number
 const form = reactive({ name: '', protocol: 'http' as NonNullable<SupplierProxyInput['protocol']>, host: '', port: 8080, username: '', password: '', clear_password: false, status: 'active' as 'active' | 'inactive' })
 const columns = computed(() => [
   { key: 'name', label: t('supplier.name') }, { key: 'address', label: t('supplier.address') },
+  { key: 'expires_at', label: t('supplier.expiry') },
   { key: 'status', label: t('supplier.lifecycle') }, { key: 'has_password', label: t('supplier.authentication') },
   { key: 'actions', label: t('common.actions') }
 ])
@@ -36,6 +37,7 @@ async function load() {
   finally { loading.value = false }
 }
 function open(proxy: SupplierProxy | null = null) {
+  if (proxy?.read_only) return
   editing.value = proxy
   Object.assign(form, {
     name: proxy?.name ?? '', protocol: proxy?.protocol ?? 'http', host: proxy?.host ?? '', port: proxy?.port ?? 8080,
@@ -44,7 +46,7 @@ function open(proxy: SupplierProxy | null = null) {
   show.value = true
 }
 async function save() {
-  if (saving.value) return
+  if (saving.value || editing.value?.read_only) return
   if (!form.name.trim() || !Number.isInteger(form.port) || form.port < 1 || form.port > 65535) {
     appStore.showError(t('supplier.invalidInput'))
     return
@@ -77,7 +79,7 @@ async function test(proxy: SupplierProxy) {
   finally { testing.value = null }
 }
 async function remove() {
-  if (!deleting.value || saving.value) return
+  if (!deleting.value || deleting.value.read_only || saving.value) return
   saving.value = true
   try {
     await supplierAPI.proxies.delete(deleting.value.id)
@@ -103,12 +105,13 @@ onMounted(load)
       <p class="card p-4 text-sm text-gray-600 dark:text-gray-300">{{ t('supplier.proxyPolicy') }} {{ t('supplier.tcpNotice') }}</p>
       <div class="card overflow-hidden">
         <DataTable :columns="columns" :data="proxies" :loading="loading">
-          <template #cell-name="{ row }">{{ row.name }} <span class="text-xs text-gray-500">#{{ row.id }}</span></template>
-          <template #cell-address="{ row }"><span class="break-all font-mono text-sm">{{ row.protocol }}://{{ row.host.includes(':') ? '[' + row.host + ']' : row.host }}:{{ row.port }}</span></template>
-          <template #cell-status="{ value }">{{ value === 'active' ? t('common.active') : t('supplier.inactive') }}</template>
-          <template #cell-has_password="{ row }"><span>{{ row.username || '—' }} · {{ row.has_password ? t('supplier.passwordSaved') : t('supplier.noPassword') }}</span></template>
+          <template #cell-name="{ row }">{{ row.name }} <span class="text-xs text-gray-500">#{{ row.id }}</span> <span v-if="row.read_only" class="badge badge-info">{{ t('supplier.assignedReadOnly') }}</span></template>
+          <template #cell-address="{ row }"><span v-if="!row.read_only && row.host" class="break-all font-mono text-sm">{{ row.protocol }}://{{ row.host.includes(':') ? '[' + row.host + ']' : row.host }}:{{ row.port }}</span><span v-else>{{ row.protocol }}</span></template>
+          <template #cell-expires_at="{ row }">{{ row.expires_at ? new Date(row.expires_at).toLocaleString() : '—' }}</template>
+          <template #cell-status="{ value }">{{ value === 'active' ? t('common.active') : value === 'expired' ? t('supplier.expired') : t('supplier.inactive') }}</template>
+          <template #cell-has_password="{ row }"><span v-if="!row.read_only">{{ row.username || '—' }} · {{ row.has_password ? t('supplier.passwordSaved') : t('supplier.noPassword') }}</span></template>
           <template #cell-actions="{ row }">
-            <div class="flex flex-wrap gap-2"><button class="btn btn-secondary btn-sm" @click="open(row)">{{ t('common.edit') }}</button><button class="btn btn-secondary btn-sm" :disabled="testing !== null" @click="test(row)">{{ t('supplier.tcpTest') }}</button><button class="btn btn-secondary btn-sm" @click="deleting = row">{{ t('common.delete') }}</button></div>
+            <div class="flex flex-wrap gap-2"><button v-if="!row.read_only" class="btn btn-secondary btn-sm" @click="open(row)">{{ t('common.edit') }}</button><button class="btn btn-secondary btn-sm" :disabled="testing !== null" @click="test(row)">{{ t('supplier.tcpTest') }}</button><button v-if="!row.read_only" class="btn btn-secondary btn-sm" @click="deleting = row">{{ t('common.delete') }}</button></div>
             <p v-if="results[row.id]" role="status" class="mt-1 text-sm">{{ results[row.id].reachable ? t('supplier.reachable') : t('supplier.unreachable') }} · {{ results[row.id].latency_ms }} ms</p>
           </template>
         </DataTable>

@@ -147,6 +147,9 @@ func (s *adminServiceImpl) UpdateProxy(ctx context.Context, id int64, input *Upd
 	if input.ExpiresAt != nil || input.ClearExpiresAt {
 		proxy.ExpiresAt = input.ExpiresAt
 	}
+	if proxy.AssignedSupplierUserID != nil && mode == FallbackModeDirect {
+		return nil, ErrProxyAssignmentInvalid
+	}
 	proxy.FallbackMode = mode
 	proxy.BackupProxyID = backupID
 	if input.ExpiryWarnDays != nil {
@@ -618,4 +621,12 @@ func (s *adminServiceImpl) saveProxyLatency(ctx context.Context, proxyID int64, 
 	if err := s.proxyLatencyCache.SetProxyLatency(ctx, proxyID, &merged); err != nil {
 		logger.LegacyPrintf("service.admin", "Warning: store proxy latency cache failed: %v", err)
 	}
+}
+
+func (s *adminServiceImpl) AssignProxySupplier(ctx context.Context, id int64, expected, target *int64) (*Proxy, error) {
+	r, ok := s.proxyRepo.(ProxyAssignmentRepository)
+	if !ok {
+		return nil, ErrProxyAssignmentInvalid
+	}
+	return r.AssignSupplier(ctx, id, expected, target)
 }

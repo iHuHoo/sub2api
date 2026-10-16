@@ -1,4 +1,13 @@
 export default {
+  "expired": "已过期",
+  "assignedReadOnly": "管理员分配 · 只读",
+  "assignment": "供应商分配",
+  "assignProxy": "分配供应商",
+  "invalidAssignment": "当前供应商归属失效，修复分配前无法使用此代理。",
+  "currentAssignment": "当前供应商",
+  "revokeAssignment": "未分配 / 撤销分配",
+  "assignmentConflict": "归属已更改或代理正在使用中。请刷新代理列表并重新打开此窗口后重试。",
+
   "role": "供应商",
   "accounts": "我的上游账号",
   "proxies": "我的代理",

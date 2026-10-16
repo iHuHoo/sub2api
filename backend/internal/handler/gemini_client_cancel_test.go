@@ -46,8 +46,7 @@ func newGeminiClientCancelFixture(t *testing.T) *geminiClientCancelFixture {
 	groupID := int64(9200)
 	accountID := int64(9201)
 	group := &service.Group{ID: groupID, Hydrated: true, Platform: service.PlatformGemini, Status: service.StatusActive}
-	account := &service.Account{
-		ID:            accountID,
+	account := &service.Account{ID: accountID,
 		Platform:      service.PlatformGemini,
 		Type:          service.AccountTypeAPIKey,
 		Credentials:   map[string]any{"api_key": "test-key"},

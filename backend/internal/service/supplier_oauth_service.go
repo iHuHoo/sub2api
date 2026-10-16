@@ -65,11 +65,13 @@ func (s *SupplierOAuthService) proxyURL(ctx context.Context, owner int64, id *in
 	if err != nil {
 		return "", err
 	}
-	if p == nil || p.SupplierUserID == nil || *p.SupplierUserID != owner {
+	if !p.AccessibleToSupplier(owner) {
 		return "", ErrSupplierUnavailable
 	}
-	if err = validateSupplierProxy(p); err != nil {
-		return "", err
+	if p.AssignedSupplierUserID == nil {
+		if err = validateSupplierProxy(p); err != nil {
+			return "", err
+		}
 	}
 	return p.URL(), nil
 }

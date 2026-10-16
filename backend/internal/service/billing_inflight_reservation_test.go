@@ -418,6 +418,7 @@ func (c *inflightSnapshotCacheStub) GetSnapshot(ctx context.Context, bucket Sche
 type inflightCountingAccountRepo struct {
 	AccountRepository
 	dbCalls atomic.Int64
+	bindingFixtureRepo
 }
 
 func (r *inflightCountingAccountRepo) ListSchedulableByGroupID(ctx context.Context, groupID int64) ([]Account, error) {
@@ -426,7 +427,12 @@ func (r *inflightCountingAccountRepo) ListSchedulableByGroupID(ctx context.Conte
 }
 
 func attachInflightSnapshot(svc *GatewayService, snap *inflightSnapshotCacheStub) *inflightCountingAccountRepo {
-	repo := &inflightCountingAccountRepo{}
+	repo := &inflightCountingAccountRepo{bindingFixtureRepo: bindingFixtures()}
+	for _, accounts := range snap.byBucket {
+		for _, a := range accounts {
+			repo.bindings[a.ID] = a
+		}
+	}
 	svc.accountRepo = repo
 	svc.schedulerSnapshot = NewSchedulerSnapshotService(snap, nil, repo, nil, svc.cfg)
 	return repo
@@ -489,7 +495,7 @@ func TestInflightEstimate_AccountMappingNoNegativeCaching(t *testing.T) {
 	groupID := int64(41)
 	svc := newInflightEstimateGateway(t, nil)
 	snap := &inflightSnapshotCacheStub{byBucket: map[string][]Account{}}
-	attachInflightSnapshot(svc, snap)
+	repo := attachInflightSnapshot(svc, snap)
 	apiKey := &APIKey{User: &User{ID: 1}, GroupID: &groupID, Group: &Group{ID: groupID, Platform: PlatformAnthropic, RateMultiplier: 1}}
 	ctx := context.Background()
 	req := InflightEstimateRequest{Model: "acct-alias-41", BodyBytes: 4000, MaxTokens: 1000}
@@ -497,6 +503,7 @@ func TestInflightEstimate_AccountMappingNoNegativeCaching(t *testing.T) {
 	_, priced := svc.EstimateInflightReservation(ctx, apiKey, req)
 	require.False(t, priced)
 	snap.set(groupID, PlatformAnthropic, []Account{{ID: 9, Platform: PlatformAnthropic, Credentials: map[string]any{"model_mapping": map[string]any{"acct-*": "claude-sonnet-4-5"}}}})
+	repo.bindings[9] = Account{ID: 9}
 	est, priced := svc.EstimateInflightReservation(ctx, apiKey, req)
 	require.True(t, priced, "new mapping (incl. wildcard) visible on next request")
 	require.Greater(t, est, 0.0)

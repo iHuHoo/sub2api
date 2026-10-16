@@ -77,7 +77,7 @@ func TestSupplierRepositoryIsolationAndSparseMutation(t *testing.T) {
 	require.ErrorIs(t, repo.DeleteProxy(ctx, owner, p.ID), service.ErrSupplierProxyInUse)
 	_, err = client.Account.UpdateOneID(foreign.ID).ClearProxyFallbackOriginID().Save(ctx)
 	require.NoError(t, err)
-	_, err = client.Proxy.Create().SetName("foreign-backup").SetProtocol("http").SetHost("8.8.4.4").SetPort(80).SetBackupProxyID(p.ID).Save(ctx)
+	_, err = client.Proxy.Create().SetSupplierUserID(owner).SetName("foreign-backup").SetProtocol("http").SetHost("8.8.4.4").SetPort(80).SetBackupProxyID(p.ID).Save(ctx)
 	require.NoError(t, err)
 	require.ErrorIs(t, repo.DeleteProxy(ctx, owner, p.ID), service.ErrSupplierProxyInUse)
 	rows, err := tx.QueryContext(ctx, "SELECT count(*) FROM scheduler_outbox WHERE account_id=$1 OR payload @> jsonb_build_object('account_ids',jsonb_build_array($1::bigint))", owned.ID)

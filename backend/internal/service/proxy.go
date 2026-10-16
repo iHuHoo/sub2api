@@ -14,21 +14,23 @@ const (
 )
 
 type Proxy struct {
-	SupplierUserID *int64
-	ID             int64
-	Name           string
-	Protocol       string
-	Host           string
-	Port           int
-	Username       string
-	Password       string
-	Status         string
-	CreatedAt      time.Time
-	UpdatedAt      time.Time
-	ExpiresAt      *time.Time
-	FallbackMode   string
-	BackupProxyID  *int64
-	ExpiryWarnDays int
+	SupplierUserID         *int64
+	AssignedSupplierUserID *int64
+	AssignmentValid        bool
+	ID                     int64
+	Name                   string
+	Protocol               string
+	Host                   string
+	Port                   int
+	Username               string
+	Password               string
+	Status                 string
+	CreatedAt              time.Time
+	UpdatedAt              time.Time
+	ExpiresAt              *time.Time
+	FallbackMode           string
+	BackupProxyID          *int64
+	ExpiryWarnDays         int
 }
 
 func (p *Proxy) IsActive() bool {
@@ -75,4 +77,25 @@ type ProxyAccountSummary struct {
 	Platform string
 	Type     string
 	Notes    *string
+}
+
+// EffectiveSupplierUserID preserves creator ownership independently of assignment.
+func (p *Proxy) EffectiveSupplierUserID() *int64 {
+	if p.SupplierUserID != nil {
+		return p.SupplierUserID
+	}
+	return p.AssignedSupplierUserID
+}
+func (p *Proxy) AccessibleToSupplier(id int64) bool {
+	if p == nil || id <= 0 {
+		return false
+	}
+	if p.SupplierUserID != nil {
+		return *p.SupplierUserID == id
+	}
+	return p.AssignedSupplierUserID != nil && *p.AssignedSupplierUserID == id && p.AssignmentValid
+}
+func (p *Proxy) SameOwner(other *Proxy) bool {
+	a, b := p.EffectiveSupplierUserID(), other.EffectiveSupplierUserID()
+	return a == nil && b == nil || a != nil && b != nil && *a == *b
 }

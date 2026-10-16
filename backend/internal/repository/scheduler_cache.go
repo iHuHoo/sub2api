@@ -864,6 +864,7 @@ func (c *schedulerCache) mgetChunked(ctx context.Context, keys []string) ([]any,
 
 func buildSchedulerMetadataAccount(account service.Account) service.Account {
 	return service.Account{
+		ProxyID:                 account.ProxyID,
 		ID:                      account.ID,
 		Name:                    account.Name,
 		SupplierUserID:          account.SupplierUserID,

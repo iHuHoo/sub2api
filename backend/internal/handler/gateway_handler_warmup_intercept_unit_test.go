@@ -160,7 +160,7 @@ func newTestGatewayHandler(t *testing.T, group *service.Group, accounts []*servi
 	t.Helper()
 
 	schedulerCache := &fakeSchedulerCache{accounts: accounts}
-	schedulerSnapshot := service.NewSchedulerSnapshotService(schedulerCache, nil, nil, nil, nil)
+	schedulerSnapshot := service.NewSchedulerSnapshotService(schedulerCache, nil, fixtureBindingRepo(accounts), nil, nil)
 
 	gwSvc := service.NewGatewayService(
 		nil, // accountRepo (not used: scheduler snapshot hit)
@@ -228,8 +228,7 @@ func TestGatewayHandlerMessages_InterceptWarmup_AntigravityAccount_MixedScheduli
 		Status:   service.StatusActive,
 	}
 
-	account := &service.Account{
-		ID:       accountID,
+	account := &service.Account{ID: accountID,
 		Name:     "ag-1",
 		Platform: service.PlatformAntigravity,
 		Type:     service.AccountTypeOAuth,
@@ -314,8 +313,7 @@ func TestGatewayHandlerMessages_InterceptWarmup_AntigravityAccount_ForcePlatform
 		Status:   service.StatusActive,
 	}
 
-	account := &service.Account{
-		ID:       accountID,
+	account := &service.Account{ID: accountID,
 		Name:     "ag-2",
 		Platform: service.PlatformAntigravity,
 		Type:     service.AccountTypeOAuth,
@@ -381,4 +379,26 @@ func TestGatewayHandlerMessages_InterceptWarmup_AntigravityAccount_ForcePlatform
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
 	require.True(t, strings.HasPrefix(resp["id"].(string), "msg_01"))
 	require.Equal(t, "claude-sonnet-4-5", resp["model"])
+}
+
+// fixtureAccountBindingRepo provides the authoritative binding projection for handler fixtures.
+type fixtureAccountBindingRepo struct {
+	service.AccountRepository
+	accounts map[int64]service.Account
+}
+
+func fixtureBindingRepo(accounts []*service.Account) *fixtureAccountBindingRepo {
+	r := &fixtureAccountBindingRepo{accounts: map[int64]service.Account{}}
+	for _, a := range accounts {
+		r.accounts[a.ID] = *a
+	}
+	return r
+}
+func (r *fixtureAccountBindingRepo) RefreshAccountProxies(_ context.Context, accounts []*service.Account) error {
+	for _, a := range accounts {
+		b, ok := r.accounts[a.ID]
+		a.ProxyBindingMissing = !ok
+		a.ProxyID, a.Proxy, a.SupplierUserID = b.ProxyID, b.Proxy, b.SupplierUserID
+	}
+	return nil
 }

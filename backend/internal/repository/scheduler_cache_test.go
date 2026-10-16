@@ -1,8 +1,13 @@
 package repository
 
 import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/stretchr/testify/require"
@@ -123,5 +128,116 @@ func TestSchedulerMetadataAccountDropsInvalidUpstreamBillingProbe(t *testing.T) 
 		})
 
 		require.NotContains(t, metadata.Extra, service.UpstreamBillingProbeExtraKey)
+	}
+}
+
+func TestSchedulerMetadataProxyBindingRoundTrip(t *testing.T) {
+	id := int64(9)
+	for _, a := range []service.Account{{ID: 1, ProxyID: &id}, {ID: 2}} {
+		full, meta, err := marshalSchedulerCacheAccount(a)
+		require.NoError(t, err)
+		for _, payload := range [][]byte{full, meta} {
+			var got service.Account
+			require.NoError(t, json.Unmarshal(payload, &got))
+			require.Equal(t, a.ProxyID, got.ProxyID)
+		}
+	}
+}
+
+type assignmentBoundaryCache struct {
+	service.SchedulerCache
+	snapshot []*service.Account
+}
+
+func (c *assignmentBoundaryCache) GetSnapshot(context.Context, service.SchedulerBucket) ([]*service.Account, bool, error) {
+	return c.snapshot, true, nil
+}
+func (c *assignmentBoundaryCache) GetAccount(_ context.Context, id int64) (*service.Account, error) {
+	for _, a := range c.snapshot {
+		if a.ID == id {
+			return a, nil
+		}
+	}
+	return nil, nil
+}
+
+type assignmentBoundaryRepo struct {
+	service.AccountRepository
+	calls     int
+	err       error
+	valid     bool
+	batchSize int
+	expired   bool
+}
+
+func (r *assignmentBoundaryRepo) RefreshAccountProxies(_ context.Context, accounts []*service.Account) error {
+	r.calls++
+	r.batchSize = len(accounts)
+	if r.err != nil {
+		return r.err
+	}
+	id := int64(9)
+	for _, a := range accounts {
+		if a.ID == 1 {
+			a.SupplierUserID = &id
+			a.ProxyID = &id
+			a.Proxy = &service.Proxy{Status: service.StatusActive, AssignedSupplierUserID: &id, AssignmentValid: r.valid}
+			if r.expired {
+				past := time.Now().Add(-time.Hour)
+				a.Proxy.ExpiresAt = &past
+			}
+		}
+	}
+	return nil
+}
+func TestProductionSchedulerCacheAssignmentBoundary(t *testing.T) {
+	ctx := context.Background()
+	id := int64(9)
+	for _, legacy := range []bool{false, true} {
+		t.Run(fmt.Sprint("legacy=", legacy), func(t *testing.T) {
+			cache := &assignmentBoundaryCache{}
+			repo := &assignmentBoundaryRepo{}
+			for _, a := range []service.Account{{ID: 1, Status: service.StatusActive, Schedulable: true, ProxyID: &id}, {ID: 2, Status: service.StatusActive, Schedulable: true}} {
+				_, payload, err := marshalSchedulerCacheAccount(a)
+				require.NoError(t, err)
+				if legacy {
+					var old map[string]any
+					require.NoError(t, json.Unmarshal(payload, &old))
+					delete(old, "ProxyID")
+					payload, err = json.Marshal(old)
+					require.NoError(t, err)
+				}
+				var decoded service.Account
+				require.NoError(t, json.Unmarshal(payload, &decoded))
+				cache.snapshot = append(cache.snapshot, &decoded)
+			}
+			svc := service.NewSchedulerSnapshotService(cache, nil, repo, nil, nil)
+			got, _, err := svc.ListSchedulableAccounts(ctx, nil, service.PlatformOpenAI, false)
+			require.NoError(t, err)
+			require.Len(t, got, 1)
+			require.Equal(t, int64(2), got[0].ID)
+			require.Equal(t, 1, repo.calls)
+			require.Equal(t, 2, repo.batchSize)
+			repo.valid = true
+			got, _, err = svc.ListSchedulableAccounts(ctx, nil, service.PlatformOpenAI, false)
+			require.NoError(t, err)
+			require.Len(t, got, 2)
+			repo.expired = true
+			got, _, err = svc.ListSchedulableAccounts(ctx, nil, service.PlatformOpenAI, false)
+			require.NoError(t, err)
+			require.Len(t, got, 1)
+			require.Equal(t, int64(2), got[0].ID)
+			repo.expired = false
+			repo.err = errors.New("unavailable")
+			_, _, err = svc.ListSchedulableAccounts(ctx, nil, service.PlatformOpenAI, false)
+			require.Error(t, err)
+			_, err = svc.GetAccount(ctx, 1)
+			require.Error(t, err)
+			missing := service.NewSchedulerSnapshotService(cache, nil, nil, nil, nil)
+			_, _, err = missing.ListSchedulableAccounts(ctx, nil, service.PlatformOpenAI, false)
+			require.Error(t, err)
+			_, err = missing.GetAccount(ctx, 1)
+			require.Error(t, err)
+		})
 	}
 }

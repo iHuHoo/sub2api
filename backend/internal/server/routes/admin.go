@@ -529,6 +529,7 @@ func registerProxyRoutes(admin *gin.RouterGroup, h *handler.Handlers, stepUpAuth
 		proxies.GET("/:id", h.Admin.Proxy.GetByID)
 		proxies.POST("", h.Admin.Proxy.Create)
 		proxies.PUT("/:id", h.Admin.Proxy.Update)
+		proxies.PUT("/:id/assignment", h.Admin.Proxy.AssignSupplier)
 		proxies.DELETE("/:id", h.Admin.Proxy.Delete)
 		proxies.POST("/:id/test", h.Admin.Proxy.Test)
 		proxies.POST("/:id/quality-check", h.Admin.Proxy.CheckQuality)
