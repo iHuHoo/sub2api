@@ -4,6 +4,8 @@ Verified 2026-10-16 Asia/Singapore. Production runs .24 with subproxy diagnostic
 
 See [the integration rollout plan](SUBPROXY_RELEASE_PLAN.md) and [the .24 migration/cache rollback plan](AOX24_DEPLOYMENT_PLAN.md). Gemini explicit-cache management remains blocked at Nginx. Opening it, changing model mappings, and deleting recovery data are separate operations.
 
+The .24 follow-up and .25 isolated migration rehearsal passed independent review on 2026-10-17. Production remains .24. See [the proposed .25 deployment and assignment-aware rollback plan](AOX25_DEPLOYMENT_PLAN.md); it requires separate production authorization. Recovery backups, the local G1 dump and stopped rehearsal volumes remain retained pending explicit cleanup authorization.
+
 - SSH: `ssh -o BatchMode=yes aoxtoken@20.195.40.145` (default port; existing local SSH key).
 - Directory: `/home/aoxtoken/sub2api`.
 - Compose services: sub2api, postgres, redis. Application bound to 127.0.0.1:8080.
