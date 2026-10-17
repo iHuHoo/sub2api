@@ -961,7 +961,6 @@ async function createOrder(orderAmount: number, orderType: OrderType, planId?: n
         path: '/payment/stripe',
         query: {
           order_id: String(result.order_id),
-          client_secret: result.client_secret,
           method: stripeMethod || undefined,
           resume_token: result.resume_token || undefined,
         },
@@ -1174,7 +1173,6 @@ async function attemptMobileQrFallback(err: unknown, context: MobileQrFallbackCo
         path: '/payment/stripe',
         query: {
           order_id: String(result.order_id),
-          client_secret: result.client_secret,
           method: stripeMethod,
           resume_token: result.resume_token || undefined,
         },
