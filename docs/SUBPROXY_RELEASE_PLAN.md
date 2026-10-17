@@ -1,14 +1,14 @@
 # subproxy / sub2api 首次联合发布与生产启用方案
 
-状态：**待 review；未发布镜像、未部署、未启用生产**。编制日期：2026-10-13。
+状态：**方案已评审（PR #53）；subproxy 1.0.0 已发布并复核；sub2api 发布及后续阶段待单独授权，未部署、未启用生产**。编制及本次记录日期：2026-10-13。
 
-本 PR 只批准方案评审。PR 合并不等于发布授权；后续每一步镜像发布、生产部署、启用及生产回滚操作，均须单独取得明确授权，记录执行人、复核人及批准范围；不得把前一步授权延伸至下一步。下文命令是执行手册，不由合并触发。
+PR #53 合并只代表方案通过评审。PR 合并不等于发布授权；后续每一步镜像发布、生产部署、启用及生产回滚操作，均须单独取得明确授权，记录执行人、复核人及批准范围；不得把前一步授权延伸至下一步。下文命令是执行手册，不由合并触发。
 
 ## 1. 发布范围与版本冻结
 
-| 组件 | 已合入的候选源码 | 拟发布标识 | 部署标识 |
+| 组件 | 已合入的候选源码 | 发布标识（含待发布项） | 部署标识 |
 | --- | --- | --- | --- |
-| subproxy | `9ea62d26ad969374b4dabcd07ff7f8c44f140e40`（#17，含 S1–S5 与清口） | `ghcr.io/ihuhoo/subproxy:sha-9ea62d26ad969374b4dabcd07ff7f8c44f140e40` | 待发布后填入 `ghcr.io/ihuhoo/subproxy@sha256:…` |
+| subproxy | `9ea62d26ad969374b4dabcd07ff7f8c44f140e40`（#17，含 S1–S5 与清口） | `ghcr.io/ihuhoo/subproxy:1.0.0` | `ghcr.io/ihuhoo/subproxy@sha256:a62d87142145c8534094a29a6a9be70bb004ef6625cc206d3a5782f8394debe6` |
 | sub2api | `41d5706d34ad87057129e5596e8a43ab4eda3163`（#52，含 I1/I2、#51 race 修复与清口） | 拟用 `v0.2.15-aox.0.0.23` | 待发布后填入 `ghcr.io/ihuhoo/sub2api@sha256:…` |
 
 编制时两边远端 main 与上表一致；sub2api 最新 release 是 `v0.2.15-aox.0.0.22`，拟用 .23 tag 尚不存在。**执行前重新检查 tag 和镜像是否已占用，绝不覆盖已有版本。** 若需改源码、版本、架构或规则，更新记录并重新复核，不能跟随浮动 main/latest 构建。
@@ -32,42 +32,45 @@ subproxy 运维手册中的“sub2api 业务集成尚未实施”是历史描述
 
 | 记录项 | 执行时填写 |
 | --- | --- |
-| 发布授权 / 生产授权、窗口、执行人 / 复核人 | 待填 |
+| 发布授权 / 生产授权、窗口、执行人 / 复核人 | 用户明确指定 1.0.0 并授权第一步；Codex 执行，用户独立复核通过。第二步及各生产操作仍待单独授权 |
+| 第一步版本与构建环境偏差 | 用户将原 sha-tag 改为 1.0.0；实际在 ARM64 Mac / Docker Desktop 使用 AMD64 模拟构建与运行验收，并非原计划的原生 AMD64 构建机；目标仍为 linux/amd64。两项偏差已由用户复核接受 |
+| 第一步发布证据 | 本地 `$CODEX_RUNTIME_DIR/subproxy-1.0.0-release/`：release-record.json、image-before-test.txt、build.log、container-tests.log、push-authorized.log、remote-manifest.txt、pull-by-digest.log；race/vet/契约及两项容器验收通过，验收 image ID 与发布 digest 相同，按 digest 拉取复核成功。用户独立复验通过，日志无 token 泄漏 |
+| 阶段 C 前置：生产 GHCR 拉取权限 | **未落实，阻止进入阶段 C**。包当前 private，匿名拉取 403；必须在生产主机使用有该包读取权限的账号及只读 read:packages token 登录，并按上表 digest 成功预拉；或在另行明确授权后将包公开并验证匿名拉取。不能使用开发机的成功拉取代替生产主机验证 |
 | 生产当前版本、源码、镜像 digest、CPU 架构、Compose 版本 | 待现场核实 |
 | 当前 Compose 项目/文件、数据挂载、入口代理/负载均衡及超时 | 待现场核实 |
 | 历史 .15 → 候选的迁移范围（实际范围仍以现场源码为准） | 5 个 SQL：`241_add_payment_order_bonus_amount.sql`、`241_add_typesafe_platform.sql`、`242_drop_platform_check_constraints.sql`、`243_supplier_ownership.sql`、`244_live_proxy_references.sql`；逐项审阅、校验和及恢复演练待填 |
 | 同范围新增的迁移回归测试（不执行为 SQL） | `platform_check_constraints_drop_migration_test.go`、`typesafe_platform_migration_test.go`；迁移目录合计新增 7 个文件 |
 | 两边目标源码 CI 链接与结果、发布 run / 构建日志 | 待填；PR 的绿灯不代替实际构建源码的验证 |
-| 两个新镜像 digest、架构、sub2api 内嵌版本/commit | 待发布后核实 |
+| 两个新镜像 digest、架构、sub2api 内嵌版本/commit | subproxy digest 见版本表，linux/amd64，revision=9ea62d26a，运行用户 65532；sub2api 待发布后核实 |
 | 同版 rules/deploy 归档校验和、实际 ruleset_version、覆盖项清单 | 待填 |
 | 隔离验收记录、入口测试、权限矩阵、脱敏检查 | 待填 |
 | 旧镜像/配置/secret/规则备份位置、数据库 dump 校验及恢复演练 | 待填 |
 | 生产部署时间、关闭态检查、启用时间、观察结果、回滚决定 | 待填 |
 
-当前已合入的 CI 和历史隔离验收只是准备依据，不预先勾选本次待发布镜像的验收。计划 review 可先完成；实际发布/上线必须补齐对应阶段的记录。
+第一步镜像发布已完成，不代表两个 digest 的联合阶段 B 已通过。当前已合入的 CI 和历史隔离验收只是准备依据，不预先勾选本次待发布镜像的验收。计划 review 可先完成；实际发布/上线必须补齐对应阶段的记录。
 
 ## 3. 阶段 A：候选镜像发布（需发布授权）
 
 1. 在干净的隔离 checkout 检出上表完整 SHA，确认无本地修改。复核两边该 SHA 的 CI；sub2api 单测必须包含 `make test-unit` 的 `-race`，subproxy 必须有 race/vet/build/契约及隔离容器验证。
 2. 核实生产架构。以下首发方案面向 `linux/amd64`，与 Aox 工作流当前默认 Linux runner 构建对应；若现场不是该架构，停止并补充架构构建/验收方案。
-3. subproxy 当前 CI 只构建不推送，没有发布工作流。首次使用已认证、受控的 amd64 构建机人工发布，不另加自动发布机制：
+3. subproxy 当前 CI 只构建不推送，没有发布工作流。首次原计划使用已认证、受控的 amd64 构建机人工发布；实际 ARM64 主机模拟构建的偏差已记录并获复核接受。不另加自动发布机制。以下保留执行方式供追溯，1.0.0 已存在，禁止重跑覆盖：
 
    ```sh
    set -eu
    # 在 subproxy 仓库的冻结提交上执行
-   SP_IMAGE=ghcr.io/ihuhoo/subproxy:sha-9ea62d26ad969374b4dabcd07ff7f8c44f140e40
+   SP_IMAGE=ghcr.io/ihuhoo/subproxy:1.0.0
    test "$(git rev-parse HEAD)" = 9ea62d26ad969374b4dabcd07ff7f8c44f140e40
    test -z "$(git status --porcelain)"
    docker build --platform linux/amd64 -f deploy/Dockerfile \
      --label org.opencontainers.image.revision=9ea62d26ad969374b4dabcd07ff7f8c44f140e40 \
      -t "$SP_IMAGE" .
    # 先按 operations.md 建立 schema 校验 Python 环境，并把其 bin 加入 PATH。
-   SUBPROXY_IMAGE="$SP_IMAGE" go test -tags=container -count=1 -v ./tests/container
+   DOCKER_DEFAULT_PLATFORM=linux/amd64 SUBPROXY_IMAGE="$SP_IMAGE" go test -tags=container -count=1 -v ./tests/container
    docker push "$SP_IMAGE"
    docker buildx imagetools inspect "$SP_IMAGE"
    ```
 
-   测试后直接 push 同一 image，不重新构建。记录本地 image ID、推送 digest、revision 标签与架构；按 digest 拉取后核对身份。构建机沿用受控 TMPDIR，不并行运行占用固定子网的容器测试。GHCR 认证经凭据存储/标准输入，不把 token 放入命令或日志；包权限保证生产主机可拉取。
+   测试后直接 push 同一 image，不重新构建。记录本地 image ID、推送 digest、revision 标签与架构；按 digest 拉取后核对身份。构建机沿用受控 TMPDIR，不并行运行占用固定子网的容器测试。GHCR 认证经凭据存储/标准输入，不把 token 放入命令或日志；生产主机的包读取权限仍待落实，见记录表和阶段 C 放行条件。ARM64 主机重验时必须设置 `DOCKER_DEFAULT_PLATFORM=linux/amd64`，否则构建上下文测试可能按宿主平台解析 FROM 并报 no match for platform。OCI index 中另一个 unknown/unknown 条目是 buildx attestation，不将其作为已验证的密码学签名。
 4. sub2api 使用 `build-aox.yml`，不调用通用 `release.yml`。审核 tag 未占用后，在冻结提交上创建并推送上述 Aox tag；**推 tag 即触发镜像发布**，仅在授权后执行：
 
    ```sh
@@ -135,6 +138,8 @@ networks:
 异常注入仅在隔离环境执行：使用临时代理和测试服务/fixture，不修改线上代理、停止线上 Redis 或替换生产 token。历史 I2 的 10 条代理验收不能代替此次最终 digest 的验收；真实探测仅使用明确授权的代理，凭据从私有运行文件导入，不通过 shell 参数传递。
 
 ## 5. 阶段 C：生产部署，诊断保持关闭（需生产授权）
+
+**进入本阶段前先解决私有包拉取权限，并单独取得相应生产操作授权。** 首选保持包私有，配置只读 `read:packages` token；所属账号须有该包读取权。经标准输入执行 `docker login ghcr.io --username <读取账号> --password-stdin`，不把 token 写进命令、Git 或日志，不复制开发机的写入/删除权限凭据。保护生产 Docker 凭据存储，记录凭据引用、权限、失效/轮换安排及按 digest 预拉的脱敏结果。若改公开，须另行批准并验证匿名拉取；本次未改变包可见性、未登录生产。未成功预拉前不部署 subproxy、不停 sub2api。
 
 1. 先按 [生产部署文档](PRODUCTION_DEPLOYMENT.md) 核实主机、目录与实际 Compose 项目。记录现有 sub2api 版本/digest、PostgreSQL/Redis 镜像、健康/重启数、磁盘余量及入口配置；记录至少 15 分钟原有网关错误率和延迟基线。若现场与假设不符，暂停修改并修订执行记录。
 2. 比较实际生产源码到冻结候选的迁移清单、校验和及行为变更。若生产确为 .22，复核迁移无差异；若更旧，逐项审阅并在隔离恢复副本上演练。特别不能仅凭“诊断功能无 SQL”跳过整包升级检查，也不能忽略旧生产文档中的迁移 239 回滚约束。
