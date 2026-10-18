@@ -1,6 +1,6 @@
 # Sub2API production deployment
 
-Verified 2026-10-17 Asia/Singapore. Following the first attempt's rollback, the user authorized another immediate deployment with **Claude inference acceptance deferred**. Production is now .25 with subproxy diagnostics enabled. The first attempt and retry are recorded separately below; the original unnecessary rollback remains part of the record.
+Verified 2026-10-18 Asia/Singapore. The user authorized .26 deployment after the .25 read-only follow-up. Production is now .26 with subproxy diagnostics enabled; 30-minute observation and final verification passed. Claude inference remains deferred due to the known account-pool limits.
 
 See [the integration rollout plan](SUBPROXY_RELEASE_PLAN.md) and [the .24 migration/cache rollback plan](AOX24_DEPLOYMENT_PLAN.md). Gemini explicit-cache management remains blocked at Nginx. Opening it, changing model mappings, and deleting recovery data are separate operations.
 
@@ -9,11 +9,11 @@ The .24 follow-up and .25 isolated migration rehearsal passed independent review
 - SSH: `ssh -o BatchMode=yes aoxtoken@20.195.40.145` (default port; existing local SSH key).
 - Directory: `/home/aoxtoken/sub2api`.
 - Compose services: sub2api, postgres, redis. Application bound to 127.0.0.1:8080.
-- Application project: `sub2api`. Use `docker compose -p sub2api -f docker-compose.yml` for normal application operations. The base pins `.25` and includes `SUBPROXY_ENABLED=true`, both secret file mounts/references and `subproxy-caller`. `compose.subproxy.yml` contains only `services: {}` as a compatibility shim; single-file and old two-file renders are identical.
+- Application project: `sub2api`. Use `docker compose -p sub2api -f docker-compose.yml` for normal application operations. The base pins `.26` and includes `SUBPROXY_ENABLED=true`, both secret file mounts/references and `subproxy-caller`. `compose.subproxy.yml` contains only `services: {}` as a compatibility shim; single-file and old two-file renders are identical.
 - Public checks: https://api.aoxtoken.com/health, https://aoxtoken.com/login; unauthenticated /v1/models returns 401.
-- Current version: v0.2.16-aox.0.0.25, source 7b6e54ead62c40178bc4d7c4a7167f0adef224c4.
-- Current image digest: sha256:b5f352334ef8bb57f7ac8b8806b2b2bede2a97ec5b0da689ddd3ba0bc3f79d7d.
-- Retained rollback image: `.24`, `sha256:13f13ed198a6d67e92e917fe308c6d33bf1b021e666324366d28ae32774d4672`. Migration 246 was already installed before the retry. Recheck assignment/binding/backup state before rollback; never clear assignments or drop constraints automatically. Older images and all recovery data remain retained.
+- Current version: v0.2.17-aox.0.0.26, source 97f0cba4c665d2f89c49bbc8022f8841b78f120f.
+- Current image digest: sha256:8176be8aef9592199b2d87404a89f103e84efabca324b6be6792e4819ae58261.
+- Retained rollback image: `.25`, `sha256:b5f352334ef8bb57f7ac8b8806b2b2bede2a97ec5b0da689ddd3ba0bc3f79d7d`. It understands migration 246 and existing supplier assignments. Keep all assignments and schema intact; do not restore an old database or clear assignments. Older images and recovery data remain retained.
 - PostgreSQL: 18.6, `postgres@sha256:77f585114c32fbca283dc835b0596f4e52b51b4c6662d7810b2f4084f60a1873` (previously 18.4).
 - Redis: 8.10.2, `redis@sha256:ba6e394f6acc2a695ef1b6944f161b9ca813711739be68319fa0db3470673f1d` (previously 8.8.0).
 - Host: Ubuntu 24.04 LTS, kernel 7.0.0-1014-azure, Docker 29.8.1; system updates and reboot verified 2026-09-24.
@@ -33,10 +33,31 @@ The .24 follow-up and .25 isolated migration rehearsal passed independent review
 4. Stop only the sub2api service and confirm no other database clients are writing. Dump the sub2api database using pg_dump -U sub2api -d sub2api -Fc through the postgres service. Verify the dump is nonempty, validate its catalog using pg_restore --list, and record its SHA-256 checksum. Restore into an isolated database and verify recovery before recreating the application; never restore over the live database as part of validation.
 5. Update the image in the base Compose, preserve diagnostics, networks and secret file references, and validate with `docker compose -p sub2api -f docker-compose.yml config --quiet`. Keep the compatibility override empty. Recreate only the application with `docker compose -p sub2api -f docker-compose.yml up -d --no-deps --no-build --force-recreate sub2api`.
 6. Check container health, /app/sub2api -version, restart count, startup/migration errors, and the public endpoints above.
-7. For current .25-to-.24 rollback, follow [the assignment-aware rollback gates](AOX25_DEPLOYMENT_PLAN.md#6-回退与新功能使用边界): inspect all assigned proxies, including soft-deleted rows, and their bindings/backup references before changing the image. The initial deployment used zero assignments; later assignments invalidate that assumption. Retain migration 246 and its constraints; do not automatically clear assignments or restore an old database. Historical .24-to-.23 rollback uses [the cache rollback plan](AOX24_DEPLOYMENT_PLAN.md) and both files from the same successful .24 backup; its old base alone pins .22.
+7. Current .26-to-.25 rollback restores the saved Compose and recreates only sub2api, retaining all assignments and schema. For historical .25-to-.24 rollback, follow [the assignment-aware rollback gates](AOX25_DEPLOYMENT_PLAN.md#6-回退与新功能使用边界): inspect all assigned proxies, including soft-deleted rows, and their bindings/backup references before changing the image. The initial deployment used zero assignments; later assignments invalidate that assumption. Retain migration 246 and its constraints; do not automatically clear assignments or restore an old database. Historical .24-to-.23 rollback uses [the cache rollback plan](AOX24_DEPLOYMENT_PLAN.md) and both files from the same successful .24 backup; its old base alone pins .22.
 8. Update this document with the verified version, digest, previous image and backup location.
 
 When using a deployment script, upload it with scp and execute the remote file. Do not pipe a script into bash over SSH: Docker commands may consume the script's standard input.
+
+## .26 deployment, 2026-10-18
+
+- Authorized after the .25 read-only 24-hour follow-up. Claude inference remains deferred at the user's request. No new paid inference, payment, proxy diagnostic or assignment mutation was performed.
+- Target: `v0.2.17-aox.0.0.26`, source `97f0cba4c665d2f89c49bbc8022f8841b78f120f`, digest `sha256:8176be8aef9592199b2d87404a89f103e84efabca324b6be6792e4819ae58261`. Version and running image identity matched; migration records/checksums were unchanged from .25.
+- Interruption: **2026-10-18 16:06:13.630–16:08:04.340 +08, 110.71 seconds**, within the 15-minute ceiling. Only sub2api was recreated; PostgreSQL, Redis and subproxy identities/start times/restart counts were unchanged. Three supplier assignments were retained.
+- Backup: `/home/aoxtoken/sub2api/backups/pre-aox26-20261018T080609Z` (0700 directory; sensitive files 0600). Dump: 49,500,527 bytes, 11.05 seconds, SHA-256 `b8a636ca4adeb3e2b6d011612e82b08184296eb4c95f451410408fa9dd408b9d`. Isolated recovery took 81.28 seconds. Table counts, normalized schema, roles, ownership and effective permissions/catalog comparisons passed. No live database restore was performed.
+- Retained production-data copies: `database.dump` and `restore-data/18/docker` beneath that backup directory. Restore container `sub2api-aox26-restore-20261018` is stopped; network `sub2api-aox26-restore-20261018-net` is internal. No ports were published. Cleanup requires separate authorization.
+- Public health/login/models returned 200/200/401; cachedContents remained deliberately blocked with 503. Read-only administrator lists passed. Raw capabilities returned `{"enabled":true,"modes":["quick","sample"],"schema_version":1}`. No browser UI, supplier-session redaction or diagnostic execution retest was performed.
+- Observation passed: 16:08:46–16:38:47 +08, 1,800.5 seconds, 35 samples. Entry statuses: 247 HTTP 200, six 403, two 401, one 405; no 5xx. Gateway statuses: ten 200 and six client-request-phase 403. CPU peaked at 9.24%, container memory at 2.75%; no new restarts, secret matches, diagnostic failure classifications or stop conditions. Ten organic Claude Opus 5.5 / medium usage records were observed (TTFT p95 1,152.95 ms); no test requests were sent. This sample is below the 20-request comparison threshold and does not establish a latency trend or other-model availability. Final verification confirmed .26 identity, single/double Compose equivalence, three assignments, zero invalid indexes/cross-owner backups and healthy services.
+- Rollback target is .25, preserving migration 246 and all supplier assignments; do not clear assignments or restore an old database. The historical .25-to-.24 rollback procedure above is not the current rollback path.
+- Upstream changes: GPT-5.5 on ChatGPT subscription accounts returns 404; Gemini chat compatibility forwards reasoning effort. Group 10 was read-only checked before release: multiplier 1, no effort mappings/multipliers. This does not guarantee unchanged token consumption. No customer announcement was sent; #66 remains unresolved.
+- **24-hour follow-up due 2026-10-19 16:08 +08**; no timer installed. Keep .25 and all recovery material. Evidence: `/Users/dalu/aiworkspace/codex/runtime/sub2api-aox26-deploy-20261018/`.
+
+## .25 24-hour follow-up, 2026-10-18
+
+- Primary window: 2026-10-17 15:42:28 through 2026-10-18 15:42:28 +08; collection continued to 16:01:48. Four container identities were unchanged, healthy, with zero restarts. Across 1,458 resource samples, CPU peaked at 16%, memory at 9.2%; database/Redis unhealthy counts were zero. Disk use was 34%.
+- Three supplier assignments remained; invalid indexes, cross-owner backups and invalid backup targets were zero. Diagnostics remained enabled, with no collected diagnostic failure classifications, schema errors or cache errors.
+- Main timing log: 12,872 requests, including 279 HTTP 503s: 266 Claude routing failures with no available accounts (256 Opus, 10 Sonnet), 10 payment-order failures (four WooshPay missing-success-URL errors, six local payment-instance-selection errors wrapped as method_not_configured), and three deliberately blocked cachedContents requests. No 502/504 was observed. The existing errors remain counted.
+- Claude inference tests were explicitly skipped. Non-Claude successful usage was too sparse for reliable tail-latency comparison; payment success was not established. No evidence of a .25 regression was found, but this does not establish availability of every model/payment method. Backups and data copies remain retained.
+- Evidence: `/Users/dalu/aiworkspace/codex/runtime/sub2api-aox25-followup-20261018/`.
 
 ## .25 retry, 2026-10-17
 
