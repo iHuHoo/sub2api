@@ -851,6 +851,7 @@ export default {
         field_airwallexApiBaseHint: '必须和 API Key 所属环境一致：沙箱/测试密钥使用 https://api-demo.airwallex.com/api/v1，生产密钥使用 https://api.airwallex.com/api/v1。环境混用会返回 credentials_invalid / Access Denied。',
         field_wooshpayApiBaseHint: '请选择与密钥匹配的环境：测试密钥使用 apitest，生产密钥使用 api。',
         field_wooshpayReturnUrlHint: '可选。留空时使用每个订单自动生成的支付结果页地址。',
+        field_wooshpaySuccessUrlHint: '可选兜底。仅在下单请求未提供回跳地址时使用，请填写本站完整的 /payment/result 地址。订单号和恢复参数由系统生成；请求和配置都为空时无法下单。',
         field_paymentCurrencyHint: '默认 CNY。Stripe 和 Airwallex 可按账户支持从下拉项选择 HKD、USD 等币种；微信、支付宝、易支付仍按 CNY。',
         field_accountIdHint: '不涉及多账户、组织级密钥或连接账户收款时可以不填；单账户 Scoped API Key 会默认使用所选账户。',
         field_cid: '支付渠道 ID',

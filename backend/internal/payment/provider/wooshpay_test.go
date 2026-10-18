@@ -116,11 +116,12 @@ func TestWooshPayCreatePaymentSuccessURL(t *testing.T) {
 	}{
 		{"missing", "", "", ""},
 		{"whitespace", " \n", " \t", ""},
-		{"invalid scheme", "javascript:alert(1)", fallback, ""},
+		{"invalid scheme", "javascript:alert(1)", "", ""},
+		{"invalid request does not fall back", fallback, "javascript:alert(1)", ""},
 		{"relative", "/thanks", "", ""},
 		{"userinfo", "https://user:pass@merchant.example/thanks", "", ""},
 		{"fallback preserves recovery parameters", "", fallback, fallback},
-		{"configuration wins", " https://merchant.example/thanks?source=checkout ", fallback, "https://merchant.example/thanks?source=checkout"},
+		{"prepared request wins and preserves recovery", "https://merchant.example/payment/result", fallback, fallback},
 		{"configuration without fallback", "https://merchant.example/thanks", "", "https://merchant.example/thanks"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

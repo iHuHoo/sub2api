@@ -138,13 +138,12 @@ func (w *WooshPay) MerchantIdentityMetadata() map[string]string {
 	return map[string]string{"currency": wooshPayCurrency}
 }
 
-// ResolveWooshPaySuccessURL is also used before creating a local order. The
-// service validates client return URLs against the site's host and result path;
-// configured merchant URLs retain their existing destination and query string.
+// ResolveWooshPaySuccessURL preserves the service-prepared URL (including order
+// recovery parameters). The configured destination is only a missing-URL fallback.
 func ResolveWooshPaySuccessURL(config map[string]string, returnURL string) (string, error) {
-	successURL := strings.TrimSpace(config["successUrl"])
+	successURL := strings.TrimSpace(returnURL)
 	if successURL == "" {
-		successURL = strings.TrimSpace(returnURL)
+		successURL = strings.TrimSpace(config["successUrl"])
 	}
 	if successURL == "" {
 		return "", infraerrors.BadRequest("INVALID_RETURN_URL", "WooshPay requires a success URL: provide return_url or configure successUrl")

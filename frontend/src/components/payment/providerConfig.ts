@@ -178,7 +178,7 @@ export const PROVIDER_CONFIG_FIELDS: Record<string, ConfigFieldDef[]> = {
         { value: 'https://api.wooshpay.com', label: 'Live — api.wooshpay.com' },
       ],
     },
-    { key: 'successUrl', label: '', sensitive: false, optional: true, hintKey: 'admin.settings.payment.field_wooshpayReturnUrlHint' },
+    { key: 'successUrl', label: '', sensitive: false, optional: true, hintKey: 'admin.settings.payment.field_wooshpaySuccessUrlHint' },
     { key: 'cancelUrl', label: '', sensitive: false, optional: true, hintKey: 'admin.settings.payment.field_wooshpayReturnUrlHint' },
     { key: 'currency', label: '', sensitive: false, defaultValue: 'CNY', options: [{ value: 'CNY', label: 'CNY' }] },
   ],

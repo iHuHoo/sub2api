@@ -856,6 +856,7 @@ export default {
         field_airwallexApiBaseHint: 'Must match the API key environment: use https://api-demo.airwallex.com/api/v1 for sandbox/demo keys, and https://api.airwallex.com/api/v1 for production keys. Mixed environments return credentials_invalid / Access Denied.',
         field_wooshpayApiBaseHint: 'Choose the endpoint matching the key: apitest for test keys, api for live keys.',
         field_wooshpayReturnUrlHint: 'Optional. Leave empty to use the payment result URL generated for each order.',
+        field_wooshpaySuccessUrlHint: 'Optional fallback when the checkout request has no return URL. Enter your full site URL ending in /payment/result. Order and recovery parameters are generated automatically. Checkout requires either a request URL or this setting.',
         field_paymentCurrencyHint: 'Default is CNY. Stripe and Airwallex can choose HKD, USD, or another listed currency supported by the account; WeChat Pay, Alipay, and EasyPay remain CNY.',
         field_accountIdHint: 'Leave this empty unless you use multiple accounts, an organization-level key, or connected-account payments. A single-account scoped API key uses the selected account by default.',
         field_cid: 'Channel ID',
