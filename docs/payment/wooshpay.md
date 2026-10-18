@@ -20,7 +20,8 @@ WooshPay 集成用于一次性 CNY 充值。Sub2API 创建托管 Checkout Sessio
 2. 测试密钥选择测试 API Base；生产密钥选择生产 API Base。系统只接受上表中的两个 HTTPS 地址。
 3. 填写 Secret Key 和 Webhook Secret。两者只能保存在服务端配置中，禁止写入前端代码、日志、工单或截图。
 4. 在 WooshPay 后台创建 Webhook 端点，地址使用上表路径，并只需订阅 `payment_intent.succeeded`。
-5. Success URL 和 Cancel URL 可以留空；留空时系统使用当前订单的支付结果页。
+5. WooshPay 的 `success_url` 必填。后台 Success URL（`successUrl`）可以留空，但此时下单请求必须提供有效的 `return_url`；正常前端会提供本站 `/payment/result`，服务端附加订单号和恢复参数后转交支付商。若两者均为空，系统在创建本地订单前返回 `400 INVALID_RETURN_URL`，不会请求 WooshPay。
+6. 后台 Success URL 优先于请求 `return_url`，必须是无用户名/密码的绝对 HTTP/HTTPS 地址；不会被自动替换为全局首页。客户端 `return_url` 仍受现有主机和支付结果页路径限制。Cancel URL 留空时仍使用当前请求的支付结果页。
 
 浏览器跳转到 Success URL 只表示用户返回站点，不是支付成功凭据。余额仅在服务端验证 Webhook 签名，并完成订单号、PaymentIntent、金额和币种对账后入账。
 

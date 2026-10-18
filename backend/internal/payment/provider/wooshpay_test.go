@@ -10,10 +10,12 @@ import (
 	"net/http/httptest"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/payment"
+	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 	"github.com/stretchr/testify/require"
 )
 
@@ -107,6 +109,46 @@ func TestWooshPayCreatePaymentRejectsInvalidAmount(t *testing.T) {
 	}
 }
 
+func TestWooshPayCreatePaymentSuccessURL(t *testing.T) {
+	const fallback = "https://merchant.example/payment/result?order_id=42&out_trade_no=order-42&resume_token=signed-token&status=success"
+	for _, tc := range []struct {
+		name, configured, returned, want string
+	}{
+		{"missing", "", "", ""},
+		{"whitespace", " \n", " \t", ""},
+		{"invalid scheme", "javascript:alert(1)", fallback, ""},
+		{"relative", "/thanks", "", ""},
+		{"userinfo", "https://user:pass@merchant.example/thanks", "", ""},
+		{"fallback preserves recovery parameters", "", fallback, fallback},
+		{"configuration wins", " https://merchant.example/thanks?source=checkout ", fallback, "https://merchant.example/thanks?source=checkout"},
+		{"configuration without fallback", "https://merchant.example/thanks", "", "https://merchant.example/thanks"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var calls atomic.Int32
+			var got wooshPayCheckoutSessionRequest
+			server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				calls.Add(1)
+				require.NoError(t, json.NewDecoder(r.Body).Decode(&got))
+				_, _ = w.Write([]byte(`{"url":"https://checkout.example/session","payment_intent":"pi_1"}`))
+			}))
+			defer server.Close()
+			p := newWooshPayTestProvider(server, "sk_test")
+			p.config["successUrl"] = tc.configured
+			_, err := p.CreatePayment(context.Background(), payment.CreatePaymentRequest{OrderID: "order-42", Amount: "1.00", ReturnURL: tc.returned})
+			if tc.want == "" {
+				require.Error(t, err)
+				require.Equal(t, http.StatusBadRequest, infraerrors.Code(err))
+				require.Equal(t, "INVALID_RETURN_URL", infraerrors.Reason(err))
+				require.Zero(t, calls.Load(), "invalid redirect must never reach the gateway")
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, int32(1), calls.Load())
+				require.Equal(t, tc.want, got.SuccessURL)
+			}
+		})
+	}
+}
+
 func TestWooshPayCreatePaymentResponseErrors(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -128,7 +170,7 @@ func TestWooshPayCreatePaymentResponseErrors(t *testing.T) {
 			}))
 			defer server.Close()
 			provider := newWooshPayTestProvider(server, "sk_test")
-			_, err := provider.CreatePayment(context.Background(), payment.CreatePaymentRequest{OrderID: "order-1", Amount: "1.00"})
+			_, err := provider.CreatePayment(context.Background(), payment.CreatePaymentRequest{OrderID: "order-1", Amount: "1.00", ReturnURL: "https://merchant.example/payment/result"})
 			require.Error(t, err)
 			require.Contains(t, err.Error(), tc.want)
 			if tc.maxErrSize > 0 {

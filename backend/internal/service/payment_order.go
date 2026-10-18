@@ -678,6 +678,16 @@ func (s *PaymentService) buildWeChatOAuthRequiredResponse(ctx context.Context, r
 }
 
 func (s *PaymentService) validateSelectedCreateOrderInstance(ctx context.Context, req CreateOrderRequest, sel *payment.InstanceSelection) error {
+	if sel != nil && sel.ProviderKey == payment.TypeWooshPay {
+		returnURL, err := CanonicalizeReturnURL(req.ReturnURL, req.SrcHost, req.SrcURL)
+		if err != nil {
+			return err
+		}
+		_, err = provider.ResolveWooshPaySuccessURL(sel.Config, returnURL)
+		if err != nil {
+			return err
+		}
+	}
 	if !requiresWeChatJSAPICompatibleSelection(req, sel) {
 		return nil
 	}
