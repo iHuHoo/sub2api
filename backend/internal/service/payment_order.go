@@ -480,27 +480,7 @@ func (s *PaymentService) invokeProvider(ctx context.Context, order *dbent.Paymen
 	}
 	subject := s.buildPaymentSubject(plan, limitAmount, cfg, sel)
 	outTradeNo := order.OutTradeNo
-	canonicalReturnURL, err := CanonicalizeReturnURL(req.ReturnURL, req.SrcHost, req.SrcURL)
-	if err != nil {
-		return nil, &paymentProviderNotStartedError{err: err}
-	}
-	resumeToken := ""
-	if resume := s.paymentResume(); resume != nil {
-		if canonicalReturnURL != "" && resume.isSigningConfigured() {
-			resumeToken, err = resume.CreateToken(ResumeTokenClaims{
-				OrderID:            order.ID,
-				UserID:             order.UserID,
-				ProviderInstanceID: sel.InstanceID,
-				ProviderKey:        sel.ProviderKey,
-				PaymentType:        req.PaymentType,
-				CanonicalReturnURL: canonicalReturnURL,
-			})
-			if err != nil {
-				return nil, &paymentProviderNotStartedError{err: fmt.Errorf("create payment resume token: %w", err)}
-			}
-		}
-	}
-	providerReturnURL, err := buildPaymentReturnURL(canonicalReturnURL, order.ID, outTradeNo, resumeToken)
+	providerReturnURL, resumeToken, err := s.buildSelectedPaymentReturnURL(order, req, sel)
 	if err != nil {
 		return nil, &paymentProviderNotStartedError{err: err}
 	}
@@ -678,6 +658,18 @@ func (s *PaymentService) buildWeChatOAuthRequiredResponse(ctx context.Context, r
 }
 
 func (s *PaymentService) validateSelectedCreateOrderInstance(ctx context.Context, req CreateOrderRequest, sel *payment.InstanceSelection) error {
+	if sel != nil && sel.ProviderKey == payment.TypeWooshPay {
+		_, err := canonicalizeSelectedPaymentReturnURL(req, sel)
+		if err != nil {
+			return err
+		}
+		source := "request"
+		present := strings.TrimSpace(req.ReturnURL) != ""
+		if !present {
+			source = "configured"
+		}
+		slog.Info("[PaymentService] WooshPay return URL selected", "return_url_present", present, "return_url_source", source)
+	}
 	if !requiresWeChatJSAPICompatibleSelection(req, sel) {
 		return nil
 	}
@@ -690,6 +682,43 @@ func (s *PaymentService) validateSelectedCreateOrderInstance(ctx context.Context
 		return infraerrors.TooManyRequests("NO_AVAILABLE_INSTANCE", "selected payment instance is not compatible with the current WeChat OAuth app")
 	}
 	return nil
+}
+
+func canonicalizeSelectedPaymentReturnURL(req CreateOrderRequest, sel *payment.InstanceSelection) (string, error) {
+	if sel == nil || sel.ProviderKey != payment.TypeWooshPay || strings.TrimSpace(req.ReturnURL) != "" {
+		return CanonicalizeReturnURL(req.ReturnURL, req.SrcHost, req.SrcURL)
+	}
+	fallback, err := provider.ResolveWooshPaySuccessURL(sel.Config, "")
+	if err != nil {
+		return "", err
+	}
+	parsed, err := url.Parse(fallback)
+	if err != nil {
+		return "", infraerrors.BadRequest("INVALID_RETURN_URL", "WooshPay successUrl must be a valid payment result URL")
+	}
+	// Only the administrator-configured host is trusted for a missing client URL.
+	// Reuse canonical path validation and strip any preconfigured query/fragment.
+	return CanonicalizeReturnURL(fallback, parsed.Host, "")
+}
+
+func (s *PaymentService) buildSelectedPaymentReturnURL(order *dbent.PaymentOrder, req CreateOrderRequest, sel *payment.InstanceSelection) (string, string, error) {
+	canonicalReturnURL, err := canonicalizeSelectedPaymentReturnURL(req, sel)
+	if err != nil {
+		return "", "", err
+	}
+	resumeToken := ""
+	if resume := s.paymentResume(); resume != nil && canonicalReturnURL != "" && resume.isSigningConfigured() {
+		resumeToken, err = resume.CreateToken(ResumeTokenClaims{
+			OrderID: order.ID, UserID: order.UserID,
+			ProviderInstanceID: sel.InstanceID, ProviderKey: sel.ProviderKey,
+			PaymentType: req.PaymentType, CanonicalReturnURL: canonicalReturnURL,
+		})
+		if err != nil {
+			return "", "", fmt.Errorf("create payment resume token: %w", err)
+		}
+	}
+	returnURL, err := buildPaymentReturnURL(canonicalReturnURL, order.ID, order.OutTradeNo, resumeToken)
+	return returnURL, resumeToken, err
 }
 
 func calculateCreateOrderPayAmount(limitAmount, feeRate float64, currency string) (string, float64, error) {

@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/payment"
+	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 	"github.com/shopspring/decimal"
 )
 
@@ -137,6 +138,23 @@ func (w *WooshPay) MerchantIdentityMetadata() map[string]string {
 	return map[string]string{"currency": wooshPayCurrency}
 }
 
+// ResolveWooshPaySuccessURL preserves the service-prepared URL (including order
+// recovery parameters). The configured destination is only a missing-URL fallback.
+func ResolveWooshPaySuccessURL(config map[string]string, returnURL string) (string, error) {
+	successURL := strings.TrimSpace(returnURL)
+	if successURL == "" {
+		successURL = strings.TrimSpace(config["successUrl"])
+	}
+	if successURL == "" {
+		return "", infraerrors.BadRequest("INVALID_RETURN_URL", "WooshPay requires a success URL: provide return_url or configure successUrl")
+	}
+	parsed, err := url.Parse(successURL)
+	if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Hostname() == "" || parsed.User != nil {
+		return "", infraerrors.BadRequest("INVALID_RETURN_URL", "WooshPay success URL must be an absolute http/https URL without user info")
+	}
+	return successURL, nil
+}
+
 func (w *WooshPay) CreatePayment(ctx context.Context, req payment.CreatePaymentRequest) (*payment.CreatePaymentResponse, error) {
 	unitAmount, err := wooshPayMinorUnits(req.Amount)
 	if err != nil {
@@ -146,9 +164,9 @@ func (w *WooshPay) CreatePayment(ctx context.Context, req payment.CreatePaymentR
 	if orderID == "" {
 		return nil, fmt.Errorf("wooshpay create payment: missing order id")
 	}
-	successURL := strings.TrimSpace(w.config["successUrl"])
-	if successURL == "" {
-		successURL = strings.TrimSpace(req.ReturnURL)
+	successURL, err := ResolveWooshPaySuccessURL(w.config, req.ReturnURL)
+	if err != nil {
+		return nil, err
 	}
 	cancelURL := strings.TrimSpace(w.config["cancelUrl"])
 	if cancelURL == "" {
