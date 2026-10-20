@@ -33,3 +33,16 @@ func TestClashSubscriptionDownloadBoundary(t *testing.T) {
 		}
 	}
 }
+
+func TestClashSubscriptionManagementKeepsCORS(t *testing.T) {
+	h := NewClashSubscriptionHandler(service.NewClashSubscriptionService(nil, &config.Config{}), nil)
+	r := gin.New()
+	r.Use(middleware.CORS(config.CORSConfig{AllowedOrigins: []string{"https://aoxtoken.com"}, AllowCredentials: true}))
+	r.GET("/api/v1/admin/clash-subscription", h.Manage)
+	req := httptest.NewRequest("GET", "https://api.example/api/v1/admin/clash-subscription", nil)
+	req.Header.Set("Origin", "https://aoxtoken.com")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	require.Equal(t, "https://aoxtoken.com", w.Header().Get("Access-Control-Allow-Origin"))
+	require.Contains(t, w.Header().Get("Cache-Control"), "no-store")
+}

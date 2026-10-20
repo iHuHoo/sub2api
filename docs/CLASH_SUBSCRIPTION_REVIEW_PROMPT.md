@@ -1,23 +1,30 @@
-# 给 Claude 的设计复核提示词
+# 给 Claude 的实现复核提示词
 
-请复核 `/Users/dalu/work/sub2api/docs/CLASH_SUBSCRIPTION_DESIGN.md`，结合当前仓库代码检查需求、权限边界和方案可实施性。当前只写了设计，没有实现，也没有生产变更。
+请复核 feat/clash-subscription 分支相对 main 5cb965d3b90346f025103e469f39f97c544fc06b 的全部改动。
+隔离 worktree：/Users/dalu/aiworkspace/codex/runtime/sub2api-clash-subscription。
+对照 docs/CLASH_SUBSCRIPTION_DESIGN.md 和 docs/superpowers/plans/2026-10-20-clash-subscription.md，按六项任务复核。请只读评审，不合并、不发布、不启用生产。
 
-这是第二轮复核。请先对照 `/Users/dalu/aiworkspace/claude/clash-subscription/codex-prompt.md`，确认 2026-10-20 12:44 +08 的五项用户决定及实现约束已经落入设计；不要把本轮文档修订当成实现完成。
+已接受的边界：配置含代理凭据、链接可转发、下载的密码不能收回；供应商仅导出被分配的有效代理，管理员仅公共池。原列表继续脱敏、供应商不能修改或删除分配代理。
 
-用户已明确：管理员和供应商都需要 Clash 订阅；供应商仅下载分配给自己的代理，不能修改/删除；接受配置暴露代理凭据、链接可转发、撤销不能回收已下载凭据的风险。不要把这些已经接受的边界当成阻塞项，但应检查设计是否如实实现。
+请重点核对：
+1. 迁移 247、唯一约束、用户触发器和 users→subscription 锁序。并发测试会观察 pg_blocking_pids；移除用户锁的变异测试确实失败。
+2. 显式 SQL 过滤用户/代理软删除、状态、到期、角色、两种归属；repeatable-read 快照；有效零节点与无效 token 的区别。零节点 create/reset 409 且不改变旧记录。
+3. token 32 字节 CSPRNG，仅保存 hash，链接仅一次返回；version 冲突，不复用 JWT 或模型 API key。管理接口采用 JWT 和现有角色/合规校验。
+4. 下载 CORS 清理仅用于下载，不影响管理接口；OPTIONS 保持全局 204/403。错误 Host、方法、重复 query、路径编码/斜杠不泄漏 token 或重定向；Redis 故障 503。
+5. 外层 panic recovery 对该功能省略 request dump/panic payload；正常日志不含 query/正文。审计不保存 grant 响应。
+6. YAML 特殊字符、稳定 ID 名称、HTTPS 校验、socks5h→socks5 远端 DNS、非法 SOCKS 认证原因码、空节点 REJECT；无 DIRECT 回退。
+7. 弹窗关闭后清除链接，晚返回丢弃；操作/复制前刷新节点数；冲突或响应丢失不自动 reset；普通用户没有入口。
+8. 未改变网关调度、计费、代理分配或旧迁移。
 
-重点复核：
+本地验证：
+- 后端完整 -race -tags=unit、完整 -tags=integration、vet、build、golangci-lint 0 issues。
+- 前端 385 文件 / 3052 测试、typecheck、lint:check、build。
+- Mihomo v1.19.32 对真实生成的非空/空 YAML 校验，通过假 SOCKS 上游确认域名 ATYP。
+- 隔离 Nginx 1.28-alpine：200/404/405/429/503（真实连接拒绝），access/error/轮转无假 token。
+- Clash Verge 2.5.8：导入通过，空节点更新保存为 REJECT，404 更新失败。测试前桌面内核已不可用，所以实际选择/应用、运行内核保留节点仍待验。测试订阅已删除，原订阅保留。
 
-1. `supplier_user_id` 与 `assigned_supplier_user_id` 是否正确区分；订阅不会误用包含自建代理的供应商列表；管理员默认范围是否合理且可实现。
-2. 独立 token 的哈希存储、只返回一次、有效期、version 并发控制；users 触发器能否覆盖单个/批量/原生 SQL 修改，并在用户恢复后保持旧链接撤销；create/reset 与用户变更的 users → subscription 锁顺序是否正确。
-3. 下载快照与收回的并发语义，是否引入网关热路径查询或改动既有代理约束。
-4. 完整 Mihomo 配置是否可导入 Clash Verge，HTTP/HTTPS/SOCKS5/SOCKS5h 映射、代理侧 DNS、IPv6、SOCKS 非法空用户名组合、重复名字和 YAML 注入处理；零节点 REJECT 配置是否可解析。客户端清除旧节点只记录实测行为，不再作为强制通过项。
-5. 仅使用 https://api.aoxtoken.com，独立 public_base_url、配置文件 enabled 默认 false、启动校验、Host 拒绝是否闭合；Nginx vhost 含轮转、应用、审计和附带采集器能否脱敏。aoxtoken.com 拒绝不等于 Cloudflare 无法记录误发请求，这一边界是否说明准确。
-6. 独立下载限流能否避免面板限流 fail-open；显式方法注册能否实现 405；原生 SQL 的用户和代理软删除/状态/角色条件是否齐全；零节点前端禁止生成/重置/复制、后端拒绝创建/reset 且保持旧 token 是否一致。
-7. 测试矩阵、数据迁移和回滚是否完整；方案有哪些需要先决策、实现者不能自行猜测的问题。
+独立预审的管理 CORS、合规 guard、panic 泄漏和弱并发屏障均已修正并加回归；无凭据跳过原因和快照边界也已补齐。
+实现裁定：v1 不支持 public_base_url 路径前缀，配置拒绝；生产根域名地址不受影响。
 
-输出请分阻塞项、建议、可接受边界；每项给出文件/函数依据、触发条件、影响和最小修正。最后给出明确结论：通过 / 修改后通过 / 阻塞。不要开始实现、不要修改生产，不要提交任何真实凭据。
-
-本轮评审基线为 main 合并提交 5cb965d3b，第 3 节所列文件与 ae16375ce 无差异；本机 main 引用仍为 7b6e54ead，未更新分支。若工作区已变化，以实际代码为准并说明差异。迁移基线最新为 246，新增从 247 起并在实现时复查编号。docs/* 被忽略，后续文档入 PR 需精确 git add -f。
-
-复核结果贴回当前对话后再推进实现。本轮不要求新增功能，不授权触发器落库、限流实现、Nginx 改动或部署。
+证据：worktree/.superpowers/sdd/2026-10-20-clash-subscription/，包括 progress.md、*reviewed.log、client-result.md、nginx-result.txt、变异测试 RED 日志和客户端截图。
+生产 DNS/日志检查未执行，功能默认 false，生产启用另行授权。请按阻塞/建议/可接受边界给结论，并明确实际运行和仅阅读的检查。

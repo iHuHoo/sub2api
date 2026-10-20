@@ -26,7 +26,7 @@ func ClashTokenHash(token string) string {
 	return hex.EncodeToString(sum[:])
 }
 func clashMetadata(record *ProxySubscription, set ClashExportSet) SubscriptionMetadata {
-	m := SubscriptionMetadata{ExportableCount: len(set.Proxies), SkippedCount: set.SkippedCount}
+	m := SubscriptionMetadata{ExportableCount: len(set.Proxies), SkippedCount: set.SkippedCount, SkippedReasons: set.SkippedReasons}
 	if record != nil {
 		m.Exists = true
 		m.Version = record.Version

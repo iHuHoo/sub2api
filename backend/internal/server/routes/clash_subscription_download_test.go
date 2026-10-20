@@ -1,9 +1,10 @@
-package handler
+package routes
 
 import (
 	"context"
 	"encoding/base64"
 	"github.com/Wei-Shaw/sub2api/internal/config"
+	"github.com/Wei-Shaw/sub2api/internal/handler"
 	"github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/alicebob/miniredis/v2"
@@ -34,7 +35,7 @@ func TestClashSubscriptionDownloadCORSAndLimits(t *testing.T) {
 			t.Cleanup(func() { _ = client.Close() })
 			repo := &clashDownloadStore{}
 			svc := service.NewClashSubscriptionService(repo, &config.Config{ClashSubscription: config.ClashSubscriptionConfig{Enabled: true, PublicBaseURL: "https://api.example"}})
-			h := NewClashSubscriptionHandler(svc, client)
+			h := handler.NewClashSubscriptionHandler(svc, middleware.NewClashSubscriptionLimiter(client))
 			r := gin.New()
 			r.Use(middleware.CORS(config.CORSConfig{AllowedOrigins: origins}))
 			r.Any("/api/v1/clash/subscription", h.Download)

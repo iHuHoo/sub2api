@@ -1,4 +1,5 @@
 export default {
+ socksUsername: 'Some SOCKS nodes have a password but no username and cannot be exported. Ask an administrator to correct their authentication settings.',
  title: 'Clash subscription', supplierScope: 'Exports only active proxies assigned by an administrator, excluding your own proxies.', adminScope: 'Exports only the administrator pool without a supplier owner or assignment.',
  warning: 'The link and profile contain proxy credentials. Do not share them. Revoking a link cannot recall downloaded credentials; immediate blocking requires rotating upstream credentials.',
  count: '{count} exportable nodes; {skipped} invalid nodes skipped.', active: 'Active subscription', inactive: 'Revoked or expired subscription', absent: 'No subscription yet', expires: 'Expires',

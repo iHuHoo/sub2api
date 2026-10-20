@@ -26,14 +26,14 @@ func TestClashSubscriptionMihomoRemoteDNS(t *testing.T) {
 	}
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
-	defer listener.Close()
+	defer func() { _ = listener.Close() }()
 	target := make(chan string, 1)
 	go func() {
 		conn, e := listener.Accept()
 		if e != nil {
 			return
 		}
-		defer conn.Close()
+		defer func() { _ = conn.Close() }()
 		_ = conn.SetDeadline(time.Now().Add(10 * time.Second))
 		header := make([]byte, 2)
 		if _, e = io.ReadFull(conn, header); e != nil {
@@ -86,6 +86,7 @@ func TestClashSubscriptionMihomoRemoteDNS(t *testing.T) {
 		require.NoError(t, e)
 		file := filepath.Join(dir, "validate.yaml")
 		require.NoError(t, os.WriteFile(file, data, 0600))
+		// #nosec G702 -- explicit developer-selected local acceptance binary, no request input.
 		out, e := exec.Command(binary, "-d", dir, "-t", "-f", file).CombinedOutput()
 		require.NoError(t, e, string(out))
 	}
@@ -108,6 +109,7 @@ func TestClashSubscriptionMihomoRemoteDNS(t *testing.T) {
 	require.NoError(t, os.WriteFile(file, data, 0600))
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
+	// #nosec G702 -- explicit developer-selected local acceptance binary, no request input.
 	cmd := exec.CommandContext(ctx, binary, "-d", dir, "-f", file)
 	require.NoError(t, cmd.Start())
 	defer func() { cancel(); _ = cmd.Wait() }()
@@ -126,7 +128,7 @@ func TestClashSubscriptionMihomoRemoteDNS(t *testing.T) {
 	client := &http.Client{Transport: transport, Timeout: 5 * time.Second}
 	res, err := client.Get("http://remote-dns-fixture.invalid/test")
 	require.NoError(t, err)
-	defer res.Body.Close()
+	defer func() { _ = res.Body.Close() }()
 	require.Equal(t, 200, res.StatusCode)
 	select {
 	case name := <-target:

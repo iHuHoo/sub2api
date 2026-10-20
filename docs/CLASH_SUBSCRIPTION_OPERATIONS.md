@@ -57,3 +57,5 @@ Nginx 必须保留原始 Host，不能把任意来源 Host 重写成允许域名
 ## 本 PR 验证记录
 
 实施和测试证据位于 Codex runtime worktree 的 `.superpowers/sdd/2026-10-20-clash-subscription/`。PR 正文列出实际已跑结果与待验项；本清单不是生产已启用证明。
+
+实际客户端记录：Clash Verge 2.5.8 导入与空节点更新通过（保存文件只剩 REJECT），404 显示更新失败。桌面内核在测试前不可用，因此选择/应用配置和运行内核的节点保留行为待验；不能据文件替换宣称运行中的节点已被收回。独立 Mihomo v1.19.32 的解析与假 SOCKS 远端 DNS 测试通过。

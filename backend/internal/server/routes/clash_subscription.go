@@ -3,10 +3,11 @@ package routes
 import (
 	"github.com/Wei-Shaw/sub2api/internal/handler"
 	"github.com/Wei-Shaw/sub2api/internal/server/middleware"
+	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/gin-gonic/gin"
 )
 
-func RegisterClashSubscriptionRoutes(v1 *gin.RouterGroup, h *handler.Handlers, jwt middleware.JWTAuthMiddleware, audit middleware.AuditLogMiddleware, limiter *middleware.PanelRateLimiter) {
+func RegisterClashSubscriptionRoutes(v1 *gin.RouterGroup, h *handler.Handlers, jwt middleware.JWTAuthMiddleware, audit middleware.AuditLogMiddleware, limiter *middleware.PanelRateLimiter, settings *service.SettingService) {
 	if h.ClashSubscription == nil {
 		return
 	}
@@ -19,6 +20,9 @@ func RegisterClashSubscriptionRoutes(v1 *gin.RouterGroup, h *handler.Handlers, j
 			guard = middleware.SupplierOnly()
 		}
 		group := v1.Group("/"+role, gin.HandlerFunc(jwt), guard, limiter.Global(), gin.HandlerFunc(audit))
+		if role == "admin" {
+			group.Use(middleware.AdminComplianceGuard(settings))
+		}
 		group.GET("/clash-subscription", h.ClashSubscription.Manage)
 		group.POST("/clash-subscription", h.ClashSubscription.Manage)
 		group.POST("/clash-subscription/reset", h.ClashSubscription.Manage)

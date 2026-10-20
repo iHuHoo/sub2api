@@ -26,13 +26,14 @@ type ProxySubscription struct {
 	RevokedAt            *time.Time
 }
 type SubscriptionMetadata struct {
-	Exists          bool       `json:"exists"`
-	Active          bool       `json:"active"`
-	Version         int64      `json:"version"`
-	ExpiresAt       *time.Time `json:"expires_at"`
-	RevokedAt       *time.Time `json:"revoked_at"`
-	ExportableCount int        `json:"exportable_count"`
-	SkippedCount    int        `json:"skipped_count"`
+	Exists          bool           `json:"exists"`
+	Active          bool           `json:"active"`
+	Version         int64          `json:"version"`
+	ExpiresAt       *time.Time     `json:"expires_at"`
+	RevokedAt       *time.Time     `json:"revoked_at"`
+	ExportableCount int            `json:"exportable_count"`
+	SkippedCount    int            `json:"skipped_count"`
+	SkippedReasons  map[string]int `json:"skipped_reasons"`
 }
 type SubscriptionGrant struct {
 	Metadata        SubscriptionMetadata `json:"metadata"`

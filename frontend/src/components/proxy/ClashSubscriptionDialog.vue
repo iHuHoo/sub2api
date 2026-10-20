@@ -68,6 +68,7 @@ async function act(action: 'create' | 'reset' | 'revoke' | 'copy') {
    <p class="rounded-lg bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-100">{{ t('clash.warning') }}</p>
    <template v-if="metadata">
     <p>{{ t('clash.count', { count: metadata.exportable_count, skipped: metadata.skipped_count }) }}</p>
+    <p v-if="metadata.skipped_reasons?.SOCKS_AUTH_USERNAME_REQUIRED">{{ t('clash.socksUsername') }}</p>
     <p>{{ t(metadata.active ? 'clash.active' : metadata.exists ? 'clash.inactive' : 'clash.absent') }}</p>
     <p v-if="metadata.expires_at">{{ t('clash.expires') }}: {{ new Date(metadata.expires_at).toLocaleString() }}</p>
     <p v-if="metadata.exportable_count === 0">{{ t('clash.zero') }}</p>

@@ -8,7 +8,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/gin-gonic/gin"
-	"github.com/redis/go-redis/v9"
+
 	"net/url"
 	"strconv"
 	"strings"
@@ -16,12 +16,12 @@ import (
 )
 
 type ClashSubscriptionHandler struct {
-	s     *service.ClashSubscriptionService
-	redis *redis.Client
+	s       *service.ClashSubscriptionService
+	limiter *middleware.ClashSubscriptionLimiter
 }
 
-func NewClashSubscriptionHandler(s *service.ClashSubscriptionService, r *redis.Client) *ClashSubscriptionHandler {
-	return &ClashSubscriptionHandler{s: s, redis: r}
+func NewClashSubscriptionHandler(s *service.ClashSubscriptionService, r *middleware.ClashSubscriptionLimiter) *ClashSubscriptionHandler {
+	return &ClashSubscriptionHandler{s: s, limiter: r}
 }
 func clashHeaders(c *gin.Context) {
 	for name := range c.Writer.Header() {
@@ -63,7 +63,7 @@ func (h *ClashSubscriptionHandler) Download(c *gin.Context) {
 	}
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 10*time.Second)
 	defer cancel()
-	allow, err := middleware.ClashSubscriptionAllow(ctx, h.redis, "ip:"+c.ClientIP(), 60)
+	allow, err := h.limiter.Allow(ctx, "ip:"+c.ClientIP(), 60)
 	if err != nil {
 		c.Status(503)
 		return
@@ -86,7 +86,7 @@ func (h *ClashSubscriptionHandler) Download(c *gin.Context) {
 		}
 		return
 	}
-	allow, err = middleware.ClashSubscriptionAllow(ctx, h.redis, "id:"+strconv.FormatInt(id, 10), 10)
+	allow, err = h.limiter.Allow(ctx, "id:"+strconv.FormatInt(id, 10), 10)
 	if err != nil {
 		c.Status(503)
 		return
@@ -105,7 +105,9 @@ func (h *ClashSubscriptionHandler) Download(c *gin.Context) {
 	c.Data(200, "application/yaml; charset=utf-8", data)
 }
 func (h *ClashSubscriptionHandler) Manage(c *gin.Context) {
-	clashHeaders(c)
+	c.Header("Cache-Control", "private, no-store")
+	c.Header("Referrer-Policy", "no-referrer")
+	c.Header("X-Content-Type-Options", "nosniff")
 	subject, ok := middleware.GetAuthSubjectFromContext(c)
 	role, hasRole := middleware.GetUserRoleFromContext(c)
 	if !ok || !hasRole || subject.UserID <= 0 {

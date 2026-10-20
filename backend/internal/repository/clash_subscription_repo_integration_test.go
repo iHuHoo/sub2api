@@ -148,6 +148,30 @@ func TestClashSubscriptionDatabaseConstraints(t *testing.T) {
 	}), service.ErrClashNotFound)
 }
 
+func TestClashSubscriptionInFlightSnapshotBoundary(t *testing.T) {
+	ctx := context.Background()
+	u := mustCreateUser(t, testEntClient(t), &service.User{Role: service.RoleSupplier})
+	t.Cleanup(func() { _, _ = integrationDB.Exec(`DELETE FROM users WHERE id=$1`, u.ID) })
+	repo := NewClashSubscriptionRepository(integrationDB)
+	actor := service.SubscriptionActor{UserID: u.ID, Role: u.Role}
+	require.NoError(t, repo.WithLockedOwner(ctx, actor, func(tx service.ClashSubscriptionTx) error {
+		return tx.Create(ctx, &service.ProxySubscription{TokenHash: u.Email, ExpiresAt: time.Now().Add(time.Hour)})
+	}))
+	visited := false
+	require.NoError(t, repo.ReadDownloadSnapshot(ctx, u.Email, func(s *service.ProxySubscription, p []service.Proxy) error {
+		// Commit revocation on a second connection while this snapshot is in flight.
+		require.NoError(t, repo.WithLockedOwner(ctx, actor, func(tx service.ClashSubscriptionTx) error { return tx.Revoke(ctx, 1) }))
+		require.Nil(t, s.RevokedAt)
+		visited = true
+		return nil
+	}))
+	require.True(t, visited)
+	require.ErrorIs(t, repo.ReadDownloadSnapshot(ctx, u.Email, func(*service.ProxySubscription, []service.Proxy) error {
+		t.Fatal("new download accepted revoked token")
+		return nil
+	}), service.ErrClashNotFound)
+}
+
 func TestClashSubscriptionOwnerSerialization(t *testing.T) {
 	for _, disableFirst := range []bool{false, true} {
 		t.Run(map[bool]string{false: "reset-before-disable", true: "disable-before-reset"}[disableFirst], func(t *testing.T) {
@@ -164,6 +188,8 @@ func TestClashSubscriptionOwnerSerialization(t *testing.T) {
 			first, err := integrationDB.BeginTx(ctx, nil)
 			require.NoError(t, err)
 			defer func() { _ = first.Rollback() }()
+			var blockerPID int
+			require.NoError(t, first.QueryRowContext(ctx, `SELECT pg_backend_pid()`).Scan(&blockerPID))
 			_, err = first.ExecContext(ctx, `SELECT id FROM users WHERE id=$1 FOR UPDATE`, u.ID)
 			require.NoError(t, err)
 			if disableFirst {
@@ -186,6 +212,11 @@ func TestClashSubscriptionOwnerSerialization(t *testing.T) {
 				}
 			}()
 			<-started
+			require.Eventually(t, func() bool {
+				var blocked bool
+				err := integrationDB.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE $1=ANY(pg_blocking_pids(pid)))`, blockerPID).Scan(&blocked)
+				return err == nil && blocked
+			}, 5*time.Second, 10*time.Millisecond, "second transaction must be observed waiting on the first before commit")
 			require.NoError(t, first.Commit())
 			if disableFirst {
 				require.ErrorIs(t, <-done, service.ErrClashForbidden)

@@ -1,4 +1,5 @@
 export default {
+ socksUsername: '部分 SOCKS 节点有密码但没有用户名，无法导出。请由管理员修正认证配置。',
  title: 'Clash 订阅', supplierScope: '仅导出管理员分配给您的有效代理，不含自建代理。', adminScope: '仅导出未归属供应商的管理员公共代理池。',
  warning: '订阅链接和配置包含代理访问凭据，请勿分享。撤销链接不能收回已下载的凭据；立即阻断需要管理员轮换上游密码。',
  count: '可导出 {count} 个节点，跳过 {skipped} 个无效节点。', active: '订阅有效', inactive: '订阅已撤销或过期', absent: '尚未创建订阅', expires: '到期时间',

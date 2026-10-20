@@ -9,24 +9,30 @@ import (
 )
 
 type ClashExportSet struct {
-	Proxies      []Proxy
-	SkippedCount int
+	Proxies        []Proxy
+	SkippedCount   int
+	SkippedReasons map[string]int
 }
 
 func FilterClashProxies(input []Proxy) ClashExportSet {
-	result := ClashExportSet{Proxies: []Proxy{}}
+	result := ClashExportSet{Proxies: []Proxy{}, SkippedReasons: map[string]int{}}
 	seen := map[int64]bool{}
 	for _, p := range input {
 		valid := p.ID > 0 && !seen[p.ID] && p.Port >= 1 && p.Port <= 65535 && validClashHost(p.Host)
 		switch p.Protocol {
 		case "http", "https":
 		case "socks5", "socks5h":
-			valid = valid && !(p.Username == "" && p.Password != "") && len(p.Username) <= 255 && len(p.Password) <= 255
+			valid = valid && (p.Username != "" || p.Password == "") && len(p.Username) <= 255 && len(p.Password) <= 255
 		default:
 			valid = false
 		}
 		if !valid {
 			result.SkippedCount++
+			reason := "INVALID_PROXY"
+			if (p.Protocol == "socks5" || p.Protocol == "socks5h") && p.Username == "" && p.Password != "" {
+				reason = "SOCKS_AUTH_USERNAME_REQUIRED"
+			}
+			result.SkippedReasons[reason]++
 			continue
 		}
 		seen[p.ID] = true
@@ -46,7 +52,7 @@ func validClashHost(host string) bool {
 			return false
 		}
 		for _, c := range label {
-			if !(c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || c == '-') {
+			if (c < 'a' || c > 'z') && (c < 'A' || c > 'Z') && (c < '0' || c > '9') && c != '-' {
 				return false
 			}
 		}

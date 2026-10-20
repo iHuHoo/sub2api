@@ -8,6 +8,7 @@ export interface ClashMetadata {
  revoked_at: string | null
  exportable_count: number
  skipped_count: number
+ skipped_reasons?: Record<string, number>
 }
 export interface ClashGrant { metadata: ClashMetadata; subscription_url: string }
 export function clashSubscriptionAPI(role: 'admin' | 'supplier') {
