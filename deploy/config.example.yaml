@@ -1323,3 +1323,8 @@ subproxy:
     env: "SUBPROXY_SERVICE_TOKEN"
   hmac_secret:
     file: "/run/secrets/subproxy_hmac"
+
+# Clash profile export: keep disabled until dedicated-domain and log checks pass.
+clash_subscription:
+  enabled: false
+  public_base_url: ""

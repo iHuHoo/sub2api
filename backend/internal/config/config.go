@@ -67,6 +67,7 @@ const DefaultModelsListReadMaxBytes int64 = 8 * 1024 * 1024
 
 type Config struct {
 	Subproxy                SubproxyConfig                `mapstructure:"subproxy"`
+	ClashSubscription       ClashSubscriptionConfig       `mapstructure:"clash_subscription"`
 	Server                  ServerConfig                  `mapstructure:"server"`
 	Log                     LogConfig                     `mapstructure:"log"`
 	CORS                    CORSConfig                    `mapstructure:"cors"`
@@ -2039,6 +2040,8 @@ func configureConfigSource(setConfigFile, addConfigPath func(string)) {
 
 func setDefaults() {
 	viper.SetDefault("subproxy.enabled", false)
+	viper.SetDefault("clash_subscription.enabled", false)
+	viper.SetDefault("clash_subscription.public_base_url", "")
 	viper.SetDefault("subproxy.base_url", "")
 	viper.SetDefault("subproxy.allow_internal_http", false)
 	viper.SetDefault("subproxy.token.env", "")
@@ -2719,6 +2722,9 @@ func setEnvReachableDefaults() {
 }
 
 func (c *Config) Validate() error {
+	if err := c.ClashSubscription.Validate(); err != nil {
+		return err
+	}
 	if err := c.Subproxy.Validate(); err != nil {
 		return err
 	}
