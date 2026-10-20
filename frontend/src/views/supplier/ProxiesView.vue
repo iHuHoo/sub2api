@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import ClashSubscriptionButton from "@/components/proxy/ClashSubscriptionButton.vue"
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import AppLayout from '@/components/layout/AppLayout.vue'
@@ -101,7 +102,7 @@ onMounted(load)
 <template>
   <AppLayout>
     <div class="space-y-5">
-      <div class="flex flex-wrap items-center justify-between gap-3"><h2 class="text-xl font-semibold text-gray-900 dark:text-white">{{ t('supplier.proxies') }}</h2><button class="btn btn-primary" @click="open()">{{ t('supplier.addProxy') }}</button></div>
+      <div class="flex flex-wrap items-center justify-between gap-3"><h2 class="text-xl font-semibold text-gray-900 dark:text-white">{{ t('supplier.proxies') }}</h2><ClashSubscriptionButton role="supplier" /><button class="btn btn-primary" @click="open()">{{ t('supplier.addProxy') }}</button></div>
       <p class="card p-4 text-sm text-gray-600 dark:text-gray-300">{{ t('supplier.proxyPolicy') }} {{ t('supplier.tcpNotice') }}</p>
       <div class="card overflow-hidden">
         <DataTable :columns="columns" :data="proxies" :loading="loading">

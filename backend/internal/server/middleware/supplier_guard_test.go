@@ -14,6 +14,27 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestSupplierTOTPChainAllowed(t *testing.T) {
+	for _, backend := range []string{"true", "false"} {
+		for _, endpoint := range []struct{ method, path string }{
+			{"GET", "status"}, {"GET", "verification-method"},
+			{"POST", "send-code"}, {"POST", "setup"}, {"POST", "enable"},
+			{"POST", "disable"}, {"POST", "step-up"},
+		} {
+			t.Run(backend+"/"+endpoint.path, func(t *testing.T) {
+				r := gin.New()
+				r.Use(func(c *gin.Context) { c.Set(string(ContextKeyUserRole), service.RoleSupplier) })
+				r.Use(BackendModeUserGuard(newBackendModeSettingService(t, backend)), SupplierSelfServiceGuard())
+				path := "/api/v1/user/totp/" + endpoint.path
+				r.Handle(endpoint.method, path, func(c *gin.Context) { c.Status(200) })
+				w := httptest.NewRecorder()
+				r.ServeHTTP(w, httptest.NewRequest(endpoint.method, path, nil))
+				require.Equal(t, 200, w.Code)
+			})
+		}
+	}
+}
+
 func TestSupplierRouteMatrix(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	for _, role := range []string{"supplier", "admin", "user", ""} {
