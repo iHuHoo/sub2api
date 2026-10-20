@@ -28,7 +28,7 @@ func TestClashSubscriptionAdminComplianceGuard(t *testing.T) {
 	})
 	audit := middleware.AuditLogMiddleware(func(c *gin.Context) { c.Next() })
 	r := gin.New()
-	RegisterClashSubscriptionRoutes(r.Group("/api/v1"), h, jwt, audit, middleware.NewPanelRateLimiter(nil, nil), settings)
+	RegisterClashSubscriptionRoutes(r.Group("/api/v1"), h, jwt, audit, middleware.NewPanelRateLimiter(nil, nil), settings, middleware.StepUpAuthMiddleware(func(c *gin.Context) { c.Next() }))
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, httptest.NewRequest("GET", "/api/v1/admin/clash-subscription", nil))
 	require.Equal(t, 423, w.Code)

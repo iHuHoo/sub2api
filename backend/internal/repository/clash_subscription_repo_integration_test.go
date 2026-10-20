@@ -13,6 +13,63 @@ import (
 	"time"
 )
 
+// These checks must work even when lifecycle revocation did not run.
+// No parallel tests while the table trigger is disabled.
+func TestClashSubscriptionDownloadOwnerDefense(t *testing.T) {
+	ctx := context.Background()
+	_, err := integrationDB.ExecContext(ctx, `ALTER TABLE users DISABLE TRIGGER users_revoke_proxy_subscription`)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_, err := integrationDB.ExecContext(ctx, `ALTER TABLE users ENABLE TRIGGER users_revoke_proxy_subscription`)
+		require.NoError(t, err)
+	})
+	for _, change := range []struct{ name, update string }{
+		{"disabled", `status='disabled'`},
+		{"deleted", `deleted_at=now()`},
+		// A different allowed role independently exercises owner_role equality.
+		{"different-owner-role", `role='admin'`},
+		{"non-owner-role", `role='user'`},
+	} {
+		t.Run(change.name, func(t *testing.T) {
+			u := mustCreateUser(t, testEntClient(t), &service.User{Role: service.RoleSupplier})
+			t.Cleanup(func() { _, _ = integrationDB.ExecContext(ctx, `DELETE FROM users WHERE id=$1`, u.ID) })
+			hash := "defense-" + change.name
+			_, err := integrationDB.ExecContext(ctx, `INSERT INTO proxy_subscriptions(user_id,owner_role,token_hash,expires_at) VALUES($1,'supplier',$2,now()+interval '90 days')`, u.ID, hash)
+			require.NoError(t, err)
+			repo := NewClashSubscriptionRepository(integrationDB)
+			read := func() error {
+				return repo.ReadDownloadSnapshot(ctx, hash, func(*service.ProxySubscription, []service.Proxy) error { return nil })
+			}
+			require.NoError(t, read())
+			_, err = integrationDB.ExecContext(ctx, `UPDATE users SET `+change.update+` WHERE id=$1`, u.ID)
+			require.NoError(t, err)
+			var version int64
+			var revoked sql.NullTime
+			require.NoError(t, integrationDB.QueryRowContext(ctx, `SELECT version,revoked_at FROM proxy_subscriptions WHERE user_id=$1`, u.ID).Scan(&version, &revoked))
+			require.EqualValues(t, 1, version)
+			require.False(t, revoked.Valid, "trigger must not mask download predicates")
+			require.ErrorIs(t, read(), service.ErrClashNotFound)
+		})
+	}
+}
+
+func TestClashSubscriptionMetadataDoesNotLockOwner(t *testing.T) {
+	ctx := context.Background()
+	u := mustCreateUser(t, testEntClient(t), &service.User{Role: service.RoleSupplier})
+	t.Cleanup(func() { _, _ = integrationDB.Exec(`DELETE FROM users WHERE id=$1`, u.ID) })
+	tx, err := integrationDB.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer func() { _ = tx.Rollback() }()
+	_, err = tx.Exec(`UPDATE users SET balance=balance+1 WHERE id=$1`, u.ID)
+	require.NoError(t, err)
+	// Billing holds the row lock. Reading metadata must not wait for it.
+	readCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+	svc := service.NewClashSubscriptionService(NewClashSubscriptionRepository(integrationDB), &config.Config{ClashSubscription: config.ClashSubscriptionConfig{Enabled: true}})
+	_, err = svc.GetMetadata(readCtx, service.SubscriptionActor{UserID: u.ID, Role: u.Role})
+	require.NoError(t, err)
+}
+
 func TestClashSubscriptionRevocationTrigger(t *testing.T) {
 	ctx := context.Background()
 	u := mustCreateUser(t, testEntClient(t), &service.User{Role: service.RoleSupplier})

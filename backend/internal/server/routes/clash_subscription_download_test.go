@@ -67,3 +67,7 @@ func TestClashSubscriptionDownloadCORSAndLimits(t *testing.T) {
 		})
 	}
 }
+
+func (f *clashDownloadStore) ReadMetadataSnapshot(ctx context.Context, a service.SubscriptionActor, fn func(service.ClashSubscriptionTx) error) error {
+	return f.WithLockedOwner(ctx, a, fn)
+}

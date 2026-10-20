@@ -6,6 +6,8 @@
 
 **Architecture:** 新增独立订阅表、用户变更自动撤销触发器、订阅管理服务与专用下载路由。每次下载按数据库快照校验当前权限并生成完整 Mihomo YAML；不接入模型推理调度热路径。
 
+**2026-10-20 PR #73 复核修订：** 两种角色创建/重置接现有 `stepUpAuth`（默认关闭），GET/DELETE 不加；前端验证后只允许手动重试。供应商沿用现有个人资料 TOTP 入口与 `/user/totp/*` 允许名单，补全链路测试。元数据改为只读快照，写操作仍锁 users；下载用户条件用临时禁用撤销触发器的集成测试和三项 SQL 变异分别验证。真实二进制完整注册路由并验收下载 200/404/405。详见 `CLASH_SUBSCRIPTION_REVIEW_PROMPT.md` 第二轮复核。
+
 **Tech Stack:** Go / Gin、PostgreSQL、现有 Redis 客户端、现有 YAML 序列化依赖、Vue / TypeScript / Vitest；沿用仓库依赖注入与错误响应约定。
 
 **Spec:** [已通过复核的设计](../../CLASH_SUBSCRIPTION_DESIGN.md)，2026-10-20 第二轮复核通过；评审基线 main 合并提交 `5cb965d3b`。执行前核对实际 main；本机 main 引用可能陈旧，不在旧运维分支直接实现。

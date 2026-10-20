@@ -49,6 +49,7 @@ type ClashSubscriptionTx interface {
 	Revoke(context.Context, int64) error
 }
 type ClashSubscriptionRepository interface {
+	ReadMetadataSnapshot(context.Context, SubscriptionActor, func(ClashSubscriptionTx) error) error
 	WithLockedOwner(context.Context, SubscriptionActor, func(ClashSubscriptionTx) error) error
 	ReadDownloadSnapshot(context.Context, string, func(*ProxySubscription, []Proxy) error) error
 }

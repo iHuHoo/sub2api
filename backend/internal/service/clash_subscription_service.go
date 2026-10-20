@@ -41,7 +41,7 @@ func (s *ClashSubscriptionService) GetMetadata(ctx context.Context, a Subscripti
 	if !s.Enabled() {
 		return m, ErrClashDisabled
 	}
-	err := s.repo.WithLockedOwner(ctx, a, func(tx ClashSubscriptionTx) error {
+	err := s.repo.ReadMetadataSnapshot(ctx, a, func(tx ClashSubscriptionTx) error {
 		r, e := tx.Get(ctx)
 		if e != nil {
 			return e

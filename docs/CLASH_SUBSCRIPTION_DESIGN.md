@@ -84,6 +84,8 @@ token 使用 CSPRNG 生成至少 32 字节，base64url 无填充编码。仅在�
 
 管理端与供应商端使用各自现有登录鉴权链；路径建议：
 
+2026-10-20 14:08 决定：管理员和供应商的创建、重置 POST 均接现有 step-up 门控，由 `step_up_enabled` 控制，默认关闭。GET 元数据、DELETE 撤销不加。供应商沿用 `/profile` 的 TOTP 设置入口及 `/user/totp/*` 允许名单。前端验证后只提示手动重试，不自动生成或重置链接。
+
 | 方法与路径 | 作用 |
 |---|---|
 | GET `/api/v1/{admin,supplier}/clash-subscription` | 元数据、是否有效、expires_at、version、可导出/跳过数量；不返回 token 或密码 |

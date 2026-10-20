@@ -7,7 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func RegisterClashSubscriptionRoutes(v1 *gin.RouterGroup, h *handler.Handlers, jwt middleware.JWTAuthMiddleware, audit middleware.AuditLogMiddleware, limiter *middleware.PanelRateLimiter, settings *service.SettingService) {
+func RegisterClashSubscriptionRoutes(v1 *gin.RouterGroup, h *handler.Handlers, jwt middleware.JWTAuthMiddleware, audit middleware.AuditLogMiddleware, limiter *middleware.PanelRateLimiter, settings *service.SettingService, stepUpAuth middleware.StepUpAuthMiddleware) {
 	if h.ClashSubscription == nil {
 		return
 	}
@@ -24,8 +24,8 @@ func RegisterClashSubscriptionRoutes(v1 *gin.RouterGroup, h *handler.Handlers, j
 			group.Use(middleware.AdminComplianceGuard(settings))
 		}
 		group.GET("/clash-subscription", h.ClashSubscription.Manage)
-		group.POST("/clash-subscription", h.ClashSubscription.Manage)
-		group.POST("/clash-subscription/reset", h.ClashSubscription.Manage)
+		group.POST("/clash-subscription", gin.HandlerFunc(stepUpAuth), h.ClashSubscription.Manage)
+		group.POST("/clash-subscription/reset", gin.HandlerFunc(stepUpAuth), h.ClashSubscription.Manage)
 		group.DELETE("/clash-subscription", h.ClashSubscription.Manage)
 	}
 }

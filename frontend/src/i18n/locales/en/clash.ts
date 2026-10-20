@@ -1,4 +1,7 @@
 export default {
+ stepUpRetry: 'Verification passed. Review the current state, then click Create or Reset again.',
+ stepUpSetup: 'Enable two-factor authentication in Profile first, then return here to create or reset the link.',
+ stepUpSession: 'Use a signed-in user session with two-factor authentication for this operation.',
  socksUsername: 'Some SOCKS nodes have a password but no username and cannot be exported. Ask an administrator to correct their authentication settings.',
  title: 'Clash subscription', supplierScope: 'Exports only active proxies assigned by an administrator, excluding your own proxies.', adminScope: 'Exports only the administrator pool without a supplier owner or assignment.',
  warning: 'The link and profile contain proxy credentials. Do not share them. Revoking a link cannot recall downloaded credentials; immediate blocking requires rotating upstream credentials.',

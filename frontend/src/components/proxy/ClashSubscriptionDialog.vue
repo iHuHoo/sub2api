@@ -2,11 +2,14 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import BaseDialog from '@/components/common/BaseDialog.vue'
+import TotpStepUpDialog from '@/components/auth/TotpStepUpDialog.vue'
+import { useStepUp, isStepUpRequired, isStepUpBlocked, stepUpBlockReason } from '@/composables/useStepUp'
 import { clashSubscriptionAPI, type ClashMetadata } from '@/api/clashSubscription'
 
 const props = defineProps<{ show: boolean; role: 'admin' | 'supplier' }>()
 const emit = defineEmits<{ close: [] }>()
 const { t } = useI18n()
+const stepUp = useStepUp()
 const metadata = ref<ClashMetadata | null>(null)
 const link = ref('')
 const days = ref(90)
@@ -16,7 +19,7 @@ const confirm = ref<'reset' | 'revoke' | null>(null)
 let generation = 0
 const available = computed(() => !busy.value && !!metadata.value?.exportable_count)
 const current = (ticket: number) => props.show && ticket === generation
-function clear() { generation++; link.value = ''; metadata.value = null; message.value = ''; confirm.value = null; busy.value = false }
+function clear() { generation++; stepUp.onCancel(); link.value = ''; metadata.value = null; message.value = ''; confirm.value = null; busy.value = false }
 function close() { clear(); emit('close') }
 async function refresh(ticket: number) {
  const value = await clashSubscriptionAPI(props.role).metadata()
@@ -52,9 +55,19 @@ async function act(action: 'create' | 'reset' | 'revoke' | 'copy') {
    const grant = action === 'create' ? await api.create(days.value) : await api.reset(metadata.value.version, days.value)
    if (current(ticket)) { metadata.value = grant.metadata; link.value = grant.subscription_url }
   }
- } catch {
+ } catch (err) {
   if (current(ticket)) {
-   link.value = ''; message.value = t('clash.retry')
+   link.value = ''
+   if (isStepUpRequired(err)) {
+    // A grant only authorizes a later manual action; never replay a credential export.
+    const verified = await stepUp.prompt()
+    if (!current(ticket)) return
+    message.value = verified ? t('clash.stepUpRetry') : t('clash.retry')
+   } else if (isStepUpBlocked(err)) {
+    message.value = t(stepUpBlockReason(err) === 'STEP_UP_TOTP_NOT_ENABLED' ? 'clash.stepUpSetup' : 'clash.stepUpSession')
+   } else {
+    message.value = t('clash.retry')
+   }
    try { await refresh(ticket) } catch { /* Preserve the explicit retry message. */ }
   }
  } finally { if (current(ticket)) { busy.value = false; confirm.value = null } }
@@ -92,4 +105,5 @@ async function act(action: 'create' | 'reset' | 'revoke' | 'copy') {
    <button v-if="confirm" class="btn btn-danger" :disabled="busy" @click="act(confirm)">{{ t('clash.proceed') }}</button>
   </template>
  </BaseDialog>
+ <TotpStepUpDialog :controller="stepUp" />
 </template>

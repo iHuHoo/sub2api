@@ -19,14 +19,30 @@ func NewClashSubscriptionRepository(db *sql.DB) service.ClashSubscriptionReposit
 }
 
 func (r *clashSubscriptionRepository) WithLockedOwner(ctx context.Context, a service.SubscriptionActor, fn func(service.ClashSubscriptionTx) error) error {
-	tx, err := r.db.BeginTx(ctx, nil)
+	return r.withOwner(ctx, a, true, fn)
+}
+
+func (r *clashSubscriptionRepository) ReadMetadataSnapshot(ctx context.Context, a service.SubscriptionActor, fn func(service.ClashSubscriptionTx) error) error {
+	return r.withOwner(ctx, a, false, fn)
+}
+
+func (r *clashSubscriptionRepository) withOwner(ctx context.Context, a service.SubscriptionActor, lock bool, fn func(service.ClashSubscriptionTx) error) error {
+	opts := &sql.TxOptions{}
+	query := `SELECT role,status,deleted_at FROM users WHERE id=$1`
+	if lock {
+		query += ` FOR UPDATE`
+	} else {
+		opts.ReadOnly = true
+		opts.Isolation = sql.LevelRepeatableRead
+	}
+	tx, err := r.db.BeginTx(ctx, opts)
 	if err != nil {
 		return err
 	}
 	defer func() { _ = tx.Rollback() }()
 	var role, status string
 	var deleted sql.NullTime
-	err = tx.QueryRowContext(ctx, `SELECT role,status,deleted_at FROM users WHERE id=$1 FOR UPDATE`, a.UserID).Scan(&role, &status, &deleted)
+	err = tx.QueryRowContext(ctx, query, a.UserID).Scan(&role, &status, &deleted)
 	if errors.Is(err, sql.ErrNoRows) {
 		return service.ErrClashForbidden
 	}

@@ -6,6 +6,20 @@
 
 已接受的边界：配置含代理凭据、链接可转发、下载的密码不能收回；供应商仅导出被分配的有效代理，管理员仅公共池。原列表继续脱敏、供应商不能修改或删除分配代理。
 
+## PR #73 第二轮复核
+
+上轮 review：pullrequestreview-5581350937，修订基点 `1df6be116`。用户 2026-10-20 14:08 已决定供应商也需 step-up。请优先复核本轮差异：
+
+1. 两种角色 POST 创建/重置均使用真实 `stepUpAuth`，GET/DELETE 不加。路由测试分别覆盖开关默认关闭、开启无 grant（403、不生成 token、不改 version/hash）、开启有 session grant（200），而不是只测一个模拟门控。
+2. `SupplierSelfServiceGuard` 原本已允许 `/user/totp/*`；本轮补 GET status/verification-method、POST send-code/setup/enable/disable/step-up 和两种 backend mode 的回归。供应商侧栏已有 `/profile`，该路由允许供应商，页面无角色限制地呈现 `ProfileTotpCard`，所以无需新增设置页面。
+3. 前端复用 `useStepUp.prompt()` / `TotpStepUpDialog`，刻意不使用会自动重试的 `run()`。验证后只提示手动重试；关闭弹窗取消 pending prompt；未设置 TOTP 提示到个人资料设置。两种角色创建/重置均有 Vitest 覆盖。
+4. `TestClashSubscriptionDownloadOwnerDefense` 临时禁用 `users_revoke_proxy_subscription` 并 cleanup 恢复，确认 version=1 且 revoked_at=NULL，然后独立验证 disabled、deleted、supplier→admin/user 下载均 NotFound。分别删掉 `u.deleted_at IS NULL`、`u.status='active'`、`u.role=s.owner_role` 已实际变异，三次均得到“预期 NotFound、实际 nil”的失败（含不同的受支持角色，避免仅 IN 条件掩盖 owner_role 比较）。
+5. 元数据使用只读 REPEATABLE READ 快照，无 FOR UPDATE；创建/重置/撤销的用户行锁保留。新增集成测试在另一个事务持有余额写锁时调用 GetMetadata，仍能返回。
+6. 运维文档写明 HTTP/HTTPS 空用户名加密码在 Mihomo 的认证限制；保留停用再启用供应商撤销泄漏链接的办法。
+7. 本轮启动了 `go build ./cmd/server` 的真实 Linux 二进制（完整 Wire 与路由），在无发布端口的 internal 网络内连接全新 PostgreSQL/Redis，下载 200/404/405 均通过、启动无 panic。隔离阻断版本同步和缺少价格资源造成的启动 warning 已记录，不当成生产故障或零告警声明。
+
+本轮证据使用 `review2-*` 文件；此前的 `*reviewed.log` 为上一轮记录。特别查看 `review2-stepup-red.log` / `review2-stepup-green.log`、`review2-mutation-*-red.log`、`review2-integration-restored.log`、`review2-ui.log`、`review2-binary-result.json`、`reply.md` 中本轮验证结果。测试链接和数据均为隔离假数据，不使用生产凭据。
+
 请重点核对：
 1. 迁移 247、唯一约束、用户触发器和 users→subscription 锁序。并发测试会观察 pg_blocking_pids；移除用户锁的变异测试确实失败。
 2. 显式 SQL 过滤用户/代理软删除、状态、到期、角色、两种归属；repeatable-read 快照；有效零节点与无效 token 的区别。零节点 create/reset 409 且不改变旧记录。
@@ -16,7 +30,7 @@
 7. 弹窗关闭后清除链接，晚返回丢弃；操作/复制前刷新节点数；冲突或响应丢失不自动 reset；普通用户没有入口。
 8. 未改变网关调度、计费、代理分配或旧迁移。
 
-本地验证：
+上一轮完整实现验证（本轮增量结果以 `review2-*` 和 `reply.md` 为准）：
 - 后端完整 -race -tags=unit、完整 -tags=integration、vet、build、golangci-lint 0 issues。
 - 前端 385 文件 / 3052 测试、typecheck、lint:check、build。
 - Mihomo v1.19.32 对真实生成的非空/空 YAML 校验，通过假 SOCKS 上游确认域名 ATYP。

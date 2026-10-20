@@ -62,3 +62,7 @@ func TestClashSubscriptionLifecycle(t *testing.T) {
 	require.True(t, m.Active)
 	require.Zero(t, m.ExportableCount)
 }
+
+func (f *clashTestStore) ReadMetadataSnapshot(ctx context.Context, a SubscriptionActor, fn func(ClashSubscriptionTx) error) error {
+	return f.WithLockedOwner(ctx, a, fn)
+}
