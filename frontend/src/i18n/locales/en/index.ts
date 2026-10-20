@@ -1,3 +1,4 @@
+import clash from "./clash"
 import supplier from './supplier'
 import landing from './landing'
 import common from './common'
@@ -8,6 +9,7 @@ import admin from './admin'
 import misc from './misc'
 
 export default {
+  clash,
   ...landing,
   ...common,
   ...dashboard,
