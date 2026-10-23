@@ -195,7 +195,7 @@ export default {
         model: '模型名称 / 模型 ID',
         modelPlaceholder: '<填写当前分组支持的模型 ID>',
         modelHint: '替换为此密钥所属分组实际支持的完整模型 ID（可通过 GET /v1/models 查询）。不要填写 Claude、GPT 等展示名称，也不要直接复制此占位符。',
-        note: '工具调用、图片输入、思考模式应按实际模型能力设置；图片输入不等于图片生成。每个模型需要单独添加。若提示 404，请核对完整接口地址、模型 ID 和密钥所属分组；仅支持 Responses 的模型不能使用此 Chat Completions 配置。',
+        note: '工具调用、图片输入、思考模式应按实际模型能力设置；图片输入不等于图片生成。每个模型需要单独添加。仅支持 Responses 的模型不能使用此 Chat Completions 配置。常见排查：404 请核对完整接口地址、模型 ID 和密钥所属分组；400 请查看具体错误，可能是请求参数不正确，或混合分组无法识别该模型；403 可能是分组或账号限制了客户端类型（例如仅允许 Codex 官方客户端），请联系管理员确认。',
       },
       typesafe: {
         description: '通过 TypeSafe 原生 System One 端点调用 Jev。',

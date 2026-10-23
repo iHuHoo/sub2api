@@ -194,7 +194,7 @@ export default {
         model: 'Model name / Model ID',
         modelPlaceholder: '<enter a model ID supported by this group>',
         modelHint: 'Replace this placeholder with an exact model ID supported by this key’s group (available through GET /v1/models). Do not use display names such as Claude or GPT, or paste the placeholder as a model ID.',
-        note: 'Enable tool calling, image input and reasoning only if supported by the model. Image input does not mean image generation. Add each model separately. For 404 errors, check the endpoint URL, model ID and key group. Responses-only models cannot use this Chat Completions configuration.',
+        note: 'Enable tool calling, image input and reasoning only if supported by the model. Image input does not mean image generation. Add each model separately. Responses-only models cannot use this Chat Completions configuration. For 404 errors, check the endpoint URL, model ID and key group. For 400 errors, read the specific message: request parameters may be invalid, or a composite group may not recognize the model. A 403 may indicate group or account client restrictions (such as Codex official clients only); contact your administrator to confirm.',
       },
       typesafe: {
         description: 'Call Jev through the native TypeSafe System One endpoint.',

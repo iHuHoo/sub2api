@@ -35,9 +35,13 @@ function readBlobAsText(blob: Blob): Promise<string> {
 }
 
 describe('UseKeyModal', () => {
-  it.each(['workbuddy', 'trae'])('provides a complete chat endpoint for %s and respects group restrictions', async (client) => {
+  const desktopCases = ['workbuddy', 'trae'].flatMap(client =>
+    (['openai', 'anthropic', 'gemini', 'antigravity', 'composite', 'grok', 'deepseek'] as const)
+      .map(platform => ({ client, platform }))
+  )
+  it.each(desktopCases)('provides a complete chat endpoint for $client / $platform and respects group restrictions', async ({ client, platform }) => {
     const wrapper = mount(UseKeyModal, {
-      props: { show: true, apiKey: 'sk-guide-test', baseUrl: 'https://example.com/v1/', platform: 'openai' },
+      props: { show: true, apiKey: 'sk-guide-test', baseUrl: 'https://example.com/v1/', platform },
       global: { stubs: { BaseDialog: { template: '<div><slot /></div>' }, Icon: true } }
     })
     const tab = wrapper.findAll('nav[aria-label="Client"] button').find(button => button.text().includes(`cliTabs.${client}`))
@@ -48,10 +52,20 @@ describe('UseKeyModal', () => {
     const blocks = wrapper.findAll('pre code').map(block => block.text())
     expect(blocks).toContain('https://example.com/v1/chat/completions')
     expect(blocks).toContain('sk-guide-test')
+    expect(wrapper.text()).toContain('desktopClients.modelHint')
+    expect(wrapper.text()).toContain('desktopClients.note')
+    const copyButtons = wrapper.findAll('button').filter(button => button.text() === 'keys.useKeyModal.copy')
+    expect(copyButtons).toHaveLength(2)
+    await copyButtons[0].trigger('click')
+    expect(copyToClipboardMock).toHaveBeenLastCalledWith('https://example.com/v1/chat/completions', 'keys.copied')
+    await copyButtons[1].trigger('click')
+    expect(copyToClipboardMock).toHaveBeenLastCalledWith('sk-guide-test', 'keys.copied')
     await wrapper.setProps({ baseUrl: 'https://other.example/' })
     expect(wrapper.text()).toContain('https://other.example/v1/chat/completions')
     await wrapper.setProps({ claudeCodeOnly: true })
     expect(wrapper.find('nav[aria-label="Client"]').text()).not.toContain(`cliTabs.${client}`)
+    await wrapper.setProps({ platform: null })
+    expect(wrapper.find('nav[aria-label="Client"]').exists()).toBe(false)
     await wrapper.setProps({ claudeCodeOnly: false, platform: 'typesafe' })
     expect(wrapper.find('nav[aria-label="Client"]').text()).not.toContain(`cliTabs.${client}`)
     wrapper.unmount()
@@ -60,6 +74,7 @@ describe('UseKeyModal', () => {
   afterEach(() => {
     vi.unstubAllGlobals()
     saveAsMock.mockClear()
+    copyToClipboardMock.mockClear()
   })
 
   it('shows only Claude Code for Claude Code-only groups', async () => {
