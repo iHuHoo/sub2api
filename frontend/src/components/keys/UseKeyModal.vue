@@ -461,7 +461,7 @@ const SparkleIcon = {
   }
 }
 
-const clientTabs = computed((): TabConfig[] => {
+const platformClientTabs = computed((): TabConfig[] => {
   if (!props.platform) return []
   if (props.claudeCodeOnly) {
     return [{ id: 'claude', label: t('keys.useKeyModal.cliTabs.claudeCode'), icon: TerminalIcon }]
@@ -519,6 +519,17 @@ const clientTabs = computed((): TabConfig[] => {
   }
 })
 
+const clientTabs = computed((): TabConfig[] => {
+  if (!props.platform || props.claudeCodeOnly || props.platform === 'typesafe') return platformClientTabs.value
+  return [
+    ...platformClientTabs.value,
+    { id: 'workbuddy', label: t('keys.useKeyModal.cliTabs.workbuddy'), icon: TerminalIcon },
+    { id: 'trae', label: t('keys.useKeyModal.cliTabs.trae'), icon: TerminalIcon }
+  ]
+})
+
+const isDesktopClient = computed(() => ['workbuddy', 'trae'].includes(activeClientTab.value))
+
 // Shell tabs (3 types for environment variable based configs)
 const shellTabs: TabConfig[] = [
   { id: 'unix', label: 'macOS / Linux', icon: AppleIcon },
@@ -532,7 +543,7 @@ const openaiTabs: TabConfig[] = [
   { id: 'windows', label: 'Windows', icon: WindowsIcon }
 ]
 
-const showShellTabs = computed(() => activeClientTab.value !== 'opencode')
+const showShellTabs = computed(() => activeClientTab.value !== 'opencode' && !isDesktopClient.value)
 
 const showCodexAuthMode = computed(() =>
   props.platform === 'openai' &&
@@ -548,6 +559,7 @@ const currentTabs = computed(() => {
 })
 
 const platformDescription = computed(() => {
+  if (isDesktopClient.value) return t(`keys.useKeyModal.desktopClients.${activeClientTab.value}Steps`)
   if (activeClientTab.value === 'codex' &&
     props.platform !== 'openai' &&
     props.platform !== 'grok' &&
@@ -594,6 +606,7 @@ const platformDescription = computed(() => {
 })
 
 const platformNote = computed(() => {
+  if (isDesktopClient.value) return t('keys.useKeyModal.desktopClients.note')
   if (activeClientTab.value === 'codex' &&
     props.platform !== 'openai' &&
     props.platform !== 'grok' &&
@@ -744,6 +757,17 @@ const currentFiles = computed((): FileConfig[] => {
     return trimmed.endsWith('/v1') ? trimmed : `${trimmed}/v1`
   }
   const apiBase = ensureV1(baseRoot)
+  if (isDesktopClient.value) {
+    return [
+      { path: t('keys.useKeyModal.desktopClients.url'), content: `${apiBase}/chat/completions` },
+      { path: 'API Key', content: apiKey },
+      {
+        path: t('keys.useKeyModal.desktopClients.model'),
+        content: t('keys.useKeyModal.desktopClients.modelPlaceholder'),
+        hint: t('keys.useKeyModal.desktopClients.modelHint')
+      }
+    ]
+  }
   const antigravityBase = ensureV1(`${baseRoot}/antigravity`)
   const antigravityGeminiBase = (() => {
     const trimmed = `${baseRoot}/antigravity`.replace(/\/+$/, '')

@@ -178,6 +178,8 @@ export default {
           '按 Win+R，输入 %userprofile%\\.codex 打开配置目录。如目录不存在，请先手动创建。'
       },
       cliTabs: {
+        workbuddy: 'WorkBuddy',
+        trae: 'Trae',
         claudeCode: 'Claude Code',
         geminiCli: 'Gemini CLI',
         codexCli: 'Codex CLI',
@@ -185,6 +187,15 @@ export default {
         grokCli: 'Grok CLI',
         systemOne: 'System One',
         opencode: 'OpenCode'
+      },
+      desktopClients: {
+        workbuddySteps: '在 WorkBuddy 的设置 → 模型中添加模型，提供商选择「自定义 / Custom」。在高级配置中开启「自定义协议」，将下方完整接口地址和 API Key 填入对应字段，填写模型 ID 后保存，再在对话中选择该模型。',
+        traeSteps: '在 Trae 的设置 → 模型中添加「自定义模型」，API 格式选择「OpenAI Chat Completions」，开启「完整 URL」，填写下方地址、API Key 和模型 ID。展示名称可以自行设置，添加成功后在对话中选择该模型。',
+        url: '完整接口地址',
+        model: '模型名称 / 模型 ID',
+        modelPlaceholder: '<填写当前分组支持的模型 ID>',
+        modelHint: '替换为此密钥所属分组实际支持的完整模型 ID（可通过 GET /v1/models 查询）。不要填写 Claude、GPT 等展示名称，也不要直接复制此占位符。',
+        note: '工具调用、图片输入、思考模式应按实际模型能力设置；图片输入不等于图片生成。每个模型需要单独添加。若提示 404，请核对完整接口地址、模型 ID 和密钥所属分组；仅支持 Responses 的模型不能使用此 Chat Completions 配置。',
       },
       typesafe: {
         description: '通过 TypeSafe 原生 System One 端点调用 Jev。',

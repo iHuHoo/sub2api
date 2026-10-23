@@ -35,6 +35,28 @@ function readBlobAsText(blob: Blob): Promise<string> {
 }
 
 describe('UseKeyModal', () => {
+  it.each(['workbuddy', 'trae'])('provides a complete chat endpoint for %s and respects group restrictions', async (client) => {
+    const wrapper = mount(UseKeyModal, {
+      props: { show: true, apiKey: 'sk-guide-test', baseUrl: 'https://example.com/v1/', platform: 'openai' },
+      global: { stubs: { BaseDialog: { template: '<div><slot /></div>' }, Icon: true } }
+    })
+    const tab = wrapper.findAll('nav[aria-label="Client"] button').find(button => button.text().includes(`cliTabs.${client}`))
+    expect(tab).toBeDefined()
+    await tab!.trigger('click')
+    expect(wrapper.find('nav[aria-label="Tabs"]').exists()).toBe(false)
+    expect(wrapper.text()).toContain(`desktopClients.${client}Steps`)
+    const blocks = wrapper.findAll('pre code').map(block => block.text())
+    expect(blocks).toContain('https://example.com/v1/chat/completions')
+    expect(blocks).toContain('sk-guide-test')
+    await wrapper.setProps({ baseUrl: 'https://other.example/' })
+    expect(wrapper.text()).toContain('https://other.example/v1/chat/completions')
+    await wrapper.setProps({ claudeCodeOnly: true })
+    expect(wrapper.find('nav[aria-label="Client"]').text()).not.toContain(`cliTabs.${client}`)
+    await wrapper.setProps({ claudeCodeOnly: false, platform: 'typesafe' })
+    expect(wrapper.find('nav[aria-label="Client"]').text()).not.toContain(`cliTabs.${client}`)
+    wrapper.unmount()
+  })
+
   afterEach(() => {
     vi.unstubAllGlobals()
     saveAsMock.mockClear()
