@@ -177,6 +177,8 @@ export default {
         noteWindows: 'Press Win+R and enter %userprofile%\\.codex to open the config directory. Create it manually if it does not exist.',
       },
       cliTabs: {
+        workbuddy: 'WorkBuddy',
+        trae: 'Trae',
         claudeCode: 'Claude Code',
         geminiCli: 'Gemini CLI',
         codexCli: 'Codex CLI',
@@ -184,6 +186,15 @@ export default {
         grokCli: 'Grok CLI',
         systemOne: 'System One',
         opencode: 'OpenCode',
+      },
+      desktopClients: {
+        workbuddySteps: 'In WorkBuddy, open Settings → Models and add a model with the Custom provider. Enable Custom protocol in advanced settings, paste the full URL and API Key below, enter the model ID, and save. Select the model in your conversation.',
+        traeSteps: 'In Trae, open Settings → Models and add a Custom model. Select OpenAI Chat Completions, enable Full URL, and enter the URL, API Key and model ID below. The display name is optional. Select the model after adding it successfully.',
+        url: 'Full endpoint URL',
+        model: 'Model name / Model ID',
+        modelPlaceholder: '<enter a model ID supported by this group>',
+        modelHint: 'Replace this placeholder with an exact model ID supported by this key’s group (available through GET /v1/models). Do not use display names such as Claude or GPT, or paste the placeholder as a model ID.',
+        note: 'Enable tool calling, image input and reasoning only if supported by the model. Image input does not mean image generation. Add each model separately. Responses-only models cannot use this Chat Completions configuration. For 404 errors, check the endpoint URL, model ID and key group. For 400 errors, read the specific message: request parameters may be invalid, or a composite group may not recognize the model. A 403 may indicate group or account client restrictions (such as Codex official clients only); contact your administrator to confirm.',
       },
       typesafe: {
         description: 'Call Jev through the native TypeSafe System One endpoint.',
