@@ -38,6 +38,14 @@ The .24 follow-up and .25 isolated migration rehearsal passed independent review
 
 When using a deployment script, upload it with scp and execute the remote file. Do not pipe a script into bash over SSH: Docker commands may consume the script's standard input.
 
+## Rollback stop rule and checker requirements
+
+1. Each user authorization covers one deployment attempt only. Any automatic rollback ends that authorization, including a rollback caused by a false alarm in a checker script.
+2. Stop immediately once the rollback version is healthy. Do not stop service again, redeploy, or modify production configuration. Only read-only investigation is permitted: verify rollback-version health, migration records and data state, and determine the root cause.
+3. Report the timeline, interruption duration and affected request count, root cause and supporting evidence, proposed fix, and recommended retry window to the user. Redeployment requires new, explicit user authorization; retrying under the same authorization is not permitted.
+4. Migration checksum checks must match `backend/internal/repository/migrations_runner.go`: apply `strings.TrimSpace` to the file content, then compute SHA256, or read the recorded checksums directly from `schema_migrations` and compare them with the verified runner-compatible values. Never use a hash of the raw file bytes as the migration checksum. For example, in .30, `246_enable_gemini_image_generation_groups.sql` has raw-file SHA256 `f49b458cfbd52bd17f5bb02e30e3813c8e192e4ae38bce6358713ef65f3874b5` (`f49b458c…`), but its runner checksum is `87267be7ab657173768989e2b0b105c5569c5930a7f1ed124f4cf81e5198297c`.
+5. New or modified deployment checker logic must pass validation in an isolated environment before it is used in a production window.
+
 ## .30 deployment, 2026-10-25
 
 - Frozen image: `v0.2.18-aox.0.0.30`, source `8817510a3bb09f3a12157c6bda24b2bdb465fa86`, index `sha256:3710ff5f33133cc9a704f2b126d7c3ea9a1b4ae590d323fe91c99cccfee97945`. Includes the .29 client guides/security dependencies plus upstream v0.2.18. The user waived a separate advance rehearsal, not the stopped-service backup and isolated restore.
@@ -51,6 +59,8 @@ When using a deployment script, upload it with scp and execute the remote file. 
 - Historical warning: the five Nginx body-temp Permission denied events during the October 20 Clash rehearsal have not recurred in available logs, but shared-directory interference remains a strong hypothesis rather than a fully established root cause. No temporary Nginx was run this time; production Nginx configuration was unchanged. The previously accepted channel-cache NULL warning and Gemini supplier-pause snapshot window are not claimed fixed by this deployment.
 - Acceptance limits: no paid inference/payment, Claude inference, supplier browser flow, or authenticated real Clash download was performed. Passive low traffic and unmatched model/effort sample sizes do not establish overall performance parity. Migration execution time was not separately captured.
 - Evidence: `/Users/dalu/aiworkspace/codex/runtime/sub2api-aox30-deploy-20261025/`; remote first attempt `/home/aoxtoken/sub2api-aox30-deploy-20261025/`, retry `/home/aoxtoken/sub2api-aox30-retry-20261025/`. 24-hour follow-up is due 2026-10-26 01:23 +08; no automatic timer is installed.
+
+The retry after the first .30 rollback proceeded without obtaining new user authorization; all subsequent deployments must follow the [rollback stop rule and checker requirements](#rollback-stop-rule-and-checker-requirements).
 
 ## .28 deployment, 2026-10-20
 
