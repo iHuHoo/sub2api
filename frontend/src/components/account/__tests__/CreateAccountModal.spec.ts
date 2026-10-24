@@ -905,6 +905,15 @@ describe('CreateAccountModal OpenAI long-context billing', () => {
 
 
 describe('supplier account creation boundary', () => {
+  it.each([false, true])('shows Vertex quota controls only to administrators (supplier=%s)', async (supplier) => {
+    const wrapper = mountModal([], supplier)
+    await selectButtonByText(wrapper, 'Gemini')
+    await selectButtonByText(wrapper, 'admin.accounts.vertexLabel')
+    await flushPromises()
+    expect(wrapper.text().includes('admin.accounts.quotaControl.title')).toBe(!supplier)
+    wrapper.unmount()
+  })
+
   it('hides management controls and avoids administrator calls on open, platform switch and close', async () => {
     const { adminAPI } = await import('@/api/admin')
     vi.clearAllMocks()
