@@ -1274,16 +1274,16 @@ function generateGrokCodexFiles(baseUrl: string, apiKey: string): FileConfig[] {
   switch (shell) {
     case 'cmd':
       envPath = 'Command Prompt'
-      envContent = `set SUB2API_API_KEY=${apiKey}`
+      envContent = `set AOXTOKEN_API_KEY=${apiKey}`
       break
     case 'powershell':
     case 'windows':
       envPath = 'PowerShell'
-      envContent = `$env:SUB2API_API_KEY="${apiKey}"`
+      envContent = `$env:AOXTOKEN_API_KEY="${apiKey}"`
       break
     default:
       envPath = 'Terminal'
-      envContent = `export SUB2API_API_KEY="${apiKey}"`
+      envContent = `export AOXTOKEN_API_KEY="${apiKey}"`
   }
 
   const configContent = `# Codex CLI → AoxToken Grok group
@@ -1306,7 +1306,7 @@ ${codexLocalCatalogToml.value}# Optional:
 name = "AoxToken Grok"
 base_url = "${baseUrl}"
 ${codexModelCatalogMode.value === 'remote' ? `model_catalog_url = "${escapeTomlBasicString(buildCodexModelCatalogUrl(baseUrl))}"\n` : ''}# Prefer env_key (variable NAME). Do not combine with experimental_bearer_token.
-env_key = "SUB2API_API_KEY"
+env_key = "AOXTOKEN_API_KEY"
 # Fallback only if you cannot set env (discouraged — keeps secret on disk):
 # experimental_bearer_token = "${apiKey}"
 wire_api = "responses"
@@ -1368,8 +1368,8 @@ function generateRoutedCodexFiles(
   }
   const label = labels[platform]
   const envContent = isWindows
-    ? `$env:SUB2API_API_KEY="${apiKey}"`
-    : `export SUB2API_API_KEY="${apiKey}"`
+    ? `$env:AOXTOKEN_API_KEY="${apiKey}"`
+    : `export AOXTOKEN_API_KEY="${apiKey}"`
 
   const configContent = `# Codex CLI -> AoxToken ${label} group
 model_provider = "aoxtoken"
@@ -1380,7 +1380,7 @@ ${codexLocalCatalogToml.value}
 [model_providers.aoxtoken]
 name = "AoxToken ${label}"
 base_url = "${baseUrl}"
-${codexModelCatalogMode.value === 'remote' ? `model_catalog_url = "${escapeTomlBasicString(buildCodexModelCatalogUrl(baseUrl))}"\n` : ''}env_key = "SUB2API_API_KEY"
+${codexModelCatalogMode.value === 'remote' ? `model_catalog_url = "${escapeTomlBasicString(buildCodexModelCatalogUrl(baseUrl))}"\n` : ''}env_key = "AOXTOKEN_API_KEY"
 wire_api = "responses"
 requires_openai_auth = false
 supports_websockets = false${codexModelCatalogMode.value === 'remote' ? '\n\n[features]\napi_key_model_discovery = true' : ''}`
