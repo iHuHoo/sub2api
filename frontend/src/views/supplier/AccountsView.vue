@@ -6,6 +6,7 @@ import CreateAccountModal from '@/components/account/CreateAccountModal.vue'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import DataTable from '@/components/common/DataTable.vue'
 import Pagination from '@/components/common/Pagination.vue'
+import Select from '@/components/common/Select.vue'
 import { supplierAPI, supplierErrorKey, type SupplierAccount, type SupplierAccountUpdate, type SupplierProxy } from '@/api/supplier'
 import { useAppStore } from '@/stores/app'
 
@@ -48,6 +49,29 @@ const officialURLs: Record<string, string[]> = {
   typesafe: ['https://api.typesafe.ai'], command_code: ['https://api.commandcode.ai/provider/v1'], cline: ['https://api.cline.bot/api/v1']
 }
 const supported = computed(() => platformTypes[form.platform]?.includes(form.type) ?? false)
+const platformOptions = computed(() => [
+  ...(!platformTypes[form.platform] ? [{ value: form.platform, label: form.platform }] : []),
+  ...Object.keys(platformTypes).map(platform => ({ value: platform, label: platform }))
+])
+const typeOptions = computed(() => [
+  ...(!supported.value ? [{ value: form.type, label: form.type }] : []),
+  ...(platformTypes[form.platform] || []).map(type => ({ value: type, label: type }))
+])
+const baseURLOptions = computed(() => [
+  { value: '', label: t('supplier.retainEndpoint') },
+  ...(officialURLs[form.platform] || []).map(url => ({ value: url, label: url }))
+])
+const authModeOptions = computed(() => [
+  { value: '', label: t('supplier.retain') },
+  { value: 'sigv4', label: 'AWS SigV4' }, { value: 'apikey', label: 'API Key' }
+])
+const proxyOptions = computed(() => [
+  { value: '', label: t('supplier.retainProxy') },
+  { value: '0', label: t('supplier.detachProxy') },
+  ...(editing.value?.proxy_id && !proxies.value.some(p => p.id === editing.value?.proxy_id)
+    ? [{ value: String(editing.value.proxy_id), label: `#${editing.value.proxy_id}` }] : []),
+  ...proxies.value.map(proxy => ({ value: String(proxy.id), label: `${proxy.name} · #${proxy.id} · ${proxy.status}` }))
+])
 const fields = computed(() => {
   if (!supported.value) return []
   let required: string[] = []
@@ -127,11 +151,11 @@ async function openCreate() {
   finally { createLoading.value = false }
 }
 function open(account: SupplierAccount) {
-  if (account?.read_only) return
+  if (account.read_only) return
   editing.value = account
-  initialExpiry.value = account?.expires_at ? new Date(account.expires_at).toISOString().slice(0, 16) : ''
+  initialExpiry.value = account.expires_at ? new Date(account.expires_at).toISOString().slice(0, 16) : ''
   Object.assign(form, {
-    name: account?.name ?? '', notes: account?.notes ?? '', platform: account?.platform ?? 'anthropic', type: account?.type ?? 'apikey',
+    name: account.name, notes: account.notes ?? '', platform: account.platform, type: account.type,
     proxy_id: '', expires_at: initialExpiry.value, clear_expiry: false
   })
   resetCredentials()
@@ -227,33 +251,40 @@ onMounted(load)
       </div>
     </div>
     <CreateAccountModal v-if="showCreate" :show="showCreate" supplier :proxies="createProxies" :groups="[]" @close="showCreate = false" @created="load" />
-    <BaseDialog :show="show" :title="editing ? t('supplier.editAccount') : t('supplier.addAccount')" width="normal" @close="close">
+    <BaseDialog :show="show" :title="t('supplier.editAccount')" width="normal" @close="close">
       <form id="supplier-account-form" class="space-y-4" @submit.prevent="save">
         <label class="block"><span class="input-label">{{ t('supplier.name') }}</span><input v-model="form.name" name="name" class="input" required maxlength="100" /></label>
         <label class="block"><span class="input-label">{{ t('supplier.notes') }}</span><textarea v-model="form.notes" name="notes" class="input" rows="2" maxlength="2000" /></label>
         <div class="grid gap-4 sm:grid-cols-2">
-          <label class="block"><span class="input-label">{{ t('supplier.platform') }}</span><select v-model="form.platform" name="platform" class="input" :disabled="!!editing"><option v-if="editing && !platformTypes[form.platform]" :value="form.platform">{{ form.platform }}</option><option v-for="(_, platform) in platformTypes" :key="platform" :value="platform">{{ platform }}</option></select></label>
-          <label class="block"><span class="input-label">{{ t('supplier.accountType') }}</span><select v-model="form.type" name="type" class="input" :disabled="!!editing"><option v-if="editing && !supported" :value="form.type">{{ form.type }}</option><option v-for="type in platformTypes[form.platform] || []" :key="type" :value="type">{{ type }}</option></select></label>
+          <div>
+            <label for="supplier-account-platform" class="input-label">{{ t('supplier.platform') }}</label>
+            <Select id="supplier-account-platform" v-model="form.platform" :options="platformOptions" disabled :aria-label="t('supplier.platform')" />
+          </div>
+          <div>
+            <label for="supplier-account-type" class="input-label">{{ t('supplier.accountType') }}</label>
+            <Select id="supplier-account-type" v-model="form.type" :options="typeOptions" disabled :aria-label="t('supplier.accountType')" />
+          </div>
         </div>
         <p class="input-hint">{{ t('supplier.importNotice') }}</p>
-        <p v-if="editing" class="input-hint">{{ t('supplier.retainCredential') }}</p>
+        <p class="input-hint">{{ t('supplier.retainCredential') }}</p>
         <p v-if="!supported" class="input-hint">{{ t('supplier.unsupportedCredential') }}</p>
         <div v-for="field in fields" :key="field.key" class="space-y-1">
-          <label :for="'credential-' + field.key" class="input-label">{{ t('supplier.credential.' + field.key) }} <span class="font-mono text-xs">({{ field.key }})</span><span v-if="field.required && !editing"> *</span></label>
-          <select v-if="field.key === 'base_url'" :id="'credential-' + field.key" v-model="credentials[field.key]" :name="field.key" class="input" :required="field.required && !editing">
-            <option value="">{{ editing ? t('supplier.retainEndpoint') : t('supplier.defaultEndpoint') }}</option><option v-for="url in officialURLs[form.platform]" :key="url" :value="url">{{ url }}</option>
-          </select>
-          <select v-else-if="field.key === 'auth_mode'" :id="'credential-' + field.key" v-model="credentials[field.key]" name="auth_mode" class="input" :required="!editing"><option v-if="editing" value="">{{ t('supplier.retain') }}</option><option value="sigv4">AWS SigV4</option><option value="apikey">API Key</option></select>
-          <textarea v-else-if="field.key === 'service_account_json'" :id="'credential-' + field.key" v-model="credentials[field.key]" :name="field.key" class="input font-mono" rows="5" :required="!editing" maxlength="32768" :placeholder="t('supplier.serviceAccountHint')" />
-          <input v-else :id="'credential-' + field.key" v-model="credentials[field.key]" :name="field.key" :type="isSecret(field.key) ? 'password' : 'text'" class="input" :required="field.required && !editing" :maxlength="field.key === 'expires_at' ? 64 : 16384" autocomplete="off" :disabled="clearCredentials[field.key]" :placeholder="field.key === 'expires_at' ? t('supplier.tokenExpiryHint') : editing ? t('supplier.retainCredential') : ''" />
-          <label v-if="editing && canClear(field)" class="flex items-center gap-2 text-sm"><input v-model="clearCredentials[field.key]" type="checkbox" />{{ t('supplier.clearCredential', { field: field.key }) }}</label>
+          <label :for="'credential-' + field.key" class="input-label">{{ t('supplier.credential.' + field.key) }} <span class="font-mono text-xs">({{ field.key }})</span></label>
+          <Select v-if="field.key === 'base_url'" :id="'credential-' + field.key" v-model="credentials[field.key]" :options="baseURLOptions" :aria-label="t('supplier.credential.' + field.key)" />
+          <Select v-else-if="field.key === 'auth_mode'" :id="'credential-' + field.key" v-model="credentials[field.key]" :options="authModeOptions" :aria-label="t('supplier.credential.' + field.key)" />
+          <textarea v-else-if="field.key === 'service_account_json'" :id="'credential-' + field.key" v-model="credentials[field.key]" :name="field.key" class="input font-mono" rows="5" maxlength="32768" :placeholder="t('supplier.serviceAccountHint')" />
+          <input v-else :id="'credential-' + field.key" v-model="credentials[field.key]" :name="field.key" :type="isSecret(field.key) ? 'password' : 'text'" class="input" :maxlength="field.key === 'expires_at' ? 64 : 16384" autocomplete="off" :disabled="clearCredentials[field.key]" :placeholder="field.key === 'expires_at' ? t('supplier.tokenExpiryHint') : t('supplier.retainCredential')" />
+          <label v-if="canClear(field)" class="flex items-center gap-2 text-sm"><input v-model="clearCredentials[field.key]" type="checkbox" />{{ t('supplier.clearCredential', { field: field.key }) }}</label>
         </div>
         <p v-if="form.type === 'service_account'" class="input-hint">{{ t('supplier.serviceAccountNotice') }}</p>
         <p class="input-hint">{{ t('supplier.endpointPolicy') }}</p>
-        <label class="block"><span class="input-label">{{ t('supplier.proxy') }}</span><select v-model="form.proxy_id" name="proxy_id" class="input" :disabled="proxyLoading"><option value="">{{ editing ? t('supplier.retainProxy') : t('supplier.noProxy') }}</option><option v-if="editing" value="0">{{ t('supplier.detachProxy') }}</option><option v-if="editing?.proxy_id && !proxies.some(p => p.id === editing?.proxy_id)" :value="editing.proxy_id">#{{ editing.proxy_id }}</option><option v-for="proxy in proxies" :key="proxy.id" :value="proxy.id">{{ proxy.name }} · #{{ proxy.id }} · {{ proxy.status }}</option></select></label>
+        <div>
+          <label for="supplier-account-proxy" class="input-label">{{ t('supplier.proxy') }}</label>
+          <Select id="supplier-account-proxy" v-model="form.proxy_id" :options="proxyOptions" :disabled="proxyLoading" :aria-label="t('supplier.proxy')" />
+        </div>
         <Pagination v-if="proxyTotal > 20" :total="proxyTotal" :page="proxyPage" :page-size="20" :show-page-size-selector="false" @update:page="proxyPage = $event; loadProxies()" />
         <label class="block"><span class="input-label">{{ t('supplier.expiryUTC') }}</span><input v-model="form.expires_at" name="expires_at" type="datetime-local" class="input" :disabled="form.clear_expiry" min="1970-01-01T00:00" max="9999-12-31T23:59" /></label>
-        <label v-if="editing" class="flex items-center gap-2 text-sm"><input v-model="form.clear_expiry" name="clear_expiry" type="checkbox" />{{ t('supplier.clearExpiry') }}</label>
+        <label class="flex items-center gap-2 text-sm"><input v-model="form.clear_expiry" name="clear_expiry" type="checkbox" />{{ t('supplier.clearExpiry') }}</label>
       </form>
       <template #footer><button class="btn btn-secondary" :disabled="saving" @click="close">{{ t('common.cancel') }}</button><button form="supplier-account-form" type="submit" class="btn btn-primary" :disabled="saving">{{ t('common.save') }}</button></template>
     </BaseDialog>

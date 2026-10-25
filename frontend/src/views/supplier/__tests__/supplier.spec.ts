@@ -1,8 +1,8 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import Select from '@/components/common/Select.vue'
 import en from '@/i18n/locales/en'
 import AccountsView from '../AccountsView.vue'
-import Select from '@/components/common/Select.vue'
 import ProxiesView from '../ProxiesView.vue'
 import UsageView from '../UsageView.vue'
 
@@ -29,6 +29,7 @@ function render(component: typeof AccountsView | typeof ProxiesView | typeof Usa
     AppLayout: { template: '<div><slot /></div>' },
     BaseDialog: { props: ['show'], template: '<div v-if="show"><slot /><slot name="footer" /></div>' },
     CreateAccountModal: { name: 'CreateAccountModal', props: { show: Boolean, supplier: Boolean, proxies: Array, groups: Array }, template: '<div v-if="show" data-testid="shared-create" />' },
+    Teleport: true,
     Pagination: true
   } } })
 }
@@ -48,6 +49,90 @@ describe('supplier account editor', () => {
     api.accounts.create.mockResolvedValue(account)
     api.accounts.pause.mockResolvedValue(account)
   })
+  function select(wrapper: ReturnType<typeof render>, id: string) {
+    const control = wrapper.findAllComponents(Select).find(control => control.props('id') === id)
+    expect(control, `Select ${id}`).toBeDefined()
+    return control!
+  }
+  async function choose(wrapper: ReturnType<typeof render>, id: string, value: string) {
+    const control = select(wrapper, id)
+    const option = control.props('options').find(option => option.value === value)!
+    expect(option).toBeDefined()
+    await control.get('button').trigger('click')
+    await control.findAll('[role="option"]').find(node => node.text() === option.label)!.trigger('click')
+    await flushPromises()
+  }
+
+  it.each([
+    ['legacy-platform', 'legacy-type'], ['openai', 'legacy-type']
+  ])('retains locked legacy selection %s / %s without rewriting it', async (platform, type) => {
+    api.accounts.list.mockResolvedValue(page([{ ...account, platform, type }]))
+    const wrapper = render(AccountsView)
+    await flushPromises()
+    await click(wrapper, 'Edit')
+    for (const [id, value] of [['supplier-account-platform', platform], ['supplier-account-type', type]]) {
+      const control = select(wrapper, id)
+      expect(control.props('options')).toContainEqual({ value, label: value })
+      expect(control.props('modelValue')).toBe(value)
+      expect(control.get('button').text()).toBe(value)
+      expect(control.props('disabled')).toBe(true)
+    }
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+    expect(api.accounts.update).toHaveBeenCalledWith(3, {})
+    wrapper.unmount()
+  })
+
+  it.each([
+    ['', {}], ['0', { proxy_id: 0 }], ['7', { proxy_id: 7 }], ['19', { proxy_id: 19 }]
+  ])('keeps proxy option values as strings and submits sparse numeric selection %s', async (value, changes) => {
+    api.accounts.list.mockResolvedValue(page([{ ...account, proxy_id: 19 }]))
+    const wrapper = render(AccountsView)
+    await flushPromises()
+    await click(wrapper, 'Edit')
+    const control = select(wrapper, 'supplier-account-proxy')
+    expect(control.props('options').map(option => option.value)).toEqual(['', '0', '19', '7'])
+    expect(control.props('options')).toContainEqual({ value: '19', label: '#19' })
+    await choose(wrapper, 'supplier-account-proxy', value)
+    expect(control.props('modelValue')).toBe(value)
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+    expect(api.accounts.update).toHaveBeenCalledWith(3, changes)
+    wrapper.unmount()
+  })
+
+  it.each([
+    ['openai', 'upstream', 'base_url', 'https://api.openai.com/v1'],
+    ['anthropic', 'bedrock', 'auth_mode', 'apikey']
+  ])('omits edited credential after explicitly choosing retain: %s / %s', async (platform, type, field, value) => {
+    api.accounts.list.mockResolvedValue(page([{ ...account, platform, type }]))
+    const wrapper = render(AccountsView)
+    await flushPromises()
+    await click(wrapper, 'Edit')
+    await choose(wrapper, `credential-${field}`, value)
+    await choose(wrapper, `credential-${field}`, '')
+    expect(select(wrapper, `credential-${field}`).props('modelValue')).toBe('')
+    expect(wrapper.get(`label[for="credential-${field}"]`).exists()).toBe(true)
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+    expect(api.accounts.update).toHaveBeenCalledWith(3, {})
+    expect(api.showError).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
+  it('disables proxy selection until the proxy list finishes loading', async () => {
+    let resolve!: (value: ReturnType<typeof page>) => void
+    api.proxies.list.mockReturnValue(new Promise(done => { resolve = done }))
+    const wrapper = render(AccountsView)
+    await flushPromises()
+    await click(wrapper, 'Edit')
+    expect(select(wrapper, 'supplier-account-proxy').props('disabled')).toBe(true)
+    resolve(page([proxy]))
+    await flushPromises()
+    expect(select(wrapper, 'supplier-account-proxy').props('disabled')).toBe(false)
+    wrapper.unmount()
+  })
+
   it('sends name-only sparse edit without detaching an administrator proxy or erasing saved secrets', async () => {
     const wrapper = render(AccountsView)
     await flushPromises()
@@ -95,7 +180,7 @@ describe('supplier account editor', () => {
     const wrapper = render(AccountsView)
     await flushPromises()
     await click(wrapper, 'Edit')
-    await wrapper.get('[name="proxy_id"]').setValue('0')
+    await choose(wrapper, 'supplier-account-proxy', '0')
     await wrapper.get('[name="clear_expiry"]').setValue(true)
     await wrapper.get('form').trigger('submit')
     await flushPromises()
@@ -281,7 +366,7 @@ describe('assigned supplier proxy', () => {
     const wrapper = render(AccountsView)
     await flushPromises()
     await click(wrapper, 'Edit')
-    expect(wrapper.get('[name="proxy_id"]').text()).toContain('Assigned')
+    expect(wrapper.findAllComponents(Select).find(control => control.props('id') === 'supplier-account-proxy')!.props('options')).toContainEqual({ value: '19', label: 'Assigned · #19 · active' })
     await wrapper.get('[name="name"]').setValue('Renamed')
     await wrapper.get('form').trigger('submit')
     await flushPromises()
