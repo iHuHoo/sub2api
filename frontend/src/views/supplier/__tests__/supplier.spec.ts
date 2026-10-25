@@ -2,6 +2,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import en from '@/i18n/locales/en'
 import AccountsView from '../AccountsView.vue'
+import Select from '@/components/common/Select.vue'
 import ProxiesView from '../ProxiesView.vue'
 import UsageView from '../UsageView.vue'
 
@@ -153,6 +154,38 @@ describe('supplier proxy editor', () => {
     api.proxies.list.mockResolvedValue(page([proxy]))
     api.proxies.update.mockResolvedValue(proxy)
     api.proxies.test.mockResolvedValue({ reachable: true, latency_ms: 12 })
+  })
+  it('uses the shared protocol selector and saves the selected protocol', async () => {
+    const wrapper = render(ProxiesView)
+    await flushPromises()
+    await click(wrapper, 'Edit')
+    const selector = wrapper.findComponent(Select)
+    expect(selector.exists()).toBe(true)
+    expect(selector.props('options')).toEqual(['http', 'https', 'socks5', 'socks5h'].map(value => ({ value, label: value })))
+    expect(selector.props('modelValue')).toBe('http')
+    selector.vm.$emit('update:modelValue', 'socks5h')
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+    expect(api.proxies.update).toHaveBeenCalledWith(7, { protocol: 'socks5h' })
+    wrapper.unmount()
+  })
+  it('uses the shared lifecycle selector to save inactive status', async () => {
+    api.proxies.list.mockResolvedValue(page([{ ...proxy, status: 'active' }]))
+    const wrapper = render(ProxiesView)
+    await flushPromises()
+    await click(wrapper, 'Edit')
+    const selector = wrapper.findAllComponents(Select).find(component => component.props('id') === 'supplier-proxy-status')
+    expect(selector).toBeDefined()
+    expect(selector!.props('modelValue')).toBe('active')
+    expect(selector!.props('options')).toEqual([
+      { value: 'active', label: en.common.active },
+      { value: 'inactive', label: en.supplier.inactive }
+    ])
+    selector!.vm.$emit('update:modelValue', 'inactive')
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+    expect(api.proxies.update).toHaveBeenCalledWith(7, { status: 'inactive' })
+    wrapper.unmount()
   })
   it('preserves password and inactive status for a name-only edit', async () => {
     const wrapper = render(ProxiesView)
