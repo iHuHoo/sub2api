@@ -2,15 +2,14 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { nextTick } from 'vue'
 
-const { copyToClipboardMock, saveAsMock } = vi.hoisted(() => ({
+const { copyToClipboardMock, saveAsMock, translateMock } = vi.hoisted(() => ({
   copyToClipboardMock: vi.fn().mockResolvedValue(true),
-  saveAsMock: vi.fn()
+  saveAsMock: vi.fn(),
+  translateMock: vi.fn((key: string) => key)
 }))
 
 vi.mock('vue-i18n', () => ({
-  useI18n: () => ({
-    t: (key: string) => key
-  })
+  useI18n: () => ({ t: translateMock })
 }))
 
 vi.mock('@/composables/useClipboard', () => ({
@@ -23,6 +22,9 @@ vi.mock('file-saver', () => ({
   saveAs: saveAsMock
 }))
 
+import zhDashboard from '@/i18n/locales/zh/dashboard'
+import enDashboard from '@/i18n/locales/en/dashboard'
+
 import UseKeyModal from '../UseKeyModal.vue'
 
 function readBlobAsText(blob: Blob): Promise<string> {
@@ -34,7 +36,74 @@ function readBlobAsText(blob: Blob): Promise<string> {
   })
 }
 
+function useLocaleMessages(messages: typeof zhDashboard | typeof enDashboard) {
+  translateMock.mockImplementation(key => {
+    const value = key.split('.').reduce<unknown>((value, part) =>
+      value && typeof value === 'object' ? (value as Record<string, unknown>)[part] : undefined,
+      messages
+    )
+    if (typeof value !== 'string') throw new Error(`Missing test translation: ${key}`)
+    return value
+  })
+}
+
 describe('UseKeyModal', () => {
+  const grokBrandCases = (['zh', 'en'] as const).flatMap(locale =>
+    (['grokCli', 'claudeCode', 'codexCli'] as const).map(tab => ({ locale, tab }))
+  )
+  it.each(grokBrandCases)('renders AoxToken Grok branding with real $locale translations on $tab', async ({ locale, tab }) => {
+    const messages = locale === 'zh' ? zhDashboard : enDashboard
+    useLocaleMessages(messages)
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, text: async () => JSON.stringify({ models: [] }) }))
+    const wrapper = mount(UseKeyModal, {
+      props: { show: true, apiKey: 'sk-guide-test', baseUrl: 'https://example.com/v1', platform: 'grok' },
+      global: { stubs: { BaseDialog: { template: '<div><slot /></div>' }, Icon: true } }
+    })
+    try {
+      const button = wrapper.findAll('nav[aria-label="Client"] button')
+        .find(button => button.text() === messages.keys.useKeyModal.cliTabs[tab])
+      expect(button).toBeDefined()
+      await button!.trigger('click')
+      await flushPromises()
+      expect(wrapper.text()).not.toContain('Sub2API')
+      expect(wrapper.text()).toContain('AoxToken')
+      if (tab === 'codexCli') expect(wrapper.text()).toContain('AOXTOKEN_API_KEY')
+    } finally {
+      wrapper.unmount()
+    }
+  })
+
+  const codexEnvCases = (['zh', 'en'] as const).flatMap(locale =>
+    (['grok', 'anthropic', 'deepseek', 'minimax', 'composite'] as const).flatMap(platform =>
+      [false, true].map(windows => ({ locale, platform, windows }))
+    )
+  )
+  it.each(codexEnvCases)('uses AOXTOKEN_API_KEY throughout $locale / $platform Codex guide (Windows: $windows)', async ({ locale, platform, windows }) => {
+    const messages = locale === 'zh' ? zhDashboard : enDashboard
+    useLocaleMessages(messages)
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, text: async () => JSON.stringify({ models: [] }) }))
+    const wrapper = mount(UseKeyModal, {
+      props: { show: true, apiKey: 'sk-guide-test', baseUrl: 'https://example.com/v1', platform },
+      global: { stubs: { BaseDialog: { template: '<div><slot /></div>' }, Icon: true } }
+    })
+    try {
+      await wrapper.findAll('nav[aria-label="Client"] button')
+        .find(button => button.text() === messages.keys.useKeyModal.cliTabs.codexCli)!.trigger('click')
+      if (windows) await wrapper.findAll('nav[aria-label="Tabs"] button')
+        .find(button => button.text() === 'Windows')!.trigger('click')
+      await flushPromises()
+      const generated = wrapper.findAll('pre code').map(block => block.text()).join('\n')
+      expect(generated).toContain(windows ? '$env:AOXTOKEN_API_KEY=' : 'export AOXTOKEN_API_KEY=')
+      expect(generated).toContain('env_key = "AOXTOKEN_API_KEY"')
+      expect(generated).not.toContain('SUB2API_API_KEY')
+      expect(wrapper.text()).not.toContain('SUB2API_API_KEY')
+      expect(wrapper.text()).toContain('[model_providers.sub2api]')
+      expect(wrapper.text()).toContain(locale === 'zh' ? '替换整份 config.toml' : 'replace the entire config.toml')
+    } finally {
+      wrapper.unmount()
+    }
+  })
+
   const desktopCases = ['workbuddy', 'trae'].flatMap(client =>
     (['openai', 'anthropic', 'gemini', 'antigravity', 'composite', 'grok', 'deepseek'] as const)
       .map(platform => ({ client, platform }))
@@ -72,6 +141,7 @@ describe('UseKeyModal', () => {
   })
 
   afterEach(() => {
+    translateMock.mockReset().mockImplementation((key: string) => key)
     vi.unstubAllGlobals()
     saveAsMock.mockClear()
     copyToClipboardMock.mockClear()
@@ -239,7 +309,7 @@ describe('UseKeyModal', () => {
 
     const parsed = JSON.parse(wrapper.find('pre code').text())
     expect(parsed.provider.grok.npm).toBe('@ai-sdk/openai-compatible')
-    expect(parsed.provider.grok.name).toBe('Grok via Sub2API')
+    expect(parsed.provider.grok.name).toBe('Grok via AoxToken')
     expect(parsed.provider.grok.options).toEqual({
       baseURL: 'https://example.com/v1',
       apiKey: 'sk-grok-test'
@@ -384,12 +454,12 @@ describe('UseKeyModal', () => {
     await nextTick()
 
     let codeBlocks = wrapper.findAll('pre code').map((code) => code.text())
-    const configToml = codeBlocks.find((content) => content.includes('[model_providers.sub2api]'))
+    const configToml = codeBlocks.find((content) => content.includes('[model_providers.aoxtoken]'))
     expect(configToml).toBeDefined()
-    expect(configToml).toContain('model_provider = "sub2api"')
+    expect(configToml).toContain('model_provider = "aoxtoken"')
     expect(configToml).toContain('model = "grok-4.5"')
     expect(configToml).toContain('base_url = "https://example.com/v1"')
-    expect(configToml).toContain('env_key = "SUB2API_API_KEY"')
+    expect(configToml).toContain('env_key = "AOXTOKEN_API_KEY"')
     expect(configToml).toContain('wire_api = "responses"')
     // API-key provider: Codex must not require a ChatGPT OAuth login.
     expect(configToml).toContain('requires_openai_auth = false')
@@ -402,7 +472,7 @@ describe('UseKeyModal', () => {
     expect(configToml).not.toContain('supports_websockets = true')
     expect(configToml).not.toContain('responses_websockets_v2')
     expect(wrapper.text()).not.toContain('auth.json')
-    expect(codeBlocks.join('\n')).toContain('SUB2API_API_KEY')
+    expect(codeBlocks.join('\n')).toContain('AOXTOKEN_API_KEY')
 
     const windowsTab = wrapper.findAll('button').find(
       (button) => button.text().trim() === 'Windows'
@@ -900,10 +970,10 @@ describe('UseKeyModal', () => {
 
     const unixConfig = wrapper.findAll('pre code')
       .map((code) => code.text())
-      .find((content) => content.includes('[model_providers.sub2api]'))
-    expect(unixConfig).toContain('[model_providers.sub2api]\nname = "Sub2API Composite"\nbase_url = "https://example.com/v1"\nmodel_catalog_url = "https://example.com/v1/models"')
+      .find((content) => content.includes('[model_providers.aoxtoken]'))
+    expect(unixConfig).toContain('[model_providers.aoxtoken]\nname = "AoxToken Composite"\nbase_url = "https://example.com/v1"\nmodel_catalog_url = "https://example.com/v1/models"')
     expect(unixConfig).not.toContain('model_catalog_json')
-    expect(unixConfig).toContain('env_key = "SUB2API_API_KEY"')
+    expect(unixConfig).toContain('env_key = "AOXTOKEN_API_KEY"')
     expect(fetchMock).not.toHaveBeenCalled()
 
     await wrapper.get('[data-testid="codex-model-catalog-mode"]').setValue('file')
@@ -922,7 +992,7 @@ describe('UseKeyModal', () => {
 
     const loadedUnixConfig = wrapper.findAll('pre code')
       .map((code) => code.text())
-      .find((content) => content.includes('[model_providers.sub2api]'))
+      .find((content) => content.includes('[model_providers.aoxtoken]'))
     expect(loadedUnixConfig).toContain('model = "claude-opus-4-8"')
     expect(loadedUnixConfig).toContain('review_model = "claude-opus-4-8"')
     expect(loadedUnixConfig).not.toContain('model = "gpt-5.5"')
@@ -945,7 +1015,7 @@ describe('UseKeyModal', () => {
 
     const windowsConfig = wrapper.findAll('pre code')
       .map((code) => code.text())
-      .find((content) => content.includes('[model_providers.sub2api]'))
+      .find((content) => content.includes('[model_providers.aoxtoken]'))
     // Codex does not expand %userprofile% in config.toml; it only expands ~/.
     expect(windowsConfig).toContain('model_catalog_json = "~/.codex/codex-models.json"')
     expect(windowsConfig).not.toContain('%userprofile%')
@@ -985,7 +1055,7 @@ describe('UseKeyModal', () => {
       expect(wrapper.find('[data-testid="codex-model-catalog"]').exists()).toBe(true)
       const config = wrapper.findAll('pre code')
         .map((code) => code.text())
-        .find((content) => content.includes('[model_providers.sub2api]'))
+        .find((content) => content.includes('[model_providers.aoxtoken]'))
       expect(config).toContain('model_catalog_url = "https://example.com/v1/models"')
       expect(config).not.toContain('model_catalog_json')
       expect(config).toContain('base_url = "https://example.com/v1"')
@@ -1035,7 +1105,7 @@ describe('UseKeyModal', () => {
 
     const config = wrapper.findAll('pre code')
       .map((code) => code.text())
-      .find((content) => content.includes('[model_providers.sub2api]'))
+      .find((content) => content.includes('[model_providers.aoxtoken]'))
     expect(config).toContain('model = "gpt-5.5"')
     expect(config).toContain('review_model = "gpt-5.5"')
   })
