@@ -24,6 +24,10 @@ const testing = ref<number | null>(null)
 const results = reactive<Record<number, { reachable: boolean; latency_ms: number }>>({})
 const form = reactive({ name: '', protocol: 'http' as NonNullable<SupplierProxyInput['protocol']>, host: '', port: 8080, username: '', password: '', clear_password: false, status: 'active' as 'active' | 'inactive' })
 const protocolOptions = ['http', 'https', 'socks5', 'socks5h'].map(value => ({ value, label: value }))
+const statusOptions = computed(() => [
+  { value: 'active', label: t('common.active') },
+  { value: 'inactive', label: t('supplier.inactive') }
+])
 const columns = computed(() => [
   { key: 'name', label: t('supplier.name') }, { key: 'address', label: t('supplier.address') },
   { key: 'expires_at', label: t('supplier.expiry') },
@@ -133,7 +137,10 @@ onMounted(load)
         <label class="block"><span class="input-label">{{ t('supplier.username') }}</span><input v-model="form.username" name="username" class="input" maxlength="255" autocomplete="off" /></label>
         <label class="block"><span class="input-label">{{ t('supplier.password') }}</span><input v-model="form.password" name="password" type="password" class="input" maxlength="255" autocomplete="new-password" :disabled="form.clear_password" :placeholder="editing ? t('supplier.retainCredential') : ''" /></label>
         <label v-if="editing" class="flex items-center gap-2 text-sm"><input v-model="form.clear_password" name="clear_password" type="checkbox" />{{ t('supplier.clearPassword') }}</label>
-        <label class="block"><span class="input-label">{{ t('supplier.lifecycle') }}</span><select v-model="form.status" name="status" class="input"><option value="active">{{ t('common.active') }}</option><option value="inactive">{{ t('supplier.inactive') }}</option></select></label>
+        <div>
+          <label for="supplier-proxy-status" class="input-label">{{ t('supplier.lifecycle') }}</label>
+          <Select id="supplier-proxy-status" v-model="form.status" :options="statusOptions" :aria-label="t('supplier.lifecycle')" />
+        </div>
       </form>
       <template #footer><button class="btn btn-secondary" :disabled="saving" @click="close">{{ t('common.cancel') }}</button><button form="supplier-proxy-form" type="submit" class="btn btn-primary" :disabled="saving">{{ t('common.save') }}</button></template>
     </BaseDialog>

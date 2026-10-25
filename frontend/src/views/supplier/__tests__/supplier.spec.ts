@@ -169,6 +169,24 @@ describe('supplier proxy editor', () => {
     expect(api.proxies.update).toHaveBeenCalledWith(7, { protocol: 'socks5h' })
     wrapper.unmount()
   })
+  it('uses the shared lifecycle selector to save inactive status', async () => {
+    api.proxies.list.mockResolvedValue(page([{ ...proxy, status: 'active' }]))
+    const wrapper = render(ProxiesView)
+    await flushPromises()
+    await click(wrapper, 'Edit')
+    const selector = wrapper.findAllComponents(Select).find(component => component.props('id') === 'supplier-proxy-status')
+    expect(selector).toBeDefined()
+    expect(selector!.props('modelValue')).toBe('active')
+    expect(selector!.props('options')).toEqual([
+      { value: 'active', label: en.common.active },
+      { value: 'inactive', label: en.supplier.inactive }
+    ])
+    selector!.vm.$emit('update:modelValue', 'inactive')
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+    expect(api.proxies.update).toHaveBeenCalledWith(7, { status: 'inactive' })
+    wrapper.unmount()
+  })
   it('preserves password and inactive status for a name-only edit', async () => {
     const wrapper = render(ProxiesView)
     await flushPromises()
