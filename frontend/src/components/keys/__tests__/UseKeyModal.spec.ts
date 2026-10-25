@@ -2,15 +2,14 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { nextTick } from 'vue'
 
-const { copyToClipboardMock, saveAsMock } = vi.hoisted(() => ({
+const { copyToClipboardMock, saveAsMock, translateMock } = vi.hoisted(() => ({
   copyToClipboardMock: vi.fn().mockResolvedValue(true),
-  saveAsMock: vi.fn()
+  saveAsMock: vi.fn(),
+  translateMock: vi.fn((key: string) => key)
 }))
 
 vi.mock('vue-i18n', () => ({
-  useI18n: () => ({
-    t: (key: string) => key
-  })
+  useI18n: () => ({ t: translateMock })
 }))
 
 vi.mock('@/composables/useClipboard', () => ({
@@ -22,6 +21,9 @@ vi.mock('@/composables/useClipboard', () => ({
 vi.mock('file-saver', () => ({
   saveAs: saveAsMock
 }))
+
+import zhDashboard from '@/i18n/locales/zh/dashboard'
+import enDashboard from '@/i18n/locales/en/dashboard'
 
 import UseKeyModal from '../UseKeyModal.vue'
 
@@ -35,6 +37,38 @@ function readBlobAsText(blob: Blob): Promise<string> {
 }
 
 describe('UseKeyModal', () => {
+  const grokBrandCases = (['zh', 'en'] as const).flatMap(locale =>
+    (['grokCli', 'claudeCode', 'codexCli'] as const).map(tab => ({ locale, tab }))
+  )
+  it.each(grokBrandCases)('renders AoxToken Grok branding with real $locale translations on $tab', async ({ locale, tab }) => {
+    const messages = locale === 'zh' ? zhDashboard : enDashboard
+    translateMock.mockImplementation(key => {
+      const value = key.split('.').reduce<unknown>((value, part) =>
+        value && typeof value === 'object' ? (value as Record<string, unknown>)[part] : undefined,
+        messages
+      )
+      if (typeof value !== 'string') throw new Error(`Missing test translation: ${key}`)
+      return value
+    })
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, text: async () => JSON.stringify({ models: [] }) }))
+    const wrapper = mount(UseKeyModal, {
+      props: { show: true, apiKey: 'sk-guide-test', baseUrl: 'https://example.com/v1', platform: 'grok' },
+      global: { stubs: { BaseDialog: { template: '<div><slot /></div>' }, Icon: true } }
+    })
+    try {
+      const button = wrapper.findAll('nav[aria-label="Client"] button')
+        .find(button => button.text() === messages.keys.useKeyModal.cliTabs[tab])
+      expect(button).toBeDefined()
+      await button!.trigger('click')
+      await flushPromises()
+      expect(wrapper.text()).not.toContain('Sub2API')
+      expect(wrapper.text()).toContain('AoxToken')
+      if (tab === 'codexCli') expect(wrapper.text()).toContain('SUB2API_API_KEY')
+    } finally {
+      wrapper.unmount()
+    }
+  })
+
   const desktopCases = ['workbuddy', 'trae'].flatMap(client =>
     (['openai', 'anthropic', 'gemini', 'antigravity', 'composite', 'grok', 'deepseek'] as const)
       .map(platform => ({ client, platform }))
@@ -72,6 +106,7 @@ describe('UseKeyModal', () => {
   })
 
   afterEach(() => {
+    translateMock.mockReset().mockImplementation((key: string) => key)
     vi.unstubAllGlobals()
     saveAsMock.mockClear()
     copyToClipboardMock.mockClear()
