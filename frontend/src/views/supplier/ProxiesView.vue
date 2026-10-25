@@ -5,6 +5,7 @@ import { useI18n } from 'vue-i18n'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import DataTable from '@/components/common/DataTable.vue'
+import Select from '@/components/common/Select.vue'
 import Pagination from '@/components/common/Pagination.vue'
 import { supplierAPI, supplierErrorKey, type SupplierProxy, type SupplierProxyInput } from '@/api/supplier'
 import { useAppStore } from '@/stores/app'
@@ -22,6 +23,7 @@ const deleting = ref<SupplierProxy | null>(null)
 const testing = ref<number | null>(null)
 const results = reactive<Record<number, { reachable: boolean; latency_ms: number }>>({})
 const form = reactive({ name: '', protocol: 'http' as NonNullable<SupplierProxyInput['protocol']>, host: '', port: 8080, username: '', password: '', clear_password: false, status: 'active' as 'active' | 'inactive' })
+const protocolOptions = ['http', 'https', 'socks5', 'socks5h'].map(value => ({ value, label: value }))
 const columns = computed(() => [
   { key: 'name', label: t('supplier.name') }, { key: 'address', label: t('supplier.address') },
   { key: 'expires_at', label: t('supplier.expiry') },
@@ -122,7 +124,10 @@ onMounted(load)
     <BaseDialog :show="show" :title="editing ? t('supplier.editProxy') : t('supplier.addProxy')" width="normal" @close="close">
       <form id="supplier-proxy-form" class="space-y-4" @submit.prevent="save">
         <label class="block"><span class="input-label">{{ t('supplier.name') }}</span><input v-model="form.name" name="name" class="input" required maxlength="100" /></label>
-        <label class="block"><span class="input-label">{{ t('supplier.protocol') }}</span><select v-model="form.protocol" name="protocol" class="input"><option v-for="protocol in ['http', 'https', 'socks5', 'socks5h']" :key="protocol" :value="protocol">{{ protocol }}</option></select></label>
+        <div>
+          <label for="supplier-proxy-protocol" class="input-label">{{ t('supplier.protocol') }}</label>
+          <Select id="supplier-proxy-protocol" v-model="form.protocol" :options="protocolOptions" :aria-label="t('supplier.protocol')" />
+        </div>
         <label class="block"><span class="input-label">{{ t('supplier.publicIP') }}</span><input v-model="form.host" name="host" class="input font-mono" required /><span class="input-hint">{{ t('supplier.proxyPolicy') }}</span></label>
         <label class="block"><span class="input-label">{{ t('supplier.port') }}</span><input v-model.number="form.port" name="port" type="number" class="input" min="1" max="65535" required /></label>
         <label class="block"><span class="input-label">{{ t('supplier.username') }}</span><input v-model="form.username" name="username" class="input" maxlength="255" autocomplete="off" /></label>
