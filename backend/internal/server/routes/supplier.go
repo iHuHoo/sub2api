@@ -13,6 +13,7 @@ func RegisterSupplierRoutes(v1 *gin.RouterGroup, h *handler.Handlers, jwtAuth mi
 	supplier.POST("/accounts", h.Supplier.CreateAccount)
 	supplier.POST("/accounts/import-codex-session", limiter.Heavy(), h.Supplier.ImportCodexSession)
 	supplier.GET("/accounts/:id", h.Supplier.GetAccount)
+	supplier.GET("/accounts/:id/usage", limiter.Heavy(), h.Supplier.GetAccountUsage)
 	supplier.PUT("/accounts/:id", h.Supplier.UpdateAccount)
 	supplier.POST("/accounts/:id/pause", h.Supplier.PauseAccount)
 	supplier.GET("/proxies", h.Supplier.ListProxies)

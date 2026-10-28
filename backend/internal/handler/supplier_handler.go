@@ -1,9 +1,11 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"time"
@@ -16,8 +18,96 @@ import (
 )
 
 type SupplierHandler struct {
-	service *service.SupplierService
-	oauth   *service.SupplierOAuthService
+	service      *service.SupplierService
+	oauth        *service.SupplierOAuthService
+	accountUsage supplierAccountUsageReader
+}
+
+type supplierAccountUsageReader interface {
+	GetUsage(context.Context, int64, ...bool) (*service.UsageInfo, error)
+	GetPassiveUsage(context.Context, int64) (*service.UsageInfo, error)
+}
+
+type supplierUsageProgress struct {
+	Utilization      float64    `json:"utilization"`
+	ResetsAt         *time.Time `json:"resets_at"`
+	RemainingSeconds int        `json:"remaining_seconds"`
+}
+
+type supplierAntigravityQuota struct {
+	Utilization int    `json:"utilization"`
+	ResetTime   string `json:"reset_time"`
+}
+
+type supplierAccountUsage struct {
+	Source             string                               `json:"source,omitempty"`
+	UpdatedAt          *time.Time                           `json:"updated_at"`
+	FiveHour           *supplierUsageProgress               `json:"five_hour"`
+	SevenDay           *supplierUsageProgress               `json:"seven_day,omitempty"`
+	SevenDaySonnet     *supplierUsageProgress               `json:"seven_day_sonnet,omitempty"`
+	SevenDayFable      *supplierUsageProgress               `json:"seven_day_fable,omitempty"`
+	ThirtyDay          *supplierUsageProgress               `json:"thirty_day,omitempty"`
+	GeminiSharedDaily  *supplierUsageProgress               `json:"gemini_shared_daily,omitempty"`
+	GeminiProDaily     *supplierUsageProgress               `json:"gemini_pro_daily,omitempty"`
+	GeminiFlashDaily   *supplierUsageProgress               `json:"gemini_flash_daily,omitempty"`
+	GeminiSharedMinute *supplierUsageProgress               `json:"gemini_shared_minute,omitempty"`
+	GeminiProMinute    *supplierUsageProgress               `json:"gemini_pro_minute,omitempty"`
+	GeminiFlashMinute  *supplierUsageProgress               `json:"gemini_flash_minute,omitempty"`
+	AntigravityQuota   map[string]*supplierAntigravityQuota `json:"antigravity_quota,omitempty"`
+	ErrorCode          string                               `json:"error_code,omitempty"`
+}
+
+func supplierUsageProgressView(progress *service.UsageProgress) *supplierUsageProgress {
+	if progress == nil {
+		return nil
+	}
+	return &supplierUsageProgress{
+		Utilization:      progress.Utilization,
+		ResetsAt:         progress.ResetsAt,
+		RemainingSeconds: progress.RemainingSeconds,
+	}
+}
+
+func supplierUsageErrorCode(code string) string {
+	switch code {
+	case "", "quota_unknown":
+		return ""
+	case "rate_limited", "unauthenticated", "forbidden", "network_error", "unavailable":
+		return code
+	default:
+		return "unavailable"
+	}
+}
+
+func supplierAccountUsageView(usage *service.UsageInfo) supplierAccountUsage {
+	if usage == nil {
+		return supplierAccountUsage{ErrorCode: "unavailable"}
+	}
+	out := supplierAccountUsage{
+		Source:             usage.Source,
+		UpdatedAt:          usage.UpdatedAt,
+		FiveHour:           supplierUsageProgressView(usage.FiveHour),
+		SevenDay:           supplierUsageProgressView(usage.SevenDay),
+		SevenDaySonnet:     supplierUsageProgressView(usage.SevenDaySonnet),
+		SevenDayFable:      supplierUsageProgressView(usage.SevenDayFable),
+		ThirtyDay:          supplierUsageProgressView(usage.ThirtyDay),
+		GeminiSharedDaily:  supplierUsageProgressView(usage.GeminiSharedDaily),
+		GeminiProDaily:     supplierUsageProgressView(usage.GeminiProDaily),
+		GeminiFlashDaily:   supplierUsageProgressView(usage.GeminiFlashDaily),
+		GeminiSharedMinute: supplierUsageProgressView(usage.GeminiSharedMinute),
+		GeminiProMinute:    supplierUsageProgressView(usage.GeminiProMinute),
+		GeminiFlashMinute:  supplierUsageProgressView(usage.GeminiFlashMinute),
+		ErrorCode:          supplierUsageErrorCode(usage.ErrorCode),
+	}
+	if len(usage.AntigravityQuota) > 0 {
+		out.AntigravityQuota = make(map[string]*supplierAntigravityQuota, len(usage.AntigravityQuota))
+		for model, quota := range usage.AntigravityQuota {
+			if quota != nil {
+				out.AntigravityQuota[model] = &supplierAntigravityQuota{Utilization: quota.Utilization, ResetTime: quota.ResetTime}
+			}
+		}
+	}
+	return out
 }
 
 func NewSupplierHandlerWithOAuth(s *service.SupplierService, o *service.OpenAIOAuthService, c *service.OAuthService, g *service.GeminiOAuthService, a *service.AntigravityOAuthService, x *service.GrokOAuthService) *SupplierHandler {
@@ -139,6 +229,38 @@ func (h *SupplierHandler) GetAccount(c *gin.Context) {
 		return
 	}
 	response.Success(c, row)
+}
+
+func (h *SupplierHandler) GetAccountUsage(c *gin.Context) {
+	owner, ok := supplierSubject(c)
+	if !ok {
+		return
+	}
+	id, ok := supplierID(c)
+	if !ok {
+		return
+	}
+	account, err := h.service.GetAccount(c.Request.Context(), owner, id)
+	if err != nil {
+		supplierError(c, err)
+		return
+	}
+	if h.accountUsage == nil {
+		supplierError(c, service.ErrSupplierUnavailable)
+		return
+	}
+	var usage *service.UsageInfo
+	if account.Platform == service.PlatformAnthropic && (account.Type == service.AccountTypeOAuth || account.Type == service.AccountTypeSetupToken) {
+		usage, err = h.accountUsage.GetPassiveUsage(c.Request.Context(), id)
+	} else {
+		usage, err = h.accountUsage.GetUsage(c.Request.Context(), id)
+	}
+	if err != nil {
+		slog.WarnContext(c.Request.Context(), "supplier account usage unavailable", "account_id", id, "error", err)
+		response.Success(c, supplierAccountUsage{ErrorCode: "unavailable"})
+		return
+	}
+	response.Success(c, supplierAccountUsageView(usage))
 }
 func (h *SupplierHandler) CreateAccount(c *gin.Context) {
 	owner, ok := supplierSubject(c)

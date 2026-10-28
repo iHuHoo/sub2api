@@ -209,7 +209,9 @@ func ProvideHandlers(
 	_ *service.IdempotencyCoordinator,
 	_ *service.IdempotencyCleanupService,
 	_ *service.OpenAIQuotaAutoResetService,
+	accountUsageService *service.AccountUsageService,
 ) *Handlers {
+	supplierHandler.accountUsage = accountUsageService
 	return &Handlers{
 		ClashSubscription: clashSubscriptionHandler,
 		Supplier:          supplierHandler,

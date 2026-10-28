@@ -3,12 +3,15 @@ import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import CreateAccountModal from '@/components/account/CreateAccountModal.vue'
+import AccountUsageCell from '@/components/account/AccountUsageCell.vue'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import DataTable from '@/components/common/DataTable.vue'
+import HelpTooltip from '@/components/common/HelpTooltip.vue'
 import Pagination from '@/components/common/Pagination.vue'
 import Select from '@/components/common/Select.vue'
 import { supplierAPI, supplierErrorKey, type SupplierAccount, type SupplierAccountUpdate, type SupplierProxy } from '@/api/supplier'
 import { useAppStore } from '@/stores/app'
+import type { Account } from '@/types'
 
 const { t } = useI18n()
 const appStore = useAppStore()
@@ -102,8 +105,30 @@ const fields = computed(() => {
 const columns = computed(() => [
   { key: 'name', label: t('supplier.name') }, { key: 'platform', label: t('supplier.platform') },
   { key: 'status', label: t('supplier.adminLifecycle') }, { key: 'supplier_paused', label: t('supplier.supply') },
-  { key: 'expires_at', label: t('supplier.expiry') }, { key: 'actions', label: t('common.actions') }
+  { key: 'expires_at', label: t('supplier.expiry') }, { key: 'usage', label: t('admin.accounts.columns.usageWindows') },
+  { key: 'actions', label: t('common.actions') }
 ])
+const usageAccount = (account: SupplierAccount) => ({
+  ...account,
+  platform: account.platform as Account['platform'],
+  type: account.type as Account['type'],
+  status: account.status as Account['status'],
+  expires_at: account.expires_at ? Math.floor(new Date(account.expires_at).getTime() / 1000) : null,
+  concurrency: 0,
+  priority: 0,
+  error_message: null,
+  last_used_at: null,
+  auto_pause_on_expired: false,
+  schedulable: false,
+  rate_limited_at: null,
+  rate_limit_reset_at: null,
+  overload_until: null,
+  temp_unschedulable_until: null,
+  temp_unschedulable_reason: null,
+  session_window_start: null,
+  session_window_end: null,
+  session_window_status: null
+})
 function resetCredentials() {
   Object.keys(credentials).forEach(key => delete credentials[key])
   Object.keys(clearCredentials).forEach(key => delete clearCredentials[key])
@@ -240,6 +265,15 @@ onMounted(load)
           <template #cell-status="{ value }">{{ value === 'active' ? t('common.active') : value === 'inactive' ? t('supplier.inactive') : value }}</template>
           <template #cell-supplier_paused="{ value }">{{ value ? t('supplier.paused') : t('supplier.unpaused') }}</template>
           <template #cell-expires_at="{ value }">{{ value || '—' }}</template>
+          <template #header-usage="{ column }">
+            <div class="flex items-center">
+              <span>{{ column.label }}</span>
+              <HelpTooltip :content="t('admin.accounts.usageWindowsHint')" width-class="w-72" />
+            </div>
+          </template>
+          <template #cell-usage="{ row }">
+            <AccountUsageCell :account="usageAccount(row)" read-only :usage-fetcher="supplierAPI.accounts.getUsage" />
+          </template>
           <template #cell-actions="{ row }">
             <div class="flex flex-wrap gap-2">
               <button class="btn btn-secondary btn-sm" :disabled="row.read_only" @click="open(row)">{{ t('common.edit') }}</button>

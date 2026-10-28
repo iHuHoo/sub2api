@@ -50,6 +50,36 @@ func TestSupplierAccountResponseWhitelist(t *testing.T) {
 	require.Contains(t, string(raw), "supplier-note")
 }
 
+type supplierCreateTestRepo struct {
+	SupplierRepository
+	account *Account
+}
+
+func (r *supplierCreateTestRepo) CreateAccount(_ context.Context, _ int64, account *Account) error {
+	account.ID = 1
+	r.account = account
+	return nil
+}
+
+func (r *supplierCreateTestRepo) GetAccount(context.Context, int64, int64) (*Account, error) {
+	return r.account, nil
+}
+
+func TestSupplierCreateAccountUsesDefaultPriority(t *testing.T) {
+	repo := &supplierCreateTestRepo{}
+	svc := NewSupplierService(repo, nil)
+
+	_, err := svc.CreateAccount(context.Background(), 11, SupplierAccountCreate{
+		Name:        "supplier-account",
+		Platform:    PlatformOpenAI,
+		Type:        AccountTypeAPIKey,
+		Credentials: map[string]any{"api_key": "secret"},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, 50, repo.account.Priority)
+}
+
 func TestSupplierServiceAccountImportDropsExternalMetadata(t *testing.T) {
 	key, err := rsa.GenerateKey(rand.Reader, 1024)
 	require.NoError(t, err)

@@ -36,6 +36,9 @@
 
       <!-- Usage data -->
       <div v-else-if="usageInfo" class="space-y-1">
+        <div v-if="usageInfo.error_code" class="text-xs text-amber-600 dark:text-amber-400">
+          {{ usageErrorLabel }}
+        </div>
         <!-- API error (degraded response) -->
         <div v-if="usageInfo.error" class="text-xs text-amber-600 dark:text-amber-400 truncate max-w-[200px]" :title="usageInfo.error">
           {{ usageInfo.error }}
@@ -88,7 +91,7 @@
         while usage is still loading survives the usage response. The local query
         button shares its row once usage data exists.
       -->
-      <ClaudeResetCreditsCell :account="account" class="mt-1" @redeemed="loadActiveUsage">
+      <ClaudeResetCreditsCell v-if="!readOnly" :account="account" class="mt-1" @redeemed="loadActiveUsage">
         <template v-if="usageInfo" #pre-actions>
           <span
             v-if="usageInfo.source === 'passive'"
@@ -124,7 +127,10 @@
 
     <!-- OpenAI OAuth accounts: single source from /usage API -->
     <template v-else-if="account.platform === 'openai' && account.type === 'oauth'">
-      <div v-if="hasOpenAIUsageFallback" class="space-y-1">
+      <div v-if="readOnly && usageInfo?.error_code" class="text-xs text-amber-600 dark:text-amber-400">
+        {{ usageErrorLabel }}
+      </div>
+      <div v-else-if="hasOpenAIUsageFallback" class="space-y-1">
         <UsageProgressBar
           v-if="usageInfo?.five_hour"
           label="5h"
@@ -149,7 +155,7 @@
           refresh button is rendered via the pre-actions slot so the user sees a
           single row of related buttons instead of two stacked rows.
         -->
-        <OpenAIQuotaResetCell :account="account" @account-updated="handleQuotaResetAccountUpdated">
+        <OpenAIQuotaResetCell v-if="!readOnly" :account="account" @account-updated="handleQuotaResetAccountUpdated">
           <template #pre-actions>
             <button
               type="button"
@@ -192,6 +198,7 @@
         <div class="text-xs text-gray-400">-</div>
         <!-- Always allow on-demand upstream quota query, even before local data exists. -->
         <OpenAIQuotaResetCell
+          v-if="!readOnly"
           :account="account"
           class="mt-1"
           @account-updated="handleQuotaResetAccountUpdated"
@@ -202,7 +209,7 @@
     <!-- Antigravity OAuth accounts: fetch usage from API -->
     <template v-else-if="account.platform === 'antigravity' && account.type === 'oauth'">
       <!-- 账户类型徽章 -->
-      <div v-if="antigravityTierLabel" class="mb-1 flex items-center gap-1">
+      <div v-if="!readOnly && antigravityTierLabel" class="mb-1 flex items-center gap-1">
         <span
           :class="[
             'inline-block rounded px-1.5 py-0.5 text-[10px] font-medium',
@@ -274,7 +281,7 @@
       </div>
 
       <!-- Degraded error (non-403, non-401) -->
-      <div v-else-if="usageInfo?.error" class="space-y-1">
+      <div v-else-if="usageInfo?.error || usageInfo?.error_code" class="space-y-1">
         <span class="inline-block rounded px-1.5 py-0.5 text-[10px] font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">
           {{ usageErrorLabel }}
         </span>
@@ -354,6 +361,26 @@
       <div v-else-if="error" class="text-xs text-red-500">
         {{ error }}
       </div>
+      <div v-else-if="readOnly" class="space-y-1">
+        <UsageProgressBar
+          v-if="usageInfo?.seven_day"
+          label="7d"
+          :utilization="usageInfo.seven_day.utilization"
+          :resets-at="usageInfo.seven_day.resets_at"
+          color="indigo"
+        />
+        <UsageProgressBar
+          v-if="usageInfo?.thirty_day"
+          label="30d"
+          :utilization="usageInfo.thirty_day.utilization"
+          :resets-at="usageInfo.thirty_day.resets_at"
+          color="indigo"
+        />
+        <div v-if="usageInfo?.error_code && usageInfo.error_code !== 'quota_unknown'" class="text-xs text-amber-600 dark:text-amber-400">
+          {{ usageErrorLabel }}
+        </div>
+        <div v-if="!usageInfo?.seven_day && !usageInfo?.thirty_day && (!usageInfo?.error_code || usageInfo.error_code === 'quota_unknown')" class="text-xs text-gray-400">-</div>
+      </div>
       <div v-else-if="needsReauth" class="space-y-1">
         <span class="inline-block rounded px-1.5 py-0.5 text-[10px] font-medium bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300">
           {{ t('admin.accounts.needsReauth') }}
@@ -428,23 +455,24 @@
         <div v-if="grokRetryAfterLabel" class="text-[10px] text-amber-600 dark:text-amber-400">
           {{ t('admin.accounts.usageWindow.grokRetryAfter', { time: grokRetryAfterLabel }) }}
         </div>
-        <GrokQuotaProbeCell :account="account" compact @probed="handleGrokProbed" />
+        <GrokQuotaProbeCell v-if="!readOnly" :account="account" compact @probed="handleGrokProbed" />
       </div>
       <div v-else class="space-y-1">
         <div class="text-xs text-gray-400">-</div>
-        <GrokQuotaProbeCell :account="account" compact @probed="handleGrokProbed" />
+        <GrokQuotaProbeCell v-if="!readOnly" :account="account" compact @probed="handleGrokProbed" />
       </div>
     </template>
 
     <!-- Multi-protocol API-key providers (CN vendors, OpenCode, Command Code):
          coding-plan / subscription quota windows or balance -->
     <template v-else-if="isMultiProtocolApiKeyPlatform(account.platform)">
+      <div v-if="readOnly" class="text-xs text-gray-400">-</div>
       <!-- 挂在 CN 平台下的 Ollama Cloud 账号（资格由后端下发 eligible）：用量由
            Ollama 用量窗口负责。这类账号不是国产厂商订阅，CN 的额度/余额探测端点由
            base_url 衍生，对 ollama.com 会被后端出站 URL 白名单拒绝，渲染出来只会
            给用户一行探测报错，因此不再渲染 CN 子单元格与占位符。 -->
       <OllamaCloudUsageCell
-        v-if="account.ollama_cloud_usage?.eligible"
+        v-else-if="account.ollama_cloud_usage?.eligible"
         :account="account"
         @updated="handleOllamaCloudUsageUpdated"
       />
@@ -478,7 +506,7 @@
     <!-- Gemini platform: show quota + local usage window -->
     <template v-else-if="account.platform === 'gemini'">
       <!-- Auth Type + Tier Badge (first line) -->
-      <div v-if="geminiAuthTypeLabel" class="mb-1 flex items-center gap-1">
+      <div v-if="!readOnly && geminiAuthTypeLabel" class="mb-1 flex items-center gap-1">
         <span
           :class="[
             'inline-block rounded px-1.5 py-0.5 text-[10px] font-medium',
@@ -587,6 +615,9 @@
         <div v-else-if="error" class="text-xs text-red-500">
           {{ error }}
         </div>
+        <div v-else-if="readOnly && usageInfo?.error_code" class="text-xs text-amber-600 dark:text-amber-400">
+          {{ usageErrorLabel }}
+        </div>
         <!-- Gemini: show daily usage bars when available -->
         <div v-else-if="geminiUsageAvailable" class="space-y-1">
           <UsageProgressBar
@@ -603,9 +634,10 @@
           </p>
         </div>
         <!-- AI Studio Client OAuth: show unlimited flow (no usage tracking) -->
-        <div v-else-if="!showGeminiTodayStats" class="text-xs text-gray-400">
+        <div v-else-if="!showGeminiTodayStats && !readOnly" class="text-xs text-gray-400">
           {{ t('admin.accounts.gemini.rateLimit.unlimited') }}
         </div>
+        <div v-else-if="readOnly" class="text-xs text-gray-400">-</div>
       </div>
     </template>
 
@@ -618,18 +650,18 @@
   <!-- Non-OAuth/Setup-Token accounts -->
   <div ref="rootRef" v-else>
     <!-- Gemini API Key accounts: show quota info -->
-    <AccountQuotaInfo v-if="account.platform === 'gemini' && !isGeminiThirdPartyApiKey" :account="account" />
+    <AccountQuotaInfo v-if="!readOnly && account.platform === 'gemini' && !isGeminiThirdPartyApiKey" :account="account" />
     <!-- Key/Bedrock accounts: show today stats + optional quota bars -->
     <div v-else class="space-y-1">
       <OllamaCloudUsageCell
-        v-if="account.ollama_cloud_usage?.eligible"
+        v-if="!readOnly && account.ollama_cloud_usage?.eligible"
         :account="account"
         @updated="handleOllamaCloudUsageUpdated"
       />
       <!-- 与上方 CN 分支结构对齐：Ollama 与 OpenCode 用量身份互斥（基址 host 不同），
            v-else-if 提供结构性互斥保证，不改变实际渲染结果。 -->
       <OpenCodeGoUsageCell
-        v-else-if="account.opencode_go_usage?.eligible"
+        v-else-if="!readOnly && account.opencode_go_usage?.eligible"
         :account="account"
         @updated="handleOpenCodeGoUsageUpdated"
       />
@@ -691,7 +723,7 @@
 
       <!-- No data at all -->
       <div
-        v-if="!todayStats && !todayStatsLoading && !hasApiKeyQuota && !account.ollama_cloud_usage?.eligible && !account.opencode_go_usage?.eligible"
+        v-if="!todayStats && !todayStatsLoading && !hasApiKeyQuota && (readOnly || (!account.ollama_cloud_usage?.eligible && !account.opencode_go_usage?.eligible))"
         class="text-xs text-gray-400"
       >-</div>
     </div>
@@ -737,6 +769,8 @@ const props = withDefaults(
     batchedUsageError?: string | null
     batchedUsageLoading?: boolean
     requestBatchedUsage?: ((account: Account, options?: { force?: boolean }) => void) | null
+    readOnly?: boolean
+    usageFetcher?: ((accountID: number) => Promise<AccountUsageInfo>) | null
   }>(),
   {
     todayStats: null,
@@ -745,7 +779,9 @@ const props = withDefaults(
     batchedUsage: null,
     batchedUsageError: null,
     batchedUsageLoading: false,
-    requestBatchedUsage: null
+    requestBatchedUsage: null,
+    readOnly: false,
+    usageFetcher: null
   }
 )
 
@@ -1391,12 +1427,12 @@ const hasIneligibleTiers = computed(() => {
 })
 
 // Antigravity 403 forbidden 状态
-const isForbidden = computed(() => !!usageInfo.value?.is_forbidden)
+const isForbidden = computed(() => !!usageInfo.value?.is_forbidden || usageInfo.value?.error_code === 'forbidden')
 const forbiddenType = computed(() => usageInfo.value?.forbidden_type || 'forbidden')
 const validationURL = computed(() => usageInfo.value?.validation_url || '')
 
 // 需要重新授权（401）
-const needsReauth = computed(() => !!usageInfo.value?.needs_reauth)
+const needsReauth = computed(() => !!usageInfo.value?.needs_reauth || usageInfo.value?.error_code === 'unauthenticated')
 
 // 降级错误标签（rate_limited / network_error）
 const usageErrorLabel = computed(() => {
@@ -1472,9 +1508,11 @@ const loadUsage = async (options?: { source?: 'passive' | 'active'; bypassCache?
   error.value = null
 
   try {
-		const fetchFn = () => options?.source
-			? adminAPI.accounts.getUsage(props.account.id, options.source, options.bypassCache === true)
-			: adminAPI.accounts.getUsage(props.account.id)
+    const fetchFn = props.usageFetcher
+      ? () => props.usageFetcher!(props.account.id)
+      : () => options?.source
+        ? adminAPI.accounts.getUsage(props.account.id, options.source, options.bypassCache === true)
+        : adminAPI.accounts.getUsage(props.account.id)
     const result = await enqueueUsageRequest(props.account, fetchFn)
     if (!unmounted.value) {
       usageInfo.value = result
@@ -1541,6 +1579,7 @@ const attachVisibilityObserver = () => {
 }
 
 const loadActiveUsage = async () => {
+  if (props.readOnly) return
   activeQueryLoading.value = true
   try {
     usageInfo.value = await adminAPI.accounts.getUsage(props.account.id, 'active', true)

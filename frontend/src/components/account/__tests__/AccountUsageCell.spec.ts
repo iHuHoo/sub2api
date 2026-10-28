@@ -1966,4 +1966,136 @@ describe('AccountUsageCell', () => {
     expect(wrapper.text()).not.toContain('7d S')
     expect(wrapper.text()).not.toContain('7d F')
   })
+
+  it('does not mount active API-key usage cells in read-only mode', () => {
+    const wrapper = mount(AccountUsageCell, {
+      props: {
+        account: makeAccount({
+          id: 9912,
+          platform: 'openai',
+          type: 'apikey',
+          ollama_cloud_usage: makeOllamaUsage(9912)
+        }),
+        readOnly: true
+      },
+      global: {
+        stubs: {
+          OllamaCloudUsageCell: { template: '<div data-test="embedded-ollama" />' },
+          OpenCodeGoUsageCell: { template: '<div data-test="embedded-opencode" />' },
+          AccountQuotaInfo: true
+        }
+      }
+    })
+
+    expect(wrapper.find('[data-test="embedded-ollama"]').exists()).toBe(false)
+    expect(wrapper.find('[data-test="embedded-opencode"]').exists()).toBe(false)
+    expect(wrapper.text()).toContain('-')
+  })
+
+  it.each([
+    ['opencode_go', '[data-test="cn-quota-cell"]'],
+    ['kimi', '[data-test="cn-balance-cell"]']
+  ])('does not mount active CN usage cells for read-only %s accounts', (platform, selector) => {
+    const wrapper = mount(AccountUsageCell, {
+      props: {
+        account: makeAccount({ id: 9915, platform, type: 'apikey' }),
+        readOnly: true
+      },
+      global: { stubs: { ...cnUsageCellStubs, AccountQuotaInfo: true } }
+    })
+
+    expect(wrapper.find(selector).exists()).toBe(false)
+    expect(wrapper.text()).toContain('-')
+  })
+
+  it.each([
+    ['openai', 'OpenAIQuotaResetCell', '[data-test="openai-reset-cell"]'],
+    ['grok', 'GrokQuotaProbeCell', '[data-test="grok-probe-cell"]']
+  ])('does not mount the %s admin action in read-only mode', async (platform, component, selector) => {
+    const wrapper = mount(AccountUsageCell, {
+      props: {
+        account: makeAccount({ id: 9916, platform, type: 'oauth' }),
+        readOnly: true,
+        usageFetcher: vi.fn().mockResolvedValue({})
+      },
+      global: {
+        stubs: {
+          [component]: { template: `<div data-test="${platform === 'openai' ? 'openai-reset-cell' : 'grok-probe-cell'}" />` },
+          AccountQuotaInfo: true
+        }
+      }
+    })
+    await flushPromises()
+
+    expect(wrapper.find(selector).exists()).toBe(false)
+  })
+
+  it('omits credential-derived Gemini labels while preserving safe read-only windows', async () => {
+    const supplierFetch = vi.fn().mockResolvedValue({
+      gemini_pro_daily: { utilization: 23, resets_at: null, remaining_seconds: 0 }
+    })
+    const wrapper = mount(AccountUsageCell, {
+      props: {
+        account: makeAccount({ id: 9913, platform: 'gemini', type: 'oauth' }),
+        readOnly: true,
+        usageFetcher: supplierFetch
+      },
+      global: {
+        stubs: {
+          UsageProgressBar: {
+            props: ['label', 'utilization'],
+            template: '<div>{{ label }}|{{ utilization }}</div>'
+          },
+          AccountQuotaInfo: true
+        }
+      }
+    })
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('pro|23')
+    expect(wrapper.text()).not.toContain('ai studio')
+  })
+
+  it('renders safe Grok progress windows without billing details in read-only mode', async () => {
+    const supplierFetch = vi.fn().mockResolvedValue({
+      seven_day: { utilization: 31, resets_at: null, remaining_seconds: 0 },
+      thirty_day: { utilization: 47, resets_at: null, remaining_seconds: 0 }
+    })
+    const wrapper = mount(AccountUsageCell, {
+      props: {
+        account: makeAccount({ id: 9914, platform: 'grok', type: 'oauth' }),
+        readOnly: true,
+        usageFetcher: supplierFetch
+      },
+      global: {
+        stubs: {
+          UsageProgressBar: {
+            props: ['label', 'utilization'],
+            template: '<div>{{ label }}|{{ utilization }}</div>'
+          },
+          GrokQuotaProbeCell: true,
+          AccountQuotaInfo: true
+        }
+      }
+    })
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('7d|31')
+    expect(wrapper.text()).toContain('30d|47')
+  })
+
+  it('shows an empty placeholder when Grok quota has not been sampled', async () => {
+    const wrapper = mount(AccountUsageCell, {
+      props: {
+        account: makeAccount({ id: 9917, platform: 'grok', type: 'oauth' }),
+        readOnly: true,
+        usageFetcher: vi.fn().mockResolvedValue({ error_code: 'quota_unknown' })
+      },
+      global: { stubs: { GrokQuotaProbeCell: true, AccountQuotaInfo: true } }
+    })
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('-')
+    expect(wrapper.text()).not.toContain('admin.accounts.usageError')
+  })
 })
