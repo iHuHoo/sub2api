@@ -47,6 +47,7 @@ type SupplierAccount struct {
 	Notes          *string    `json:"notes"`
 	Platform       string     `json:"platform"`
 	Type           string     `json:"type"`
+	AuthMode       string     `json:"auth_mode,omitempty"`
 	Status         string     `json:"status"`
 	SupplierPaused bool       `json:"supplier_paused"`
 	ReadOnly       bool       `json:"read_only"`
@@ -127,6 +128,9 @@ func NewSupplierService(repo SupplierRepository, tokenInvalidator TokenCacheInva
 
 func supplierAccountView(a *Account, owner int64) SupplierAccount {
 	out := SupplierAccount{ID: a.ID, Name: a.Name, Notes: a.SupplierNotes, Platform: a.Platform, Type: a.Type, Status: a.Status, SupplierPaused: a.SupplierPaused, ReadOnly: a.ParentAccountID != nil, ExpiresAt: a.ExpiresAt, CreatedAt: a.CreatedAt, UpdatedAt: a.UpdatedAt}
+	if a.Platform == PlatformGemini && a.Type == AccountTypeServiceAccount {
+		out.AuthMode = supplierVertexAuthMode(a.Credentials)
+	}
 	if a.Proxy.AccessibleToSupplier(owner) {
 		out.ProxyID = a.ProxyID
 	}
@@ -161,6 +165,13 @@ func (s *SupplierService) CreateAccount(ctx context.Context, owner int64, in Sup
 	if err := validateSupplierCredentials(in.Platform, in.Type, in.Credentials, true); err != nil {
 		return nil, err
 	}
+	if in.Platform == PlatformGemini && in.Type == AccountTypeServiceAccount && supplierVertexAuthMode(in.Credentials) == vertexAuthModeAPIKey {
+		if strings.TrimSpace(stringValue(in.Credentials["project_id"])) == "" {
+			delete(in.Credentials, "location")
+		} else if strings.TrimSpace(stringValue(in.Credentials["location"])) == "" {
+			in.Credentials["location"] = "global"
+		}
+	}
 	input := &CreateAccountInput{Name: strings.TrimSpace(in.Name), Platform: in.Platform, Type: in.Type, Credentials: in.Credentials, ProxyID: in.ProxyID, ExpiresAt: in.ExpiresAt, SupplierUserID: &owner, SkipDefaultGroupBind: true, Concurrency: 1, Priority: 1}
 	a, err := buildAccountForCreate(input, nil)
 	if err != nil {
@@ -184,11 +195,14 @@ func (s *SupplierService) UpdateAccount(ctx context.Context, owner, id int64, in
 		return nil, ErrSupplierInvalid
 	}
 	if in.Credentials != nil {
+		if err = validateSupplierVertexEdit(a, in.Credentials); err != nil {
+			return nil, err
+		}
 		if err = validateSupplierCredentials(a.Platform, a.Type, in.Credentials, false); err != nil {
 			return nil, err
 		}
 		merged := mergeMap(a.Credentials, in.Credentials)
-		if err = validateSupplierAuthentication(a.Type, merged); err != nil {
+		if err = validateSupplierAuthentication(a.Platform, a.Type, merged); err != nil {
 			return nil, err
 		}
 
@@ -407,7 +421,10 @@ func supplierCredentialKeys(platform, typ string) map[string]bool {
 			allowed = append(allowed, "client_id", "team_id")
 		}
 	case AccountTypeServiceAccount:
-		if platform == PlatformGemini || platform == PlatformAnthropic {
+		if platform == PlatformGemini {
+			allowed = []string{"auth_mode", "api_key", "service_account_json", "project_id", "location", "tier_id"}
+		}
+		if platform == PlatformAnthropic {
 			allowed = []string{"service_account_json", "project_id", "location"}
 		}
 	case AccountTypeBedrock:
@@ -528,6 +545,13 @@ func validateSupplierCredentials(platform, typ string, creds map[string]any, req
 		if strings.ContainsAny(str, "\r\n") {
 			return ErrSupplierInvalid
 		}
+		if k == "api_key" && platform == PlatformGemini && typ == AccountTypeServiceAccount {
+			str = strings.TrimSpace(str)
+			creds[k] = str
+		}
+		if k == "auth_mode" && typ == AccountTypeServiceAccount && platform == PlatformGemini && str != AccountTypeServiceAccount && str != vertexAuthModeAPIKey {
+			return ErrSupplierInvalid
+		}
 		if k == "account_mode" && str != AccountModePayG && str != AccountModeCoding && str != AccountModeZen && str != AccountModeGo {
 			return ErrSupplierInvalid
 		}
@@ -539,6 +563,9 @@ func validateSupplierCredentials(platform, typ string, creds map[string]any, req
 		}
 		if k == "tier_id" {
 			if typ == AccountTypeAPIKey && str != GeminiTierAIStudioFree && str != GeminiTierAIStudioPaid {
+				return ErrSupplierInvalid
+			}
+			if typ == AccountTypeServiceAccount && str != "vertex" {
 				return ErrSupplierInvalid
 			}
 			if err := validateTierID(str); err != nil {
@@ -580,9 +607,9 @@ func validateSupplierCredentials(platform, typ string, creds map[string]any, req
 	if !required {
 		return nil
 	}
-	return validateSupplierAuthentication(typ, creds)
+	return validateSupplierAuthentication(platform, typ, creds)
 }
-func validateSupplierAuthentication(typ string, creds map[string]any) error {
+func validateSupplierAuthentication(platform, typ string, creds map[string]any) error {
 	nonempty := func(k string) bool { s, _ := creds[k].(string); return strings.TrimSpace(s) != "" }
 	switch typ {
 	case AccountTypeAPIKey, AccountTypeUpstream:
@@ -597,7 +624,11 @@ func validateSupplierAuthentication(typ string, creds map[string]any) error {
 			return ErrSupplierInvalid
 		}
 	case AccountTypeServiceAccount:
-		if !nonempty("service_account_json") {
+		if platform == PlatformGemini && supplierVertexAuthMode(creds) == vertexAuthModeAPIKey {
+			if !nonempty("api_key") || nonempty("service_account_json") {
+				return ErrSupplierInvalid
+			}
+		} else if !nonempty("service_account_json") || nonempty("api_key") {
 			return ErrSupplierInvalid
 		}
 	case AccountTypeBedrock:
@@ -611,6 +642,41 @@ func validateSupplierAuthentication(typ string, creds map[string]any) error {
 		} else if creds["auth_mode"] != "sigv4" || !nonempty("aws_access_key_id") || !nonempty("aws_secret_access_key") {
 			return ErrSupplierInvalid
 		}
+	}
+	return nil
+}
+
+func supplierVertexAuthMode(creds map[string]any) string {
+	mode := strings.TrimSpace(stringValue(creds["auth_mode"]))
+	if mode == "" {
+		return AccountTypeServiceAccount
+	}
+	return mode
+}
+
+func validateSupplierVertexEdit(account *Account, submitted map[string]any) error {
+	if account.Platform != PlatformGemini || account.Type != AccountTypeServiceAccount {
+		return nil
+	}
+	mode := supplierVertexAuthMode(account.Credentials)
+	if raw, ok := submitted["auth_mode"]; ok {
+		value, valid := raw.(string)
+		if !valid || strings.TrimSpace(value) != mode {
+			return ErrSupplierInvalid
+		}
+	}
+	if mode == vertexAuthModeAPIKey {
+		if _, ok := submitted["service_account_json"]; ok {
+			return ErrSupplierInvalid
+		}
+		if raw, ok := submitted["project_id"]; ok {
+			projectID, valid := raw.(string)
+			if !valid || (strings.TrimSpace(stringValue(account.Credentials["project_id"])) == "") != (strings.TrimSpace(projectID) == "") {
+				return ErrSupplierInvalid
+			}
+		}
+	} else if _, ok := submitted["api_key"]; ok {
+		return ErrSupplierInvalid
 	}
 	return nil
 }

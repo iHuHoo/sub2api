@@ -10,6 +10,8 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"github.com/stretchr/testify/require"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 )
 
@@ -48,6 +50,16 @@ func TestSupplierAccountResponseWhitelist(t *testing.T) {
 		require.NotContains(t, string(raw), secret)
 	}
 	require.Contains(t, string(raw), "supplier-note")
+
+	a.Platform = PlatformGemini
+	a.Type = AccountTypeServiceAccount
+	a.Credentials = map[string]any{"auth_mode": "apikey", "api_key": "vertex-secret", "project_id": "private-project"}
+	out = supplierAccountView(a, owner)
+	raw, err = json.Marshal(out)
+	require.NoError(t, err)
+	require.Contains(t, string(raw), `"auth_mode":"apikey"`)
+	require.NotContains(t, string(raw), "vertex-secret")
+	require.NotContains(t, string(raw), "private-project")
 }
 
 type supplierCreateTestRepo struct {
@@ -80,11 +92,21 @@ func TestSupplierCreateAccountMatchesAdminDefaultPriority(t *testing.T) {
 	require.Equal(t, 1, repo.account.Priority)
 }
 
-func TestSupplierServiceAccountImportDropsExternalMetadata(t *testing.T) {
+func supplierServiceAccountJSON(t *testing.T) string {
+	t.Helper()
 	key, err := rsa.GenerateKey(rand.Reader, 1024)
 	require.NoError(t, err)
 	pemKey := string(pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(key)}))
-	fields := map[string]any{"type": "service_account", "project_id": "my-project", "client_email": "svc@my-project.iam.gserviceaccount.com", "private_key": pemKey, "token_uri": vertexDefaultTokenURL, "auth_uri": "https://example.invalid/oauth"}
+	fields := map[string]any{"type": "service_account", "project_id": "my-project", "client_email": "svc@my-project.iam.gserviceaccount.com", "private_key": pemKey, "token_uri": vertexDefaultTokenURL}
+	raw, err := json.Marshal(fields)
+	require.NoError(t, err)
+	return string(raw)
+}
+
+func TestSupplierServiceAccountImportDropsExternalMetadata(t *testing.T) {
+	var fields map[string]any
+	require.NoError(t, json.Unmarshal([]byte(supplierServiceAccountJSON(t)), &fields))
+	fields["auth_uri"] = "https://example.invalid/oauth"
 	raw, err := json.Marshal(fields)
 	require.NoError(t, err)
 	creds := map[string]any{"service_account_json": string(raw)}
@@ -97,12 +119,97 @@ func TestSupplierServiceAccountImportDropsExternalMetadata(t *testing.T) {
 	require.Error(t, validateSupplierCredentials(PlatformGemini, AccountTypeServiceAccount, creds, true))
 }
 
+func TestSupplierGeminiVertexCredentialValidation(t *testing.T) {
+	serviceAccountJSON := supplierServiceAccountJSON(t)
+	tests := []struct {
+		name     string
+		platform string
+		creds    map[string]any
+		valid    bool
+	}{
+		{name: "service account", platform: PlatformGemini, creds: map[string]any{"service_account_json": serviceAccountJSON}, valid: true},
+		{name: "express api key", platform: PlatformGemini, creds: map[string]any{"auth_mode": "apikey", "api_key": " key ", "tier_id": "vertex"}, valid: true},
+		{name: "project api key", platform: PlatformGemini, creds: map[string]any{"auth_mode": "apikey", "api_key": "key", "project_id": "my-project", "location": "global", "tier_id": "vertex"}, valid: true},
+		{name: "blank api key", platform: PlatformGemini, creds: map[string]any{"auth_mode": "apikey", "api_key": "  "}},
+		{name: "missing service account", platform: PlatformGemini, creds: map[string]any{}},
+		{name: "mixed credentials", platform: PlatformGemini, creds: map[string]any{"auth_mode": "apikey", "api_key": "key", "service_account_json": serviceAccountJSON}},
+		{name: "invalid auth mode", platform: PlatformGemini, creds: map[string]any{"auth_mode": "other", "api_key": "key"}},
+		{name: "invalid service account tier", platform: PlatformGemini, creds: map[string]any{"auth_mode": "apikey", "api_key": "key", "tier_id": "aistudio_paid"}},
+		{name: "anthropic auth mode", platform: PlatformAnthropic, creds: map[string]any{"auth_mode": "apikey", "api_key": "key"}},
+		{name: "anthropic api key", platform: PlatformAnthropic, creds: map[string]any{"api_key": "key"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateSupplierCredentials(tt.platform, AccountTypeServiceAccount, tt.creds, true)
+			if tt.valid {
+				require.NoError(t, err)
+				if tt.creds["auth_mode"] == "apikey" {
+					require.Equal(t, "key", tt.creds["api_key"])
+				}
+				return
+			}
+			require.ErrorIs(t, err, ErrSupplierInvalid)
+		})
+	}
+}
+
+func TestSupplierBedrockAuthenticationUnaffected(t *testing.T) {
+	require.NoError(t, validateSupplierCredentials(PlatformAnthropic, AccountTypeBedrock, map[string]any{
+		"auth_mode": "apikey", "api_key": "bedrock-key", "aws_region": "us-east-1",
+	}, true))
+}
+
+func TestSupplierGeminiVertexCreateNormalizesCredentialsAndRoutes(t *testing.T) {
+	tests := []struct {
+		name         string
+		credentials  map[string]any
+		wantURL      string
+		wantLocation any
+	}{
+		{
+			name:        "express ignores location",
+			credentials: map[string]any{"auth_mode": "apikey", "api_key": " vertex-key ", "location": "us-central1", "tier_id": "vertex"},
+			wantURL:     "https://aiplatform.googleapis.com/v1/publishers/google/models/gemini-3-flash-preview:generateContent",
+		},
+		{
+			name:         "project defaults location to global",
+			credentials:  map[string]any{"auth_mode": "apikey", "api_key": "vertex-key", "project_id": "my-project", "tier_id": "vertex"},
+			wantURL:      "https://aiplatform.googleapis.com/v1/projects/my-project/locations/global/publishers/google/models/gemini-3-flash-preview:generateContent",
+			wantLocation: "global",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := &supplierCreateTestRepo{}
+			svc := NewSupplierService(repo, nil)
+			_, err := svc.CreateAccount(context.Background(), 11, SupplierAccountCreate{
+				Name: "vertex", Platform: PlatformGemini, Type: AccountTypeServiceAccount, Credentials: tt.credentials,
+			})
+			require.NoError(t, err)
+			require.Equal(t, "vertex-key", repo.account.Credentials["api_key"])
+			require.Equal(t, tt.wantLocation, repo.account.Credentials["location"])
+			gotURL, err := buildVertexGeminiAccountURL(repo.account, "gemini-3-flash-preview", "generateContent", false)
+			require.NoError(t, err)
+			require.Equal(t, tt.wantURL, gotURL)
+			req := httptest.NewRequest(http.MethodPost, gotURL, nil)
+			require.NoError(t, setVertexGeminiAuth(context.Background(), req, repo.account, nil))
+			require.Equal(t, "vertex-key", req.Header.Get("x-goog-api-key"))
+			require.Empty(t, req.Header.Get("Authorization"))
+			require.NotContains(t, req.URL.RawQuery, "key=")
+		})
+	}
+}
+
 type supplierEditTestRepo struct {
 	SupplierRepository
-	a *Account
+	a      *Account
+	getErr error
 }
 
 func (r *supplierEditTestRepo) GetAccount(context.Context, int64, int64) (*Account, error) {
+	if r.getErr != nil {
+		return nil, r.getErr
+	}
 	return r.a, nil
 }
 func (r *supplierEditTestRepo) UpdateAccount(_ context.Context, _ int64, _ int64, in SupplierAccountUpdate) (*Account, error) {
@@ -117,4 +224,45 @@ func TestSupplierCredentialEditPreservesAdministratorEndpoint(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "https://admin-configured.example/v1", repo.a.Credentials["base_url"])
 	require.Contains(t, repo.a.Credentials, "header_overrides")
+}
+
+func TestSupplierGeminiVertexEditRejectsAuthOrEndpointModeSwitch(t *testing.T) {
+	owner := int64(11)
+	parentID := int64(9)
+	serviceAccountJSON := supplierServiceAccountJSON(t)
+	tests := []struct {
+		name        string
+		account     *Account
+		credentials map[string]any
+		wantErr     error
+	}{
+		{name: "api key to service account", account: &Account{Platform: PlatformGemini, Type: AccountTypeServiceAccount, Credentials: map[string]any{"auth_mode": "apikey", "api_key": "old"}}, credentials: map[string]any{"auth_mode": "service_account"}, wantErr: ErrSupplierInvalid},
+		{name: "api key submits json", account: &Account{Platform: PlatformGemini, Type: AccountTypeServiceAccount, Credentials: map[string]any{"auth_mode": "apikey", "api_key": "old"}}, credentials: map[string]any{"service_account_json": serviceAccountJSON}, wantErr: ErrSupplierInvalid},
+		{name: "express adds project", account: &Account{Platform: PlatformGemini, Type: AccountTypeServiceAccount, Credentials: map[string]any{"auth_mode": "apikey", "api_key": "old"}}, credentials: map[string]any{"project_id": "my-project"}, wantErr: ErrSupplierInvalid},
+		{name: "project clears project", account: &Account{Platform: PlatformGemini, Type: AccountTypeServiceAccount, Credentials: map[string]any{"auth_mode": "apikey", "api_key": "old", "project_id": "my-project", "location": "global"}}, credentials: map[string]any{"project_id": ""}, wantErr: ErrSupplierInvalid},
+		{name: "json to api key", account: &Account{Platform: PlatformGemini, Type: AccountTypeServiceAccount, Credentials: map[string]any{"service_account_json": serviceAccountJSON}}, credentials: map[string]any{"auth_mode": "apikey", "api_key": "new"}, wantErr: ErrSupplierInvalid},
+		{name: "json submits api key", account: &Account{Platform: PlatformGemini, Type: AccountTypeServiceAccount, Credentials: map[string]any{"service_account_json": serviceAccountJSON}}, credentials: map[string]any{"api_key": "new"}, wantErr: ErrSupplierInvalid},
+		{name: "api key rotates", account: &Account{Platform: PlatformGemini, Type: AccountTypeServiceAccount, Credentials: map[string]any{"auth_mode": "apikey", "api_key": "old"}}, credentials: map[string]any{"api_key": " new "}},
+		{name: "derived remains read only", account: &Account{Platform: PlatformGemini, Type: AccountTypeServiceAccount, ParentAccountID: &parentID, Credentials: map[string]any{"auth_mode": "apikey", "api_key": "old"}}, credentials: map[string]any{"api_key": "new"}, wantErr: ErrSupplierReadOnly},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.account.ID = 1
+			tt.account.SupplierUserID = &owner
+			repo := &supplierEditTestRepo{a: tt.account}
+			_, err := NewSupplierService(repo, nil).UpdateAccount(context.Background(), owner, 1, SupplierAccountUpdate{Credentials: tt.credentials})
+			if tt.wantErr != nil {
+				require.ErrorIs(t, err, tt.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, "new", repo.a.Credentials["api_key"])
+		})
+	}
+}
+
+func TestSupplierGeminiVertexEditKeepsOwnershipBoundary(t *testing.T) {
+	repo := &supplierEditTestRepo{getErr: ErrSupplierUnavailable}
+	_, err := NewSupplierService(repo, nil).UpdateAccount(context.Background(), 11, 99, SupplierAccountUpdate{Credentials: map[string]any{"api_key": "new"}})
+	require.ErrorIs(t, err, ErrSupplierUnavailable)
 }
