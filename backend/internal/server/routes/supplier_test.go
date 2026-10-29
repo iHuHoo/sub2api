@@ -19,7 +19,7 @@ func TestSupplierRoutesRoleBoundaryAndNoAccountDelete(t *testing.T) {
 		auth := middleware.JWTAuthMiddleware(func(c *gin.Context) { c.Set(string(middleware.ContextKeyUserRole), role); c.Next() })
 		audit := middleware.AuditLogMiddleware(func(c *gin.Context) { c.Next() })
 		RegisterSupplierRoutes(r.Group("/api/v1"), h, auth, audit, nil)
-		for _, path := range []string{"/api/v1/supplier/accounts", "/api/v1/supplier/proxies", "/api/v1/supplier/usage"} {
+		for _, path := range []string{"/api/v1/supplier/accounts", "/api/v1/supplier/accounts/1/usage", "/api/v1/supplier/proxies", "/api/v1/supplier/usage"} {
 			w := httptest.NewRecorder()
 			r.ServeHTTP(w, httptest.NewRequest("GET", path, nil))
 			require.Equal(t, 403, w.Code)
@@ -36,4 +36,19 @@ func TestSupplierRoutesRoleBoundaryAndNoAccountDelete(t *testing.T) {
 			require.Equal(t, 403, w.Code)
 		}
 	}
+}
+
+func TestSupplierAccountUsageRouteIsRegistered(t *testing.T) {
+	r := gin.New()
+	h := &handler.Handlers{Supplier: handler.NewSupplierHandler(nil)}
+	auth := middleware.JWTAuthMiddleware(func(c *gin.Context) { c.Next() })
+	audit := middleware.AuditLogMiddleware(func(c *gin.Context) { c.Next() })
+	RegisterSupplierRoutes(r.Group("/api/v1"), h, auth, audit, nil)
+
+	for _, route := range r.Routes() {
+		if route.Method == "GET" && route.Path == "/api/v1/supplier/accounts/:id/usage" {
+			return
+		}
+	}
+	t.Fatal("supplier account usage route is not registered")
 }

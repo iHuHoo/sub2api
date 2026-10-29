@@ -1,5 +1,5 @@
 import { apiClient } from './client'
-import type { PaginatedResponse } from '@/types'
+import type { AccountUsageInfo, PaginatedResponse } from '@/types'
 
 export interface SupplierAccount {
   id: number
@@ -78,6 +78,7 @@ export const supplierAPI = {
       return (await apiClient.get<PaginatedResponse<SupplierAccount>>('/supplier/accounts', { params: { page, page_size: pageSize } })).data
     },
     async get(id: number) { return (await apiClient.get<SupplierAccount>(`/supplier/accounts/${id}`)).data },
+    async getUsage(id: number) { return (await apiClient.get<AccountUsageInfo>(`/supplier/accounts/${id}/usage`)).data },
     async create(input: SupplierAccountCreate) { return (await apiClient.post<SupplierAccount>('/supplier/accounts', input)).data },
     async update(id: number, input: SupplierAccountUpdate) { return (await apiClient.put<SupplierAccount>(`/supplier/accounts/${id}`, input)).data },
     async pause(id: number, paused: boolean) { return (await apiClient.post<SupplierAccount>(`/supplier/accounts/${id}/pause`, { paused })).data }

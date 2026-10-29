@@ -7,13 +7,29 @@ import ProxiesView from '../ProxiesView.vue'
 import UsageView from '../UsageView.vue'
 
 const api = vi.hoisted(() => ({
-  accounts: { list: vi.fn(), create: vi.fn(), update: vi.fn(), pause: vi.fn() },
+  accounts: { list: vi.fn(), create: vi.fn(), update: vi.fn(), pause: vi.fn(), getUsage: vi.fn() },
   proxies: { list: vi.fn(), create: vi.fn(), update: vi.fn(), test: vi.fn(), delete: vi.fn() },
   usage: vi.fn(),
   showError: vi.fn(), showSuccess: vi.fn()
 }))
+const admin = vi.hoisted(() => ({
+  getUsage: vi.fn(),
+  getClaudeResetCredits: vi.fn(),
+  queryQuota: vi.fn(),
+  queryBalance: vi.fn()
+}))
 vi.mock('@/api/supplier', () => ({ supplierAPI: api, supplierErrorKey: () => 'supplier.failed' }))
 vi.mock('@/stores/app', () => ({ useAppStore: () => api }))
+vi.mock('@/api/admin', () => ({
+  adminAPI: {
+    accounts: { getUsage: admin.getUsage },
+    cnProviders: { queryQuota: admin.queryQuota, queryBalance: admin.queryBalance }
+  }
+}))
+vi.mock('@/api/admin/claudeResetCredits', () => ({
+  getClaudeResetCredits: admin.getClaudeResetCredits,
+  redeemClaudeResetCredit: vi.fn()
+}))
 vi.mock('vue-i18n', async (original) => ({
   ...await original<typeof import('vue-i18n')>(),
   useI18n: () => ({ t: (key: string, params: Record<string, unknown> = {}) => {
@@ -229,6 +245,39 @@ describe('supplier account editor', () => {
     expect(api.proxies.list).toHaveBeenNthCalledWith(1, 1)
     expect(api.proxies.list).toHaveBeenNthCalledWith(2, 2)
     expect(wrapper.find('#supplier-account-form').exists()).toBe(false)
+  })
+
+  it('shows the owned account usage windows without admin actions', async () => {
+    api.accounts.list.mockResolvedValue(page([{ ...account, platform: 'anthropic', type: 'oauth' }]))
+    api.accounts.getUsage.mockResolvedValue({
+      updated_at: null,
+      five_hour: { utilization: 50, resets_at: null, remaining_seconds: 0 },
+      seven_day: { utilization: 25, resets_at: null, remaining_seconds: 0 },
+      seven_day_sonnet: null
+    })
+
+    const wrapper = render(AccountsView)
+    await flushPromises()
+
+    expect(api.accounts.getUsage).toHaveBeenCalledWith(3)
+    expect(wrapper.text()).toContain('Usage Windows')
+    expect(wrapper.text()).toContain('5h')
+    expect(wrapper.findAll('button').some(button => button.text() === 'Query')).toBe(false)
+    expect(admin.getUsage).not.toHaveBeenCalled()
+    expect(admin.getClaudeResetCredits).not.toHaveBeenCalled()
+  })
+
+  it('does not query CN admin endpoints from the supplier account list', async () => {
+    api.accounts.list.mockResolvedValue(page([
+      { ...account, id: 4, platform: 'opencode_go', type: 'apikey' },
+      { ...account, id: 5, platform: 'kimi', type: 'apikey' }
+    ]))
+
+    render(AccountsView)
+    await flushPromises()
+
+    expect(admin.queryQuota).not.toHaveBeenCalled()
+    expect(admin.queryBalance).not.toHaveBeenCalled()
   })
 
 })
