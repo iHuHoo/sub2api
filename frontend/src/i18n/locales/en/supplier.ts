@@ -41,6 +41,8 @@ export default {
   "clearCredential": "Clear saved {field}",
   "serviceAccountHint": "Paste the downloaded Google service-account key JSON",
   "serviceAccountNotice": "Google service-account JSON must contain type service_account, project_id, client_email and an RSA PEM private_key. Only the official https://oauth2.googleapis.com/token token endpoint is accepted; external credential sources and endpoint overrides are not supported. Maximum 32 KiB.",
+  "vertexApiKey": "Agent Platform (Vertex) API key",
+  "vertexApiKeyHint": "Use a key created in Google Cloud Agent Platform, not an AI Studio Gemini API key.",
   "endpointPolicy": "Only the listed official HTTPS endpoints are accepted. Custom aggregator URLs are configured by administrators. Blank endpoint on edit retains the saved endpoint.",
   "proxy": "Own proxy",
   "retainProxy": "Keep current binding (hidden administrator proxies are preserved)",

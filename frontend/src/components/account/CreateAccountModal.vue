@@ -1217,7 +1217,7 @@
 
       <!-- Vertex Service Account -->
       <div v-if="(form.platform === 'gemini' || form.platform === 'anthropic') && accountCategory === 'service_account'" class="space-y-4">
-        <div v-if="!supplier && form.platform === 'gemini'">
+        <div v-if="form.platform === 'gemini'">
           <label class="input-label">{{ t('admin.accounts.vertexAuthMode') }}</label>
           <div class="mt-2 flex gap-4">
             <label class="flex cursor-pointer items-center">
@@ -1244,7 +1244,7 @@
 
         <template v-if="vertexUsesApiKey">
           <div>
-            <label class="input-label">API Key</label>
+            <label class="input-label">{{ supplier ? t('supplier.vertexApiKey') : 'API Key' }}</label>
             <input
               v-model="vertexApiKey"
               type="password"
@@ -1252,7 +1252,7 @@
               class="input font-mono"
               data-testid="vertex-api-key-input"
             />
-            <p class="input-hint">{{ t('admin.accounts.vertexApiKeyHint') }}</p>
+            <p class="input-hint">{{ supplier ? t('supplier.vertexApiKeyHint') : t('admin.accounts.vertexApiKeyHint') }}</p>
           </div>
           <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>

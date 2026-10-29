@@ -33,11 +33,22 @@ function credentialsForSupplier(platform: string, type: string, input: Record<st
       if (platform === 'grok') keys.push('client_id', 'team_id')
       break
     case 'setup-token': keys = ['access_token', 'expires_at']; break
-    case 'service_account': keys = ['service_account_json', 'project_id', 'location']; break
+    case 'service_account':
+      keys = platform === 'gemini'
+        ? ['auth_mode', 'api_key', 'service_account_json', 'project_id', 'location', 'tier_id']
+        : ['service_account_json', 'project_id', 'location']
+      break
     case 'bedrock': keys = ['auth_mode', 'api_key', 'aws_access_key_id', 'aws_secret_access_key', 'aws_session_token', 'aws_region', 'aws_force_global']; break
   }
   const credentials = pick(input, keys)
   if (platform === 'openai' && credentials.base_url === 'https://api.openai.com') credentials.base_url = 'https://api.openai.com/v1'
+  if (platform === 'gemini' && type === 'service_account' && credentials.auth_mode === 'apikey') {
+    if (typeof credentials.project_id === 'string' && credentials.project_id.trim()) {
+      if (typeof credentials.location !== 'string' || !credentials.location.trim()) credentials.location = 'global'
+    } else {
+      delete credentials.location
+    }
+  }
   return credentials
 }
 

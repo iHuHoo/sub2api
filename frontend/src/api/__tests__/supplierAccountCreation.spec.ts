@@ -70,6 +70,9 @@ describe('supplier shared account creation transport', () => {
     ['openai', 'oauth', { access_token: 'a', client_id: 'refresh-client', plan_type: 'pro' }, { access_token: 'a', client_id: 'refresh-client', plan_type: 'pro' }],
     ['gemini', 'apikey', { api_key: 'a', tier_id: 'aistudio_paid' }, { api_key: 'a', tier_id: 'aistudio_paid' }],
     ['gemini', 'oauth', { access_token: 'a', oauth_type: 'google_one', tier_id: 'google_one_free', project_id: 'project' }, { access_token: 'a', oauth_type: 'google_one', tier_id: 'google_one_free', project_id: 'project' }],
+    ['gemini', 'service_account', { auth_mode: 'apikey', api_key: ' vertex ', location: 'global', tier_id: 'vertex' }, { auth_mode: 'apikey', api_key: ' vertex ', tier_id: 'vertex' }],
+    ['gemini', 'service_account', { auth_mode: 'apikey', api_key: 'vertex', project_id: 'project', tier_id: 'vertex' }, { auth_mode: 'apikey', api_key: 'vertex', project_id: 'project', location: 'global', tier_id: 'vertex' }],
+    ['anthropic', 'service_account', { service_account_json: '{}', project_id: 'project', location: 'global', auth_mode: 'apikey', api_key: 'forbidden', tier_id: 'vertex' }, { service_account_json: '{}', project_id: 'project', location: 'global' }],
     ['openai', 'apikey', { api_key: 'a', base_url: 'https://api.openai.com' }, { api_key: 'a', base_url: 'https://api.openai.com/v1' }],
     ['anthropic', 'bedrock', { auth_mode: 'apikey', api_key: 'a', aws_region: 'us-east-1', aws_force_global: 'true' }, { auth_mode: 'apikey', api_key: 'a', aws_region: 'us-east-1', aws_force_global: 'true' }],
     ['kimi', 'apikey', { api_key: 'a', account_mode: 'coding', api_protocol: 'adaptive', api_base_urls: { anthropic: 'https://api.kimi.com/coding' }, model_mapping: { '*': 'x' } }, { api_key: 'a', account_mode: 'coding', api_protocol: 'adaptive', api_base_urls: { anthropic: 'https://api.kimi.com/coding' } }]
