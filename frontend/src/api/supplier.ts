@@ -9,7 +9,6 @@ export interface SupplierAccount {
   type: string
   auth_mode?: 'service_account' | 'apikey'
   status: string
-  supplier_paused: boolean
   read_only: boolean
   proxy_id: number | null
   expires_at: string | null
@@ -91,7 +90,6 @@ export const supplierAPI = {
     async getModels(id: number) { return (await apiClient.get<ClaudeModel[]>(`/supplier/accounts/${id}/models`)).data },
     async create(input: SupplierAccountCreate) { return (await apiClient.post<SupplierAccount>('/supplier/accounts', input)).data },
     async update(id: number, input: SupplierAccountUpdate) { return (await apiClient.put<SupplierAccount>(`/supplier/accounts/${id}`, input)).data },
-    async pause(id: number, paused: boolean) { return (await apiClient.post<SupplierAccount>(`/supplier/accounts/${id}/pause`, { paused })).data }
   },
   proxies: {
     async list(page = 1, pageSize = 20) {

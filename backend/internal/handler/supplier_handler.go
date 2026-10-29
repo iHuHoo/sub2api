@@ -360,32 +360,6 @@ func (h *SupplierHandler) UpdateAccount(c *gin.Context) {
 	}
 	response.Success(c, row)
 }
-func (h *SupplierHandler) PauseAccount(c *gin.Context) {
-	owner, ok := supplierSubject(c)
-	if !ok {
-		return
-	}
-	id, ok := supplierID(c)
-	if !ok {
-		return
-	}
-	var in struct {
-		Paused *bool `json:"paused"`
-	}
-	if !bindSupplierJSON(c, &in) {
-		return
-	}
-	if in.Paused == nil {
-		supplierError(c, service.ErrSupplierInvalid)
-		return
-	}
-	row, err := h.service.PauseAccount(c.Request.Context(), owner, id, *in.Paused)
-	if err != nil {
-		supplierError(c, err)
-		return
-	}
-	response.Success(c, row)
-}
 func (h *SupplierHandler) ListProxies(c *gin.Context) {
 	owner, ok := supplierSubject(c)
 	if !ok {

@@ -286,25 +286,6 @@ func (r *supplierRepository) UpdateAccount(ctx context.Context, owner, id int64,
 	r.refresh(ctx, changed)
 	return r.GetAccount(ctx, owner, id)
 }
-func (r *supplierRepository) PauseAccount(ctx context.Context, owner, id int64, paused bool) (*service.Account, error) {
-	var changed []int64
-	err := r.transaction(ctx, func(tr *supplierRepository) error {
-		if err := tr.lockAccount(ctx, owner, id); err != nil {
-			return err
-		}
-		if _, err := tr.sql.ExecContext(ctx, `UPDATE accounts SET supplier_paused=$3,updated_at=NOW() WHERE id=$1 AND supplier_user_id=$2 AND deleted_at IS NULL`, id, owner, paused); err != nil {
-			return err
-		}
-		var err error
-		changed, err = tr.accountChanges(ctx, id)
-		return err
-	})
-	if err != nil {
-		return nil, err
-	}
-	r.refresh(ctx, changed)
-	return r.GetAccount(ctx, owner, id)
-}
 func (r *supplierRepository) ListProxies(ctx context.Context, owner int64, p pagination.PaginationParams) ([]service.Proxy, int64, error) {
 	q := r.client.Proxy.Query().Where(proxy.Or(proxy.SupplierUserIDEQ(owner), proxy.And(proxy.AssignedSupplierUserIDEQ(owner), predicate.Proxy(func(s *entsql.Selector) {
 		s.Where(entsql.ExprP("EXISTS (SELECT 1 FROM users au WHERE au.id = " + s.C("assigned_supplier_user_id") + " AND au.deleted_at IS NULL AND au.status = 'active' AND au.role = 'supplier')"))

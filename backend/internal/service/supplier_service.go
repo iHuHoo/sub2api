@@ -49,7 +49,6 @@ type SupplierAccount struct {
 	Type                   string                `json:"type"`
 	AuthMode               string                `json:"auth_mode,omitempty"`
 	Status                 string                `json:"status"`
-	SupplierPaused         bool                  `json:"supplier_paused"`
 	ReadOnly               bool                  `json:"read_only"`
 	ProxyID                *int64                `json:"proxy_id"`
 	ExpiresAt              *time.Time            `json:"expires_at"`
@@ -123,7 +122,6 @@ type SupplierRepository interface {
 	GetAccount(context.Context, int64, int64) (*Account, error)
 	CreateAccount(context.Context, int64, *Account) error
 	UpdateAccount(context.Context, int64, int64, SupplierAccountUpdate) (*Account, error)
-	PauseAccount(context.Context, int64, int64, bool) (*Account, error)
 	ListProxies(context.Context, int64, pagination.PaginationParams) ([]Proxy, int64, error)
 	GetProxy(context.Context, int64, int64) (*Proxy, error)
 	CreateProxy(context.Context, int64, *Proxy) error
@@ -142,7 +140,7 @@ func NewSupplierService(repo SupplierRepository, tokenInvalidator TokenCacheInva
 }
 
 func supplierAccountView(a *Account, owner int64) SupplierAccount {
-	out := SupplierAccount{ID: a.ID, Name: a.Name, Notes: a.SupplierNotes, Platform: a.Platform, Type: a.Type, Status: a.Status, SupplierPaused: a.SupplierPaused, ReadOnly: a.ParentAccountID != nil, ExpiresAt: a.ExpiresAt, LastUsedAt: a.LastUsedAt, Schedulable: a.Schedulable, RateLimitResetAt: a.RateLimitResetAt, OverloadUntil: a.OverloadUntil, TempUnschedulableUntil: a.TempUnschedulableUntil, Extra: supplierAccountExtra(a.Extra), CreatedAt: a.CreatedAt, UpdatedAt: a.UpdatedAt}
+	out := SupplierAccount{ID: a.ID, Name: a.Name, Notes: a.SupplierNotes, Platform: a.Platform, Type: a.Type, Status: a.Status, ReadOnly: a.ParentAccountID != nil, ExpiresAt: a.ExpiresAt, LastUsedAt: a.LastUsedAt, Schedulable: a.Schedulable, RateLimitResetAt: a.RateLimitResetAt, OverloadUntil: a.OverloadUntil, TempUnschedulableUntil: a.TempUnschedulableUntil, Extra: supplierAccountExtra(a.Extra), CreatedAt: a.CreatedAt, UpdatedAt: a.UpdatedAt}
 	if a.Platform == PlatformGemini && a.Type == AccountTypeServiceAccount {
 		out.AuthMode = supplierVertexAuthMode(a.Credentials)
 	}
@@ -250,14 +248,6 @@ func (s *SupplierService) UpdateAccount(ctx context.Context, owner, id int64, in
 	if in.Credentials != nil && s.tokenInvalidator != nil {
 		_ = s.tokenInvalidator.InvalidateToken(ctx, previous)
 		_ = s.tokenInvalidator.InvalidateToken(ctx, a)
-	}
-	out := supplierAccountView(a, owner)
-	return &out, nil
-}
-func (s *SupplierService) PauseAccount(ctx context.Context, owner, id int64, paused bool) (*SupplierAccount, error) {
-	a, err := s.repo.PauseAccount(ctx, owner, id, paused)
-	if err != nil {
-		return nil, err
 	}
 	out := supplierAccountView(a, owner)
 	return &out, nil

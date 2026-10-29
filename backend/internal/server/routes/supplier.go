@@ -17,7 +17,6 @@ func RegisterSupplierRoutes(v1 *gin.RouterGroup, h *handler.Handlers, jwtAuth mi
 	supplier.GET("/accounts/:id/models", limiter.Heavy(), h.Supplier.GetAccountModels)
 	supplier.POST("/accounts/:id/test", limiter.Heavy(), h.Supplier.TestAccount)
 	supplier.PUT("/accounts/:id", h.Supplier.UpdateAccount)
-	supplier.POST("/accounts/:id/pause", h.Supplier.PauseAccount)
 	supplier.GET("/proxies", h.Supplier.ListProxies)
 	supplier.POST("/proxies", h.Supplier.CreateProxy)
 	supplier.GET("/proxies/:id", h.Supplier.GetProxy)

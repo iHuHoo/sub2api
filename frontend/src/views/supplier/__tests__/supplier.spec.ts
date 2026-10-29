@@ -8,7 +8,7 @@ import ProxiesView from '../ProxiesView.vue'
 import UsageView from '../UsageView.vue'
 
 const api = vi.hoisted(() => ({
-  accounts: { list: vi.fn(), create: vi.fn(), update: vi.fn(), pause: vi.fn(), getUsage: vi.fn(), getModels: vi.fn() },
+  accounts: { list: vi.fn(), create: vi.fn(), update: vi.fn(), getUsage: vi.fn(), getModels: vi.fn() },
   proxies: { list: vi.fn(), create: vi.fn(), update: vi.fn(), test: vi.fn(), delete: vi.fn() },
   usage: vi.fn(),
   showError: vi.fn(), showSuccess: vi.fn()
@@ -43,7 +43,7 @@ vi.mock('vue-i18n', async (original) => ({
     return String(value ?? key).replace(/\{(\w+)\}/g, (_, name) => String(params[name] ?? name))
   } })
 }))
-const account = { id: 3, name: 'Owned', notes: null, platform: 'openai', type: 'apikey', status: 'inactive', supplier_paused: false, read_only: false, proxy_id: null, expires_at: null, last_used_at: null, schedulable: false, rate_limit_reset_at: null, overload_until: null, temp_unschedulable_until: null, created_at: '2026-10-30T01:00:00Z', updated_at: '' }
+const account = { id: 3, name: 'Owned', notes: null, platform: 'openai', type: 'apikey', status: 'inactive', read_only: false, proxy_id: null, expires_at: null, last_used_at: null, schedulable: false, rate_limit_reset_at: null, overload_until: null, temp_unschedulable_until: null, created_at: '2026-10-30T01:00:00Z', updated_at: '' }
 const proxy = { id: 7, name: 'Owned proxy', protocol: 'http', host: '8.8.8.8', port: 8080, username: 'u', has_password: true, status: 'inactive', created_at: '', updated_at: '' }
 const page = (items: unknown[]) => ({ items, total: items.length, pages: 1, page: 1, page_size: 20 })
 function render(component: typeof AccountsView | typeof ProxiesView | typeof UsageView) {
@@ -78,7 +78,6 @@ describe('supplier account editor', () => {
     api.proxies.list.mockResolvedValue(page([proxy]))
     api.accounts.update.mockResolvedValue(account)
     api.accounts.create.mockResolvedValue(account)
-    api.accounts.pause.mockResolvedValue(account)
     api.accounts.getModels.mockResolvedValue([{ id: 'gpt-5', display_name: 'GPT-5' }])
   })
   function select(wrapper: ReturnType<typeof render>, id: string) {
@@ -260,14 +259,18 @@ describe('supplier account editor', () => {
     await flushPromises()
     expect(api.accounts.update).toHaveBeenCalledWith(3, { proxy_id: 0, expires_at: 0 })
   })
-  it('shows lifecycle and assignment explanation without inferring assignment; resume only clears supplier pause', async () => {
+  it('shows lifecycle and assignment explanation without supply controls', async () => {
     api.accounts.list.mockResolvedValue(page([{ ...account, supplier_paused: true }]))
     const wrapper = render(AccountsView)
     await flushPromises()
     expect(wrapper.text()).toContain('Inactive')
     expect(wrapper.text()).toContain('Administrators assign')
-    await click(wrapper, 'Resume supply')
-    expect(api.accounts.pause).toHaveBeenCalledWith(3, false)
+    for (const label of ['Pause supply', 'Resume supply', 'Not paused', 'Paused', '暂停供给', '恢复供给', '供应中', '已暂停']) {
+      expect(wrapper.text()).not.toContain(label)
+    }
+    expect(wrapper.findAll('tbody button').map(button => button.attributes('aria-label'))).toEqual(['Test Connection', 'Edit'])
+    const actual = await vi.importActual<typeof import('@/api/supplier')>('@/api/supplier')
+    expect(actual.supplierAPI.accounts).not.toHaveProperty('pause')
   })
   it('uses the required account columns and formats account timestamps', async () => {
 	vi.useFakeTimers()
@@ -276,11 +279,11 @@ describe('supplier account editor', () => {
     const wrapper = render(AccountsView)
     await flushPromises()
     const headers = wrapper.findAll('thead th').map(node => node.text().trim())
-    expect(headers).toEqual(['Name', 'Platform/Type', 'Status', 'Usage Windows', 'Test Connection', 'Last Used', 'Created'])
+    expect(headers).toEqual(['Name', 'Platform/Type', 'Status', 'Usage Windows', 'Test Connection', 'Last Used', 'Created', 'Actions'])
     expect(wrapper.text()).toContain('5m ago')
     expect(wrapper.text()).toContain('10/30/2026')
     expect(wrapper.findAll('button').some(button => button.text() === 'Edit')).toBe(true)
-    expect(wrapper.findAll('button').some(button => button.text() === 'Pause supply')).toBe(true)
+    expect(wrapper.findAll('button').some(button => button.text() === 'Pause supply')).toBe(false)
     vi.useRealTimers()
   })
   it('uses the admin status indicator without exposing error details', async () => {
@@ -329,7 +332,9 @@ describe('supplier account editor', () => {
     api.accounts.list.mockResolvedValue(page([{ ...account, read_only: true }]))
     const wrapper = render(AccountsView)
     await flushPromises()
-    expect(wrapper.findAll('button').filter(b => ['Edit', 'Pause supply'].includes(b.text())).every(b => b.attributes('disabled') !== undefined)).toBe(true)
+    for (const label of ['Edit', 'Test Connection']) {
+      expect(wrapper.get(`button[aria-label="${label}"]`).attributes('disabled')).toBeDefined()
+    }
     expect(wrapper.text()).toContain('Derived account')
   })
   it('prevents duplicate create clicks while own proxies load', async () => {

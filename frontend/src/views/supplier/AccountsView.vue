@@ -2,6 +2,8 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import AppLayout from '@/components/layout/AppLayout.vue'
+import TablePageLayout from '@/components/layout/TablePageLayout.vue'
+import Icon from '@/components/icons/Icon.vue'
 import CreateAccountModal from '@/components/account/CreateAccountModal.vue'
 import AccountStatusIndicator from '@/components/account/AccountStatusIndicator.vue'
 import AccountUsageCell from '@/components/account/AccountUsageCell.vue'
@@ -23,7 +25,6 @@ const page = ref(1)
 const total = ref(0)
 const loading = ref(false)
 const saving = ref(false)
-const pendingPause = ref<number | null>(null)
 const show = ref(false)
 const showCreate = ref(false)
 const createLoading = ref(false)
@@ -117,7 +118,8 @@ const columns = computed(() => [
   { key: 'usage', label: t('admin.accounts.columns.usageWindows') },
   { key: 'test', label: t('admin.accounts.testConnection') },
   { key: 'last_used_at', label: t('admin.accounts.columns.lastUsed') },
-  { key: 'created_at', label: t('admin.accounts.columns.createdAt') }
+  { key: 'created_at', label: t('admin.accounts.columns.createdAt') },
+  { key: 'actions', label: t('common.actions') }
 ])
 const usageAccount = (account: SupplierAccount) => ({
   ...account,
@@ -246,15 +248,6 @@ async function save() {
   } catch (error) { appStore.showError(t(supplierErrorKey(error))) }
   finally { saving.value = false }
 }
-async function pause(account: SupplierAccount) {
-  if (account.read_only || pendingPause.value !== null) return
-  pendingPause.value = account.id
-  try {
-    await supplierAPI.accounts.pause(account.id, !account.supplier_paused)
-    await load()
-  } catch (error) { appStore.showError(t(supplierErrorKey(error))) }
-  finally { pendingPause.value = null }
-}
 function close() {
   if (saving.value) return
   show.value = false
@@ -265,44 +258,41 @@ onMounted(load)
 
 <template>
   <AppLayout>
-    <div class="space-y-5">
-      <div class="flex flex-wrap items-center justify-between gap-3">
+    <TablePageLayout>
+      <template #actions><div class="flex flex-wrap items-center justify-between gap-3">
         <h2 class="text-xl font-semibold text-gray-900 dark:text-white">{{ t('supplier.accounts') }}</h2>
         <button class="btn btn-primary" :disabled="createLoading" @click="openCreate">{{ t('supplier.addAccount') }}</button>
-      </div>
-      <p class="card p-4 text-sm text-gray-600 dark:text-gray-300">{{ t('supplier.assignmentNotice') }}</p>
-      <div class="card overflow-hidden">
+      </div></template>
+      <template #filters><p class="text-sm text-gray-600 dark:text-gray-300">{{ t('supplier.assignmentNotice') }}</p></template>
+      <template #table>
         <DataTable :columns="columns" :data="accounts" :loading="loading">
           <template #cell-name="{ row }">
-            <div class="flex items-center gap-2">
-              <span class="font-medium">{{ row.name }} <span class="text-xs text-gray-500">#{{ row.id }}</span></span>
-              <button class="btn btn-secondary btn-sm" :disabled="row.read_only" @click="open(row)">{{ t('common.edit') }}</button>
-            </div>
-            <p v-if="row.notes" class="max-w-xs whitespace-pre-wrap break-words text-xs text-gray-500">{{ row.notes }}</p>
-            <span v-if="row.read_only" class="badge badge-gray">{{ t('supplier.readOnly') }}</span>
+            <div class="font-medium text-gray-900 dark:text-white">{{ row.name }}</div>
+            <div class="text-xs text-gray-500 dark:text-gray-400">#{{ row.id }}</div>
+            <p v-if="row.notes" :title="row.notes" class="max-w-xs truncate text-xs text-gray-500 dark:text-gray-400">{{ row.notes }}</p>
+            <span v-if="row.read_only" class="text-xs text-gray-500 dark:text-gray-400">{{ t('supplier.readOnly') }}</span>
           </template>
           <template #cell-platform_type="{ row }">
             <PlatformTypeBadge :platform="row.platform" :type="row.type" :auth-mode="row.auth_mode" />
           </template>
           <template #cell-status="{ row }">
-            <div class="space-y-1">
-              <AccountStatusIndicator :account="usageAccount(row)" />
-              <div class="text-xs text-gray-500">{{ row.supplier_paused ? t('supplier.paused') : t('supplier.unpaused') }}</div>
-              <button class="btn btn-secondary btn-sm" :disabled="row.read_only || pendingPause !== null" @click="pause(row)">{{ row.supplier_paused ? t('supplier.resume') : t('supplier.pause') }}</button>
-            </div>
+            <AccountStatusIndicator :account="usageAccount(row)" />
           </template>
           <template #cell-usage="{ row }">
             <AccountUsageCell :account="usageAccount(row)" read-only :usage-fetcher="supplierAPI.accounts.getUsage" />
           </template>
           <template #cell-test="{ row }">
-            <button class="btn btn-secondary btn-sm" :disabled="row.read_only" @click="testing = row">{{ t('admin.accounts.testConnection') }}</button>
+            <button :aria-label="t('admin.accounts.testConnection')" class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-primary-600 dark:hover:bg-dark-700 dark:hover:text-primary-400 disabled:opacity-50 disabled:cursor-not-allowed" :disabled="row.read_only" @click="testing = row"><Icon name="play" size="sm" /><span class="text-xs">{{ t('admin.accounts.testConnection') }}</span></button>
           </template>
-          <template #cell-last_used_at="{ row }"><span :data-testid="`last-used-${row.id}`">{{ row.last_used_at ? formatRelativeTime(row.last_used_at) : '—' }}</span></template>
-          <template #cell-created_at="{ value }">{{ formatDateTime(value) || '—' }}</template>
+          <template #cell-last_used_at="{ row }"><span class="text-sm text-gray-500 dark:text-dark-400" :data-testid="`last-used-${row.id}`">{{ row.last_used_at ? formatRelativeTime(row.last_used_at) : '—' }}</span></template>
+          <template #cell-created_at="{ value }"><span class="text-sm text-gray-500 dark:text-dark-400">{{ formatDateTime(value) || '—' }}</span></template>
+          <template #cell-actions="{ row }">
+            <button :aria-label="t('common.edit')" class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-primary-600 dark:hover:bg-dark-700 dark:hover:text-primary-400 disabled:opacity-50 disabled:cursor-not-allowed" :disabled="row.read_only" @click="open(row)"><Icon name="edit" size="sm" /><span class="text-xs">{{ t('common.edit') }}</span></button>
+          </template>
         </DataTable>
-        <Pagination v-if="total" :total="total" :page="page" :page-size="20" :show-page-size-selector="false" @update:page="page = $event; load()" />
-      </div>
-    </div>
+      </template>
+      <template #pagination><Pagination v-if="total" :total="total" :page="page" :page-size="20" :show-page-size-selector="false" @update:page="page = $event; load()" /></template>
+    </TablePageLayout>
     <CreateAccountModal v-if="showCreate" :show="showCreate" supplier :proxies="createProxies" :groups="[]" @close="showCreate = false" @created="load" />
     <AccountTestModal
       :show="testing !== null"

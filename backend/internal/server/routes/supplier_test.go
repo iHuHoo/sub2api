@@ -63,6 +63,19 @@ func TestSupplierAccountDiagnosticRoutesAreRegistered(t *testing.T) {
 	}
 }
 
+func TestSupplierPauseRouteRemoved(t *testing.T) {
+	for _, role := range []string{service.RoleSupplier, service.RoleAdmin, service.RoleUser} {
+		r := gin.New()
+		h := &handler.Handlers{Supplier: handler.NewSupplierHandler(nil)}
+		auth := middleware.JWTAuthMiddleware(func(c *gin.Context) { c.Set(string(middleware.ContextKeyUserRole), role); c.Next() })
+		audit := middleware.AuditLogMiddleware(func(c *gin.Context) { c.Next() })
+		RegisterSupplierRoutes(r.Group("/api/v1"), h, auth, audit, nil)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, httptest.NewRequest("POST", "/api/v1/supplier/accounts/1/pause", nil))
+		require.Equal(t, 404, w.Code)
+	}
+}
+
 func TestSupplierAccountUsageRouteIsRegistered(t *testing.T) {
 	r := gin.New()
 	h := &handler.Handlers{Supplier: handler.NewSupplierHandler(nil)}

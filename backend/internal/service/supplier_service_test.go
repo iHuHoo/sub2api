@@ -73,7 +73,7 @@ func TestSupplierAccountResponseWhitelist(t *testing.T) {
 	require.Contains(t, string(raw), "supplier-note")
 	var fields map[string]any
 	require.NoError(t, json.Unmarshal(raw, &fields))
-	require.ElementsMatch(t, []string{"id", "name", "notes", "platform", "type", "status", "supplier_paused", "read_only", "proxy_id", "expires_at", "last_used_at", "created_at", "updated_at", "schedulable", "rate_limit_reset_at", "overload_until", "temp_unschedulable_until", "extra"}, mapKeys(fields))
+	require.ElementsMatch(t, []string{"id", "name", "notes", "platform", "type", "status", "read_only", "proxy_id", "expires_at", "last_used_at", "created_at", "updated_at", "schedulable", "rate_limit_reset_at", "overload_until", "temp_unschedulable_until", "extra"}, mapKeys(fields))
 	require.Equal(t, lastUsedAt.Format(time.RFC3339), fields["last_used_at"])
 	require.Equal(t, true, fields["schedulable"])
 	require.Equal(t, rateLimitResetAt.Format(time.RFC3339), fields["rate_limit_reset_at"])
