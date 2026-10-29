@@ -8,7 +8,7 @@ import ProxiesView from '../ProxiesView.vue'
 import UsageView from '../UsageView.vue'
 
 const api = vi.hoisted(() => ({
-  accounts: { list: vi.fn(), create: vi.fn(), update: vi.fn(), pause: vi.fn(), getUsage: vi.fn() },
+  accounts: { list: vi.fn(), create: vi.fn(), update: vi.fn(), pause: vi.fn(), getUsage: vi.fn(), getModels: vi.fn() },
   proxies: { list: vi.fn(), create: vi.fn(), update: vi.fn(), test: vi.fn(), delete: vi.fn() },
   usage: vi.fn(),
   showError: vi.fn(), showSuccess: vi.fn()
@@ -17,13 +17,18 @@ const admin = vi.hoisted(() => ({
   getUsage: vi.fn(),
   getClaudeResetCredits: vi.fn(),
   queryQuota: vi.fn(),
-  queryBalance: vi.fn()
+  queryBalance: vi.fn(),
+  getAvailableModels: vi.fn()
 }))
 vi.mock('@/api/supplier', () => ({ supplierAPI: api, supplierErrorKey: () => 'supplier.failed' }))
 vi.mock('@/stores/app', () => ({ useAppStore: () => api }))
+vi.mock('@/utils/format', async (original) => ({
+  ...await original<typeof import('@/utils/format')>(),
+  formatRelativeTime: () => '5m ago'
+}))
 vi.mock('@/api/admin', () => ({
   adminAPI: {
-    accounts: { getUsage: admin.getUsage },
+    accounts: { getUsage: admin.getUsage, getAvailableModels: admin.getAvailableModels },
     cnProviders: { queryQuota: admin.queryQuota, queryBalance: admin.queryBalance }
   }
 }))
@@ -38,7 +43,7 @@ vi.mock('vue-i18n', async (original) => ({
     return String(value ?? key).replace(/\{(\w+)\}/g, (_, name) => String(params[name] ?? name))
   } })
 }))
-const account = { id: 3, name: 'Owned', notes: null, platform: 'openai', type: 'apikey', status: 'inactive', supplier_paused: false, read_only: false, proxy_id: null, expires_at: null, created_at: '', updated_at: '' }
+const account = { id: 3, name: 'Owned', notes: null, platform: 'openai', type: 'apikey', status: 'inactive', supplier_paused: false, read_only: false, proxy_id: null, expires_at: null, last_used_at: null, created_at: '2026-10-30T01:00:00Z', updated_at: '' }
 const proxy = { id: 7, name: 'Owned proxy', protocol: 'http', host: '8.8.8.8', port: 8080, username: 'u', has_password: true, status: 'inactive', created_at: '', updated_at: '' }
 const page = (items: unknown[]) => ({ items, total: items.length, pages: 1, page: 1, page_size: 20 })
 function render(component: typeof AccountsView | typeof ProxiesView | typeof UsageView) {
@@ -74,6 +79,7 @@ describe('supplier account editor', () => {
     api.accounts.update.mockResolvedValue(account)
     api.accounts.create.mockResolvedValue(account)
     api.accounts.pause.mockResolvedValue(account)
+    api.accounts.getModels.mockResolvedValue([{ id: 'gpt-5', display_name: 'GPT-5' }])
   })
   function select(wrapper: ReturnType<typeof render>, id: string) {
     const control = wrapper.findAllComponents(Select).find(control => control.props('id') === id)
@@ -262,6 +268,37 @@ describe('supplier account editor', () => {
     expect(wrapper.text()).toContain('Administrators assign')
     await click(wrapper, 'Resume supply')
     expect(api.accounts.pause).toHaveBeenCalledWith(3, false)
+  })
+  it('uses the required account columns and formats account timestamps', async () => {
+	vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-10-30T02:00:00Z'))
+    api.accounts.list.mockResolvedValue(page([{ ...account, last_used_at: '2026-10-30T01:55:00Z' }]))
+    const wrapper = render(AccountsView)
+    await flushPromises()
+    const headers = wrapper.findAll('thead th').map(node => node.text().trim())
+    expect(headers).toEqual(['Name', 'Platform/Type', 'Status', 'Usage Windows', 'Test Connection', 'Last Used', 'Created'])
+    expect(wrapper.text()).toContain('5m ago')
+    expect(wrapper.text()).toContain('10/30/2026')
+    expect(wrapper.findAll('button').some(button => button.text() === 'Edit')).toBe(true)
+    expect(wrapper.findAll('button').some(button => button.text() === 'Pause supply')).toBe(true)
+    vi.useRealTimers()
+  })
+  it('shows an em dash when the account was never used', async () => {
+    const wrapper = render(AccountsView)
+    await flushPromises()
+    expect(wrapper.find('[data-testid="last-used-3"]').text()).toBe('—')
+  })
+  it('opens the restricted supplier connection test without admin model calls', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      body: { getReader: () => ({ read: vi.fn().mockResolvedValue({ done: true, value: undefined }) }) }
+    }) as any
+    const wrapper = render(AccountsView)
+    await flushPromises()
+    await click(wrapper, 'Test Connection')
+    expect(api.accounts.getModels).toHaveBeenCalledWith(3)
+    expect(admin.getAvailableModels).not.toHaveBeenCalled()
+    expect(wrapper.find('textarea').exists()).toBe(false)
   })
   it('disables all mutations on derived accounts', async () => {
     api.accounts.list.mockResolvedValue(page([{ ...account, read_only: true }]))

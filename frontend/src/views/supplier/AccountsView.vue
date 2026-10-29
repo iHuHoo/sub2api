@@ -4,14 +4,16 @@ import { useI18n } from 'vue-i18n'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import CreateAccountModal from '@/components/account/CreateAccountModal.vue'
 import AccountUsageCell from '@/components/account/AccountUsageCell.vue'
+import AccountTestModal from '@/components/admin/account/AccountTestModal.vue'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import DataTable from '@/components/common/DataTable.vue'
-import HelpTooltip from '@/components/common/HelpTooltip.vue'
 import Pagination from '@/components/common/Pagination.vue'
+import PlatformTypeBadge from '@/components/common/PlatformTypeBadge.vue'
 import Select from '@/components/common/Select.vue'
 import { supplierAPI, supplierErrorKey, type SupplierAccount, type SupplierAccountUpdate, type SupplierProxy } from '@/api/supplier'
 import { useAppStore } from '@/stores/app'
 import type { Account } from '@/types'
+import { formatDateTime, formatRelativeTime } from '@/utils/format'
 
 const { t } = useI18n()
 const appStore = useAppStore()
@@ -26,6 +28,7 @@ const showCreate = ref(false)
 const createLoading = ref(false)
 const createProxies = ref<SupplierProxy[]>([])
 const editing = ref<SupplierAccount | null>(null)
+const testing = ref<SupplierAccount | null>(null)
 const initialExpiry = ref('')
 const proxies = ref<SupplierProxy[]>([])
 const proxyPage = ref(1)
@@ -107,10 +110,13 @@ const fields = computed(() => {
   return [...required.map(key => ({ key, required: true })), ...optional.map(key => ({ key, required: false }))]
 })
 const columns = computed(() => [
-  { key: 'name', label: t('supplier.name') }, { key: 'platform', label: t('supplier.platform') },
-  { key: 'status', label: t('supplier.adminLifecycle') }, { key: 'supplier_paused', label: t('supplier.supply') },
-  { key: 'expires_at', label: t('supplier.expiry') }, { key: 'usage', label: t('admin.accounts.columns.usageWindows') },
-  { key: 'actions', label: t('common.actions') }
+  { key: 'name', label: t('admin.accounts.columns.name') },
+  { key: 'platform_type', label: t('admin.accounts.columns.platformType') },
+  { key: 'status', label: t('admin.accounts.columns.status') },
+  { key: 'usage', label: t('admin.accounts.columns.usageWindows') },
+  { key: 'test', label: t('admin.accounts.testConnection') },
+  { key: 'last_used_at', label: t('admin.accounts.columns.lastUsed') },
+  { key: 'created_at', label: t('admin.accounts.columns.createdAt') }
 ])
 const usageAccount = (account: SupplierAccount) => ({
   ...account,
@@ -121,7 +127,7 @@ const usageAccount = (account: SupplierAccount) => ({
   concurrency: 0,
   priority: 0,
   error_message: null,
-  last_used_at: null,
+  last_used_at: account.last_used_at,
   auto_pause_on_expired: false,
   schedulable: false,
   rate_limited_at: null,
@@ -261,34 +267,44 @@ onMounted(load)
       <div class="card overflow-hidden">
         <DataTable :columns="columns" :data="accounts" :loading="loading">
           <template #cell-name="{ row }">
-            <div class="font-medium">{{ row.name }} <span class="text-xs text-gray-500">#{{ row.id }}</span></div>
+            <div class="flex items-center gap-2">
+              <span class="font-medium">{{ row.name }} <span class="text-xs text-gray-500">#{{ row.id }}</span></span>
+              <button class="btn btn-secondary btn-sm" :disabled="row.read_only" @click="open(row)">{{ t('common.edit') }}</button>
+            </div>
             <p v-if="row.notes" class="max-w-xs whitespace-pre-wrap break-words text-xs text-gray-500">{{ row.notes }}</p>
             <span v-if="row.read_only" class="badge badge-gray">{{ t('supplier.readOnly') }}</span>
           </template>
-          <template #cell-platform="{ row }">{{ row.platform }} / {{ row.type }}</template>
-          <template #cell-status="{ value }">{{ value === 'active' ? t('common.active') : value === 'inactive' ? t('supplier.inactive') : value }}</template>
-          <template #cell-supplier_paused="{ value }">{{ value ? t('supplier.paused') : t('supplier.unpaused') }}</template>
-          <template #cell-expires_at="{ value }">{{ value || '—' }}</template>
-          <template #header-usage="{ column }">
-            <div class="flex items-center">
-              <span>{{ column.label }}</span>
-              <HelpTooltip :content="t('admin.accounts.usageWindowsHint')" width-class="w-72" />
+          <template #cell-platform_type="{ row }">
+            <PlatformTypeBadge :platform="row.platform" :type="row.type" :auth-mode="row.auth_mode" />
+          </template>
+          <template #cell-status="{ row }">
+            <div class="space-y-1">
+              <div>{{ row.status === 'active' ? t('common.active') : row.status === 'inactive' ? t('supplier.inactive') : row.status }}</div>
+              <div class="text-xs text-gray-500">{{ row.supplier_paused ? t('supplier.paused') : t('supplier.unpaused') }}</div>
+              <button class="btn btn-secondary btn-sm" :disabled="row.read_only || pendingPause !== null" @click="pause(row)">{{ row.supplier_paused ? t('supplier.resume') : t('supplier.pause') }}</button>
             </div>
           </template>
           <template #cell-usage="{ row }">
             <AccountUsageCell :account="usageAccount(row)" read-only :usage-fetcher="supplierAPI.accounts.getUsage" />
           </template>
-          <template #cell-actions="{ row }">
-            <div class="flex flex-wrap gap-2">
-              <button class="btn btn-secondary btn-sm" :disabled="row.read_only" @click="open(row)">{{ t('common.edit') }}</button>
-              <button class="btn btn-secondary btn-sm" :disabled="row.read_only || pendingPause !== null" @click="pause(row)">{{ row.supplier_paused ? t('supplier.resume') : t('supplier.pause') }}</button>
-            </div>
+          <template #cell-test="{ row }">
+            <button class="btn btn-secondary btn-sm" :disabled="row.read_only" @click="testing = row">{{ t('admin.accounts.testConnection') }}</button>
           </template>
+          <template #cell-last_used_at="{ row }"><span :data-testid="`last-used-${row.id}`">{{ row.last_used_at ? formatRelativeTime(row.last_used_at) : '—' }}</span></template>
+          <template #cell-created_at="{ value }">{{ formatDateTime(value) || '—' }}</template>
         </DataTable>
         <Pagination v-if="total" :total="total" :page="page" :page-size="20" :show-page-size-selector="false" @update:page="page = $event; load()" />
       </div>
     </div>
     <CreateAccountModal v-if="showCreate" :show="showCreate" supplier :proxies="createProxies" :groups="[]" @close="showCreate = false" @created="load" />
+    <AccountTestModal
+      :show="testing !== null"
+      :account="testing ? usageAccount(testing) : null"
+      :model-loader="supplierAPI.accounts.getModels"
+      :test-path="testing ? `/supplier/accounts/${testing.id}/test` : ''"
+      diagnostic-only
+      @close="testing = null"
+    />
     <BaseDialog :show="show" :title="t('supplier.editAccount')" width="normal" @close="close">
       <form id="supplier-account-form" class="space-y-4" @submit.prevent="save">
         <label class="block"><span class="input-label">{{ t('supplier.name') }}</span><input v-model="form.name" name="name" class="input" required maxlength="100" /></label>

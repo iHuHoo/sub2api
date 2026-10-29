@@ -19,12 +19,15 @@ func TestSupplierRoutesRoleBoundaryAndNoAccountDelete(t *testing.T) {
 		auth := middleware.JWTAuthMiddleware(func(c *gin.Context) { c.Set(string(middleware.ContextKeyUserRole), role); c.Next() })
 		audit := middleware.AuditLogMiddleware(func(c *gin.Context) { c.Next() })
 		RegisterSupplierRoutes(r.Group("/api/v1"), h, auth, audit, nil)
-		for _, path := range []string{"/api/v1/supplier/accounts", "/api/v1/supplier/accounts/1/usage", "/api/v1/supplier/proxies", "/api/v1/supplier/usage"} {
+		for _, path := range []string{"/api/v1/supplier/accounts", "/api/v1/supplier/accounts/1/usage", "/api/v1/supplier/accounts/1/models", "/api/v1/supplier/proxies", "/api/v1/supplier/usage"} {
 			w := httptest.NewRecorder()
 			r.ServeHTTP(w, httptest.NewRequest("GET", path, nil))
 			require.Equal(t, 403, w.Code)
 		}
 		w := httptest.NewRecorder()
+		r.ServeHTTP(w, httptest.NewRequest("POST", "/api/v1/supplier/accounts/1/test", nil))
+		require.Equal(t, 403, w.Code)
+		w = httptest.NewRecorder()
 		r.ServeHTTP(w, httptest.NewRequest("DELETE", "/api/v1/supplier/accounts/1", nil))
 		require.Equal(t, 404, w.Code)
 		for _, route := range r.Routes() {
@@ -35,6 +38,28 @@ func TestSupplierRoutesRoleBoundaryAndNoAccountDelete(t *testing.T) {
 			r.ServeHTTP(w, httptest.NewRequest("POST", path, nil))
 			require.Equal(t, 403, w.Code)
 		}
+	}
+}
+
+func TestSupplierAccountDiagnosticRoutesAreRegistered(t *testing.T) {
+	r := gin.New()
+	h := &handler.Handlers{Supplier: handler.NewSupplierHandler(nil)}
+	auth := middleware.JWTAuthMiddleware(func(c *gin.Context) { c.Next() })
+	audit := middleware.AuditLogMiddleware(func(c *gin.Context) { c.Next() })
+	RegisterSupplierRoutes(r.Group("/api/v1"), h, auth, audit, nil)
+
+	want := map[string]bool{
+		"GET /api/v1/supplier/accounts/:id/models": false,
+		"POST /api/v1/supplier/accounts/:id/test":  false,
+	}
+	for _, route := range r.Routes() {
+		key := route.Method + " " + route.Path
+		if _, ok := want[key]; ok {
+			want[key] = true
+		}
+	}
+	for route, found := range want {
+		require.True(t, found, route)
 	}
 }
 

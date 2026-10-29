@@ -18,6 +18,11 @@ describe('supplier API transport', () => {
     expect(client.post).toHaveBeenCalledWith('/supplier/accounts/3/pause', { paused: false })
     expect('delete' in supplierAPI.accounts).toBe(false)
   })
+  it('loads only the supplier-safe account model view', async () => {
+    client.get.mockResolvedValue({ data: [{ id: 'model-1', display_name: 'Model 1' }] })
+    expect(await supplierAPI.accounts.getModels(3)).toEqual([{ id: 'model-1', display_name: 'Model 1' }])
+    expect(client.get).toHaveBeenCalledWith('/supplier/accounts/3/models')
+  })
   it('never accepts a target URL or body for TCP testing', async () => {
     client.post.mockResolvedValue({ data: { reachable: false, latency_ms: 5000 } })
     expect(await supplierAPI.proxies.test(7)).toEqual({ reachable: false, latency_ms: 5000 })

@@ -53,6 +53,7 @@ type SupplierAccount struct {
 	ReadOnly       bool       `json:"read_only"`
 	ProxyID        *int64     `json:"proxy_id"`
 	ExpiresAt      *time.Time `json:"expires_at"`
+	LastUsedAt     *time.Time `json:"last_used_at"`
 	CreatedAt      time.Time  `json:"created_at"`
 	UpdatedAt      time.Time  `json:"updated_at"`
 }
@@ -127,7 +128,7 @@ func NewSupplierService(repo SupplierRepository, tokenInvalidator TokenCacheInva
 }
 
 func supplierAccountView(a *Account, owner int64) SupplierAccount {
-	out := SupplierAccount{ID: a.ID, Name: a.Name, Notes: a.SupplierNotes, Platform: a.Platform, Type: a.Type, Status: a.Status, SupplierPaused: a.SupplierPaused, ReadOnly: a.ParentAccountID != nil, ExpiresAt: a.ExpiresAt, CreatedAt: a.CreatedAt, UpdatedAt: a.UpdatedAt}
+	out := SupplierAccount{ID: a.ID, Name: a.Name, Notes: a.SupplierNotes, Platform: a.Platform, Type: a.Type, Status: a.Status, SupplierPaused: a.SupplierPaused, ReadOnly: a.ParentAccountID != nil, ExpiresAt: a.ExpiresAt, LastUsedAt: a.LastUsedAt, CreatedAt: a.CreatedAt, UpdatedAt: a.UpdatedAt}
 	if a.Platform == PlatformGemini && a.Type == AccountTypeServiceAccount {
 		out.AuthMode = supplierVertexAuthMode(a.Credentials)
 	}

@@ -57,12 +57,13 @@ type TestEvent struct {
 	Code     string `json:"code,omitempty"`
 	ImageURL string `json:"image_url,omitempty"`
 	// AudioURL / VideoURL are data: or https URLs for in-browser media players.
-	AudioURL string `json:"audio_url,omitempty"`
-	VideoURL string `json:"video_url,omitempty"`
-	MimeType string `json:"mime_type,omitempty"`
-	Data     any    `json:"data,omitempty"`
-	Success  bool   `json:"success,omitempty"`
-	Error    string `json:"error,omitempty"`
+	AudioURL   string `json:"audio_url,omitempty"`
+	VideoURL   string `json:"video_url,omitempty"`
+	MimeType   string `json:"mime_type,omitempty"`
+	Data       any    `json:"data,omitempty"`
+	Success    bool   `json:"success,omitempty"`
+	Error      string `json:"error,omitempty"`
+	DurationMs int64  `json:"duration_ms,omitempty"`
 }
 
 // AccountTestOptions carries optional media for admin connectivity tests.
@@ -3277,6 +3278,28 @@ func (s *AccountTestService) testOpenAIImageOAuth(c *gin.Context, ctx context.Co
 }
 
 func (s *AccountTestService) sendEvent(c *gin.Context, event TestEvent) {
+	if supplierTest, _ := c.Get(supplierAccountTestContextKey); supplierTest == true {
+		started, _ := c.Get(supplierAccountTestStartedContextKey)
+		duration := int64(0)
+		if t, ok := started.(time.Time); ok {
+			duration = time.Since(t).Milliseconds()
+		}
+		switch event.Type {
+		case "test_start":
+			event = TestEvent{Type: event.Type, Model: event.Model}
+		case "content":
+			if len(event.Text) > 512 {
+				event.Text = event.Text[:512]
+			}
+			event = TestEvent{Type: event.Type, Text: event.Text}
+		case "test_complete":
+			event = TestEvent{Type: event.Type, Success: event.Success, DurationMs: duration}
+		case "error":
+			event = TestEvent{Type: event.Type, Code: "ACCOUNT_TEST_FAILED", Error: "Account test failed", DurationMs: duration}
+		default:
+			return
+		}
+	}
 	if event.Type == "test_complete" {
 		if suppress, ok := c.Get(accountTestSuppressCompletionContextKey); ok {
 			if suppressCompletion, _ := suppress.(bool); suppressCompletion {

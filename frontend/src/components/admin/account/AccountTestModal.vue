@@ -42,7 +42,7 @@
       </div>
 
       <!-- Grok: mode first, then optional model / mode params -->
-      <div v-if="isGrokAccount" class="space-y-1.5">
+      <div v-if="!diagnosticOnly && isGrokAccount" class="space-y-1.5">
         <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
           {{ t('admin.accounts.grok.testMode') }}
         </label>
@@ -70,7 +70,7 @@
         />
       </div>
 
-      <div v-if="isOpenAIAccount" class="space-y-1.5">
+      <div v-if="!diagnosticOnly && isOpenAIAccount" class="space-y-1.5">
         <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
           {{ t('admin.accounts.openai.testMode') }}
         </label>
@@ -81,7 +81,7 @@
         />
       </div>
 
-      <div v-if="supportsPromptInput" class="space-y-1.5">
+      <div v-if="!diagnosticOnly && supportsPromptInput" class="space-y-1.5">
         <TextArea
           v-model="testPrompt"
           :label="promptInputLabel"
@@ -92,14 +92,14 @@
         />
       </div>
       <p
-        v-else-if="isGrokAccount && promptInputHint"
+        v-else-if="!diagnosticOnly && isGrokAccount && promptInputHint"
         class="text-xs text-gray-500 dark:text-gray-400"
       >
         {{ promptInputHint }}
       </p>
 
       <!-- Optional media uploads for real generation / transcription -->
-      <div v-if="supportsImageUpload" class="space-y-1.5">
+      <div v-if="!diagnosticOnly && supportsImageUpload" class="space-y-1.5">
         <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
           {{ imageUploadLabel }}
         </label>
@@ -138,7 +138,7 @@
         </div>
       </div>
 
-      <div v-if="supportsAudioUpload" class="space-y-1.5">
+      <div v-if="!diagnosticOnly && supportsAudioUpload" class="space-y-1.5">
         <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
           {{ t('admin.accounts.grok.audioUploadLabel') }}
         </label>
@@ -393,6 +393,9 @@ interface PreviewMedia {
 const props = defineProps<{
   show: boolean
   account: Account | null
+  modelLoader?: (accountId: number) => Promise<ClaudeModel[]>
+  testPath?: string
+  diagnosticOnly?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -766,7 +769,7 @@ const loadAvailableModels = async () => {
   loadingModels.value = true
   selectedModelId.value = '' // Reset selection before loading
   try {
-    const models = await adminAPI.accounts.getAvailableModels(props.account.id)
+    const models = await (props.modelLoader || adminAPI.accounts.getAvailableModels)(props.account.id)
     availableModels.value = props.account.platform === 'gemini' || props.account.platform === 'antigravity'
       ? sortTestModels(models)
       : models
@@ -846,18 +849,18 @@ const startTest = async () => {
   try {
     const requestBody: {
       model_id: string
-      prompt: string
+      prompt?: string
       mode?: string
       image_data_url?: string
       audio_data_url?: string
-    } = {
-      model_id: showModelSelect.value ? selectedModelId.value : '',
-      prompt: supportsPromptInput.value ? testPrompt.value.trim() : ''
+    } = { model_id: showModelSelect.value ? selectedModelId.value : '' }
+    if (!props.diagnosticOnly) {
+      requestBody.prompt = supportsPromptInput.value ? testPrompt.value.trim() : ''
     }
-    if (isOpenAIAccount.value) {
+    if (!props.diagnosticOnly && isOpenAIAccount.value) {
       requestBody.mode = testMode.value
     }
-    if (isGrokAccount.value) {
+    if (!props.diagnosticOnly && isGrokAccount.value) {
       // Always send explicit Grok mode. search/tts/stt/realtime are standalone
       // endpoints (no free-form model select). text/image/video use optional model.
       requestBody.mode = grokTestMode.value
@@ -878,7 +881,7 @@ const startTest = async () => {
     }
 
     // Use the configured API base; EventSource does not support POST.
-    const url = buildApiUrl(`/admin/accounts/${props.account.id}/test`)
+    const url = buildApiUrl(props.testPath || `/admin/accounts/${props.account.id}/test`)
 
     // Use fetch with streaming for SSE since EventSource doesn't support POST
     const response = await fetch(url, {
@@ -886,7 +889,7 @@ const startTest = async () => {
       headers: {
         Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
         'Content-Type': 'application/json',
-        [ADMIN_UI_REQUEST_HEADER]: '1'
+        ...(!props.diagnosticOnly ? { [ADMIN_UI_REQUEST_HEADER]: '1' } : {})
       },
       body: JSON.stringify(requestBody),
       signal: abortController.signal

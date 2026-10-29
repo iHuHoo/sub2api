@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -42,7 +43,8 @@ func TestSupplierAccountResponseWhitelist(t *testing.T) {
 	proxyID := int64(100)
 	adminNote := "admin-secret"
 	note := "supplier-note"
-	a := &Account{ID: 1, Name: "a", SupplierUserID: &owner, Notes: &adminNote, SupplierNotes: &note, Credentials: map[string]any{"api_key": "secret"}, Extra: map[string]any{"customer": "private"}, ProxyID: &proxyID, Proxy: &Proxy{ID: proxyID, SupplierUserID: &foreign, Host: "private", Password: "secret"}, ErrorMessage: "downstream user secret"}
+	lastUsedAt := time.Date(2026, 10, 30, 1, 2, 3, 0, time.UTC)
+	a := &Account{ID: 1, Name: "a", SupplierUserID: &owner, Notes: &adminNote, SupplierNotes: &note, Credentials: map[string]any{"api_key": "secret"}, Extra: map[string]any{"customer": "private"}, ProxyID: &proxyID, Proxy: &Proxy{ID: proxyID, SupplierUserID: &foreign, Host: "private", Password: "secret"}, ErrorMessage: "downstream user secret", LastUsedAt: &lastUsedAt}
 	out := supplierAccountView(a, owner)
 	require.Nil(t, out.ProxyID)
 	raw, err := json.Marshal(out)
@@ -51,6 +53,10 @@ func TestSupplierAccountResponseWhitelist(t *testing.T) {
 		require.NotContains(t, string(raw), secret)
 	}
 	require.Contains(t, string(raw), "supplier-note")
+	var fields map[string]any
+	require.NoError(t, json.Unmarshal(raw, &fields))
+	require.ElementsMatch(t, []string{"id", "name", "notes", "platform", "type", "status", "supplier_paused", "read_only", "proxy_id", "expires_at", "last_used_at", "created_at", "updated_at"}, mapKeys(fields))
+	require.Equal(t, lastUsedAt.Format(time.RFC3339), fields["last_used_at"])
 
 	a.Platform = PlatformGemini
 	a.Type = AccountTypeServiceAccount
@@ -61,6 +67,14 @@ func TestSupplierAccountResponseWhitelist(t *testing.T) {
 	require.Contains(t, string(raw), `"auth_mode":"apikey"`)
 	require.NotContains(t, string(raw), "vertex-secret")
 	require.NotContains(t, string(raw), "private-project")
+}
+
+func mapKeys(values map[string]any) []string {
+	keys := make([]string, 0, len(values))
+	for key := range values {
+		keys = append(keys, key)
+	}
+	return keys
 }
 
 type supplierCreateTestRepo struct {
