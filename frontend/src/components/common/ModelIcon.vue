@@ -31,7 +31,7 @@ interface IconData {
   paths: string[]
 }
 
-// SVG paths extracted from @lobehub/icons Mono.js files
+// SVG paths were originally extracted from @lobehub/icons; this project no longer depends on that package.
 const iconData: Record<string, IconData> = {
   claude: {
     color: '#D97706',

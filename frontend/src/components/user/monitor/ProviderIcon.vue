@@ -32,8 +32,8 @@ interface IconData {
   paths: string[]
 }
 
-// Provider SVG paths extracted from src/components/common/ModelIcon.vue (which
-// in turn pulls from @lobehub/icons Mono.js). Keep in sync if upstream changes.
+// Provider SVG paths come from ModelIcon.vue and were originally taken from
+// @lobehub/icons; this project no longer depends on that package.
 // SVG uses fill="currentColor" so the wrapper controls the icon tint.
 const PROVIDER_ICONS: Record<Provider, IconData> = {
   openai: {
