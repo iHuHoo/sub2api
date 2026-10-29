@@ -156,6 +156,50 @@ func TestSupplierGeminiVertexCredentialValidation(t *testing.T) {
 	}
 }
 
+func TestSupplierCreateGeminiVertexRejectsMixedJSONCredentials(t *testing.T) {
+	serviceAccountJSON := supplierServiceAccountJSON(t)
+	for _, tt := range []struct {
+		name     string
+		authMode string
+	}{
+		{name: "default auth mode"},
+		{name: "explicit service account", authMode: AccountTypeServiceAccount},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			credentials := map[string]any{
+				"service_account_json": serviceAccountJSON,
+				"api_key":              "vertex-key",
+			}
+			if tt.authMode != "" {
+				credentials["auth_mode"] = tt.authMode
+			}
+			repo := &supplierCreateTestRepo{}
+			_, err := NewSupplierService(repo, nil).CreateAccount(context.Background(), 11, SupplierAccountCreate{
+				Name: "vertex", Platform: PlatformGemini, Type: AccountTypeServiceAccount, Credentials: credentials,
+			})
+
+			require.ErrorIs(t, err, ErrSupplierInvalid)
+			require.Nil(t, repo.account)
+		})
+	}
+}
+
+func TestSupplierCreateGeminiVertexRejectsInvalidAuthMode(t *testing.T) {
+	repo := &supplierCreateTestRepo{}
+	_, err := NewSupplierService(repo, nil).CreateAccount(context.Background(), 11, SupplierAccountCreate{
+		Name:     "vertex",
+		Platform: PlatformGemini,
+		Type:     AccountTypeServiceAccount,
+		Credentials: map[string]any{
+			"auth_mode":            "foo",
+			"service_account_json": supplierServiceAccountJSON(t),
+		},
+	})
+
+	require.ErrorIs(t, err, ErrSupplierInvalid)
+	require.Nil(t, repo.account)
+}
+
 func TestSupplierGeminiVertexEditAuthModeGuard(t *testing.T) {
 	account := &Account{Platform: PlatformGemini, Type: AccountTypeServiceAccount, Credentials: map[string]any{"auth_mode": "apikey", "api_key": "old"}}
 	require.ErrorIs(t, validateSupplierVertexEdit(account, map[string]any{"auth_mode": "service_account"}), ErrSupplierInvalid)
