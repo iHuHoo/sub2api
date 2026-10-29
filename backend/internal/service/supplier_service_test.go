@@ -9,10 +9,11 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"encoding/pem"
-	"github.com/stretchr/testify/require"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestSupplierCredentialsWhitelist(t *testing.T) {
@@ -121,6 +122,8 @@ func TestSupplierServiceAccountImportDropsExternalMetadata(t *testing.T) {
 
 func TestSupplierGeminiVertexCredentialValidation(t *testing.T) {
 	serviceAccountJSON := supplierServiceAccountJSON(t)
+	require.NotContains(t, supplierCredentialKeys(PlatformAnthropic, AccountTypeServiceAccount), "api_key")
+	require.NotContains(t, supplierCredentialKeys(PlatformAnthropic, AccountTypeServiceAccount), "auth_mode")
 	tests := []struct {
 		name     string
 		platform string
@@ -151,6 +154,11 @@ func TestSupplierGeminiVertexCredentialValidation(t *testing.T) {
 			require.ErrorIs(t, err, ErrSupplierInvalid)
 		})
 	}
+}
+
+func TestSupplierGeminiVertexEditAuthModeGuard(t *testing.T) {
+	account := &Account{Platform: PlatformGemini, Type: AccountTypeServiceAccount, Credentials: map[string]any{"auth_mode": "apikey", "api_key": "old"}}
+	require.ErrorIs(t, validateSupplierVertexEdit(account, map[string]any{"auth_mode": "service_account"}), ErrSupplierInvalid)
 }
 
 func TestSupplierBedrockAuthenticationUnaffected(t *testing.T) {
@@ -242,6 +250,7 @@ func TestSupplierGeminiVertexEditRejectsAuthOrEndpointModeSwitch(t *testing.T) {
 		{name: "project clears project", account: &Account{Platform: PlatformGemini, Type: AccountTypeServiceAccount, Credentials: map[string]any{"auth_mode": "apikey", "api_key": "old", "project_id": "my-project", "location": "global"}}, credentials: map[string]any{"project_id": ""}, wantErr: ErrSupplierInvalid},
 		{name: "json to api key", account: &Account{Platform: PlatformGemini, Type: AccountTypeServiceAccount, Credentials: map[string]any{"service_account_json": serviceAccountJSON}}, credentials: map[string]any{"auth_mode": "apikey", "api_key": "new"}, wantErr: ErrSupplierInvalid},
 		{name: "json submits api key", account: &Account{Platform: PlatformGemini, Type: AccountTypeServiceAccount, Credentials: map[string]any{"service_account_json": serviceAccountJSON}}, credentials: map[string]any{"api_key": "new"}, wantErr: ErrSupplierInvalid},
+		{name: "json clears project", account: &Account{Platform: PlatformGemini, Type: AccountTypeServiceAccount, Credentials: map[string]any{"service_account_json": serviceAccountJSON, "project_id": "my-project"}}, credentials: map[string]any{"project_id": ""}, wantErr: ErrSupplierInvalid},
 		{name: "api key rotates", account: &Account{Platform: PlatformGemini, Type: AccountTypeServiceAccount, Credentials: map[string]any{"auth_mode": "apikey", "api_key": "old"}}, credentials: map[string]any{"api_key": " new "}},
 		{name: "derived remains read only", account: &Account{Platform: PlatformGemini, Type: AccountTypeServiceAccount, ParentAccountID: &parentID, Credentials: map[string]any{"auth_mode": "apikey", "api_key": "old"}}, credentials: map[string]any{"api_key": "new"}, wantErr: ErrSupplierReadOnly},
 	}
