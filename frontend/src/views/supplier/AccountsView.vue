@@ -64,6 +64,7 @@ const baseURLOptions = computed(() => [
   { value: '', label: t('supplier.retainEndpoint') },
   ...(officialURLs[form.platform] || []).map(url => ({ value: url, label: url }))
 ])
+const vertexAPIKeyEdit = computed(() => form.platform === 'gemini' && form.type === 'service_account' && editing.value?.auth_mode === 'apikey')
 const authModeOptions = computed(() => [
   { value: '', label: t('supplier.retain') },
   { value: 'sigv4', label: 'AWS SigV4' }, { value: 'apikey', label: 'API Key' }
@@ -90,7 +91,10 @@ const fields = computed(() => {
       if (['gemini', 'antigravity'].includes(form.platform)) optional.push('project_id')
       break
     case 'setup-token': required = ['access_token']; optional = ['expires_at']; break
-    case 'service_account': required = ['service_account_json']; optional = ['project_id', 'location']; break
+    case 'service_account':
+      if (vertexAPIKeyEdit.value) { required = ['api_key']; optional = ['location'] }
+      else { required = ['service_account_json']; optional = ['project_id', 'location'] }
+      break
     case 'bedrock':
       required = ['aws_region', 'auth_mode']
       if (credentials.auth_mode === 'apikey') required.push('api_key')
@@ -303,14 +307,14 @@ onMounted(load)
         <p class="input-hint">{{ t('supplier.retainCredential') }}</p>
         <p v-if="!supported" class="input-hint">{{ t('supplier.unsupportedCredential') }}</p>
         <div v-for="field in fields" :key="field.key" class="space-y-1">
-          <label :for="'credential-' + field.key" class="input-label">{{ t('supplier.credential.' + field.key) }} <span class="font-mono text-xs">({{ field.key }})</span></label>
+          <label :for="'credential-' + field.key" class="input-label">{{ t(vertexAPIKeyEdit && field.key === 'api_key' ? 'supplier.vertexApiKey' : 'supplier.credential.' + field.key) }} <span class="font-mono text-xs">({{ field.key }})</span></label>
           <Select v-if="field.key === 'base_url'" :id="'credential-' + field.key" v-model="credentials[field.key]" :options="baseURLOptions" :aria-label="t('supplier.credential.' + field.key)" />
           <Select v-else-if="field.key === 'auth_mode'" :id="'credential-' + field.key" v-model="credentials[field.key]" :options="authModeOptions" :aria-label="t('supplier.credential.' + field.key)" />
           <textarea v-else-if="field.key === 'service_account_json'" :id="'credential-' + field.key" v-model="credentials[field.key]" :name="field.key" class="input font-mono" rows="5" maxlength="32768" :placeholder="t('supplier.serviceAccountHint')" />
           <input v-else :id="'credential-' + field.key" v-model="credentials[field.key]" :name="field.key" :type="isSecret(field.key) ? 'password' : 'text'" class="input" :maxlength="field.key === 'expires_at' ? 64 : 16384" autocomplete="off" :disabled="clearCredentials[field.key]" :placeholder="field.key === 'expires_at' ? t('supplier.tokenExpiryHint') : t('supplier.retainCredential')" />
           <label v-if="canClear(field)" class="flex items-center gap-2 text-sm"><input v-model="clearCredentials[field.key]" type="checkbox" />{{ t('supplier.clearCredential', { field: field.key }) }}</label>
         </div>
-        <p v-if="form.type === 'service_account'" class="input-hint">{{ t('supplier.serviceAccountNotice') }}</p>
+        <p v-if="form.type === 'service_account' && !vertexAPIKeyEdit" class="input-hint">{{ t('supplier.serviceAccountNotice') }}</p>
         <p class="input-hint">{{ t('supplier.endpointPolicy') }}</p>
         <div>
           <label for="supplier-account-proxy" class="input-label">{{ t('supplier.proxy') }}</label>

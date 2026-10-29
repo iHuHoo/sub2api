@@ -7,6 +7,7 @@ export interface SupplierAccount {
   notes: string | null
   platform: string
   type: string
+  auth_mode?: 'service_account' | 'apikey'
   status: string
   supplier_paused: boolean
   read_only: boolean

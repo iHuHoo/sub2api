@@ -985,9 +985,45 @@ describe('supplier shared account actions', () => {
     wrapper.unmount()
   })
 
-  it('keeps supplier Gemini Vertex accounts on supported Service Account JSON auth', async () => {
+  it('offers both supported Gemini Vertex authentication modes to suppliers and clears switched credentials', async () => {
     const wrapper = mountModal([], true)
     await selectButtonByText(wrapper, 'Gemini')
+    await selectButtonByText(wrapper, 'admin.accounts.vertexLabel')
+    expect(wrapper.find('[data-testid="vertex-auth-mode-apikey"]').exists()).toBe(true)
+    expect(wrapper.find('input[type="file"]').exists()).toBe(true)
+    await wrapper.get('[data-testid="vertex-auth-mode-apikey"]').setValue(true)
+    await wrapper.get('[data-testid="vertex-api-key-input"]').setValue('vertex-key')
+    await wrapper.get('[data-testid="vertex-api-key-project-id-input"]').setValue('project')
+    await wrapper.get('input[value="service_account"]').setValue(true)
+    await wrapper.get('[data-testid="vertex-auth-mode-apikey"]').setValue(true)
+    expect((wrapper.get('[data-testid="vertex-api-key-input"]').element as HTMLInputElement).value).toBe('')
+    expect((wrapper.get('[data-testid="vertex-api-key-project-id-input"]').element as HTMLInputElement).value).toBe('')
+    wrapper.unmount()
+  })
+
+  it.each([
+    ['Express', '', { auth_mode: 'apikey', api_key: 'vertex-key', tier_id: 'vertex' }],
+    ['project', 'my-project', { auth_mode: 'apikey', api_key: 'vertex-key', project_id: 'my-project', location: 'global', tier_id: 'vertex' }]
+  ])('creates a supplier Gemini Vertex API key account for %s mode', async (_mode, projectID, expected) => {
+    const { apiClient } = await import('@/api/client')
+    const post = vi.spyOn(apiClient, 'post').mockResolvedValue({ data: { id: 9 } })
+    const wrapper = mountModal([], true)
+    await selectButtonByText(wrapper, 'Gemini')
+    await selectButtonByText(wrapper, 'admin.accounts.vertexLabel')
+    await wrapper.get('[data-testid="vertex-auth-mode-apikey"]').setValue(true)
+    await wrapper.get('form#create-account-form input[type="text"]').setValue('Supplier Vertex key')
+    await wrapper.get('[data-testid="vertex-api-key-input"]').setValue(' vertex-key ')
+    if (projectID) await wrapper.get('[data-testid="vertex-api-key-project-id-input"]').setValue(` ${projectID} `)
+    await wrapper.get('form').trigger('submit.prevent')
+    await flushPromises()
+    expect(post).toHaveBeenCalledWith('/supplier/accounts', expect.objectContaining({
+      platform: 'gemini', type: 'service_account', credentials: expected
+    }))
+    wrapper.unmount()
+  })
+
+  it('keeps supplier Anthropic Vertex accounts on Service Account JSON only', async () => {
+    const wrapper = mountModal([], true)
     await selectButtonByText(wrapper, 'admin.accounts.vertexLabel')
     expect(wrapper.find('[data-testid="vertex-auth-mode-apikey"]').exists()).toBe(false)
     expect(wrapper.find('[data-testid="vertex-api-key-input"]').exists()).toBe(false)

@@ -41,6 +41,8 @@ export default {
   "clearCredential": "清除已保存的 {field}",
   "serviceAccountHint": "粘贴下载的 Google 服务账号密钥 JSON",
   "serviceAccountNotice": "Google 服务账号 JSON 必须包含 type service_account、project_id、client_email 及 RSA PEM private_key。仅接受官方 https://oauth2.googleapis.com/token Token 地址，不支持外部凭据来源或地址覆盖。最大 32 KiB。",
+  "vertexApiKey": "Agent Platform（Vertex）API 密钥",
+  "vertexApiKeyHint": "请使用在 Google Cloud Agent Platform 创建的密钥，不要填写 AI Studio Gemini API 密钥。",
   "endpointPolicy": "仅接受列表中的官方 HTTPS 地址。自定义聚合地址由管理员配置，编辑时地址留空会保留已保存地址。",
   "proxy": "本人代理",
   "retainProxy": "保留当前绑定（隐藏的管理员代理也会保留）",
