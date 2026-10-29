@@ -1,5 +1,6 @@
-import clash from "./clash"
+import clash from './clash'
 import supplier from './supplier'
+import adminAccessKeys from './adminAccessKeys'
 import landing from './landing'
 import common from './common'
 import dashboard from './dashboard'
@@ -10,6 +11,7 @@ import misc from './misc'
 
 export default {
   clash,
+  adminAccessKeys,
   ...landing,
   ...common,
   ...dashboard,

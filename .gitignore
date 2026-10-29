@@ -134,6 +134,7 @@ deploy/docker-compose.override.yml
 .worktrees/
 vite.config.js
 docs/*
+!docs/admin-api-keys.md
 !docs/PAYMENT.md
 !docs/PRODUCTION_DEPLOYMENT.md
 !docs/PAYMENT_CN.md
