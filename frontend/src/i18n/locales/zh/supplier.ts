@@ -9,7 +9,7 @@ export default {
   "assignmentConflict": "归属已更改或代理正在使用中。请刷新代理列表并重新打开此窗口后重试。",
 
   "role": "供应商",
-  "accounts": "我的上游账号",
+  "accounts": "我的账号",
   "proxies": "我的代理",
   "usage": "使用统计",
   "platformAccount": "平台账号",
@@ -74,7 +74,7 @@ export default {
   "accountID": "本人账号 ID（可选）",
   "allAccounts": "全部本人账号",
   "loadUsage": "加载统计",
-  "accountFilterNotice": "使用“我的上游账号”中的 ID。指定 ID 仅统计该账号，不包含其派生账号。已删除的本人账号仍可查询历史统计；留空包含全部本人账号。",
+  "accountFilterNotice": "使用“我的账号”中的 ID。指定 ID 仅统计该账号，不包含其派生账号。已删除的本人账号仍可查询历史统计；留空包含全部本人账号。",
   "usageNotice": "调用次数为用量记录中的调用次数，按 UTC 日期汇总，不代表成功率或完整流量及失败请求数。日期范围包含首尾日期，最多 366 天。",
   "metrics": {
     "requests": "记录调用次数",

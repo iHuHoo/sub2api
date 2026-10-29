@@ -2,6 +2,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import Select from '@/components/common/Select.vue'
 import en from '@/i18n/locales/en'
+import zh from '@/i18n/locales/zh'
 import AccountsView from '../AccountsView.vue'
 import ProxiesView from '../ProxiesView.vue'
 import UsageView from '../UsageView.vue'
@@ -49,6 +50,15 @@ function render(component: typeof AccountsView | typeof ProxiesView | typeof Usa
     Pagination: true
   } } })
 }
+
+describe('supplier account copy', () => {
+  it('uses the shorter owned-account name in both locales', () => {
+    expect(en.supplier.accounts).toBe('My accounts')
+    expect(en.supplier.accountFilterNotice).toContain('My accounts')
+    expect(zh.supplier.accounts).toBe('我的账号')
+    expect(zh.supplier.accountFilterNotice).toContain('“我的账号”')
+  })
+})
 async function click(wrapper: ReturnType<typeof render>, name: string) {
   const button = wrapper.findAll('button').find(b => b.text() === name)
   expect(button, `button ${name}`).toBeDefined()

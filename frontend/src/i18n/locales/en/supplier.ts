@@ -9,7 +9,7 @@ export default {
   "assignmentConflict": "Assignment changed or proxy is in use. Refresh the proxy list and reopen this dialog before retrying.",
 
   "role": "Supplier",
-  "accounts": "My upstream accounts",
+  "accounts": "My accounts",
   "proxies": "My proxies",
   "usage": "Usage statistics",
   "platformAccount": "Platform account",
@@ -74,7 +74,7 @@ export default {
   "accountID": "Own account ID (optional)",
   "allAccounts": "All owned accounts",
   "loadUsage": "Load statistics",
-  "accountFilterNotice": "Use an ID from My upstream accounts. A specific ID counts that account only, without its derived accounts. Deleted owned accounts remain valid for historical statistics; leave blank to include all owned accounts.",
+  "accountFilterNotice": "Use an ID from My accounts. A specific ID counts that account only, without its derived accounts. Deleted owned accounts remain valid for historical statistics; leave blank to include all owned accounts.",
   "usageNotice": "Calls recorded in usage records, with daily totals in UTC. This is not a success rate or a complete count of traffic and failed requests. Date ranges are inclusive and limited to 366 days.",
   "metrics": {
     "requests": "Recorded calls",
