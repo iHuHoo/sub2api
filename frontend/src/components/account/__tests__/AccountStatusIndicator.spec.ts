@@ -51,6 +51,22 @@ function makeAccount(overrides: Partial<Account>): Account {
 }
 
 describe('AccountStatusIndicator', () => {
+  it.each(['rate_limit_reset_at', 'overload_until', 'temp_unschedulable_until'] as const)(
+    'left-aligns the two-line status for %s', (field) => {
+      const wrapper = mount(AccountStatusIndicator, {
+        props: { account: makeAccount({ [field]: '2099-01-01T00:00:00Z' }) },
+        global: { stubs: { Icon: true } }
+      })
+      const block = wrapper.get('.flex-col')
+      expect(block.classes()).toContain('items-start')
+      expect(block.classes()).not.toContain('items-center')
+      if (field === 'temp_unschedulable_until') {
+        expect(block.get('span').classes()).toContain('text-left')
+      }
+      wrapper.unmount()
+    }
+  )
+
   it('Claude 5 系列模型限流时显示 Opus 和 Sonnet 的短别名', () => {
     const wrapper = mount(AccountStatusIndicator, {
       props: {
