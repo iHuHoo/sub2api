@@ -65,7 +65,7 @@ func (r *supplierCreateTestRepo) GetAccount(context.Context, int64, int64) (*Acc
 	return r.account, nil
 }
 
-func TestSupplierCreateAccountUsesDefaultPriority(t *testing.T) {
+func TestSupplierCreateAccountMatchesAdminDefaultPriority(t *testing.T) {
 	repo := &supplierCreateTestRepo{}
 	svc := NewSupplierService(repo, nil)
 
@@ -77,7 +77,7 @@ func TestSupplierCreateAccountUsesDefaultPriority(t *testing.T) {
 	})
 
 	require.NoError(t, err)
-	require.Equal(t, 50, repo.account.Priority)
+	require.Equal(t, 1, repo.account.Priority)
 }
 
 func TestSupplierServiceAccountImportDropsExternalMetadata(t *testing.T) {

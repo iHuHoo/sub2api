@@ -161,7 +161,7 @@ func (s *SupplierService) CreateAccount(ctx context.Context, owner int64, in Sup
 	if err := validateSupplierCredentials(in.Platform, in.Type, in.Credentials, true); err != nil {
 		return nil, err
 	}
-	input := &CreateAccountInput{Name: strings.TrimSpace(in.Name), Platform: in.Platform, Type: in.Type, Credentials: in.Credentials, ProxyID: in.ProxyID, ExpiresAt: in.ExpiresAt, SupplierUserID: &owner, SkipDefaultGroupBind: true, Concurrency: 1, Priority: 50}
+	input := &CreateAccountInput{Name: strings.TrimSpace(in.Name), Platform: in.Platform, Type: in.Type, Credentials: in.Credentials, ProxyID: in.ProxyID, ExpiresAt: in.ExpiresAt, SupplierUserID: &owner, SkipDefaultGroupBind: true, Concurrency: 1, Priority: 1}
 	a, err := buildAccountForCreate(input, nil)
 	if err != nil {
 		return nil, ErrSupplierInvalid
