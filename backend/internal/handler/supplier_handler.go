@@ -21,11 +21,17 @@ type SupplierHandler struct {
 	service      *service.SupplierService
 	oauth        *service.SupplierOAuthService
 	accountUsage supplierAccountUsageReader
+	accountTest  supplierAccountTester
 }
 
 type supplierAccountUsageReader interface {
 	GetUsage(context.Context, int64, ...bool) (*service.UsageInfo, error)
 	GetPassiveUsage(context.Context, int64) (*service.UsageInfo, error)
+}
+
+type supplierAccountTester interface {
+	SupplierAvailableModels(context.Context, int64, int64) ([]service.AccountTestModel, error)
+	TestSupplierAccountConnection(*gin.Context, int64, int64, string) error
 }
 
 type supplierUsageProgress struct {
@@ -110,8 +116,8 @@ func supplierAccountUsageView(usage *service.UsageInfo) supplierAccountUsage {
 	return out
 }
 
-func NewSupplierHandlerWithOAuth(s *service.SupplierService, o *service.OpenAIOAuthService, c *service.OAuthService, g *service.GeminiOAuthService, a *service.AntigravityOAuthService, x *service.GrokOAuthService) *SupplierHandler {
-	return &SupplierHandler{service: s, oauth: service.NewSupplierOAuthService(s, o, c, g, a, x)}
+func NewSupplierHandlerWithOAuth(s *service.SupplierService, o *service.OpenAIOAuthService, c *service.OAuthService, g *service.GeminiOAuthService, a *service.AntigravityOAuthService, x *service.GrokOAuthService, accountTest *service.AccountTestService) *SupplierHandler {
+	return &SupplierHandler{service: s, oauth: service.NewSupplierOAuthService(s, o, c, g, a, x), accountTest: accountTest}
 }
 
 func (h *SupplierHandler) OAuth(c *gin.Context) {
@@ -231,6 +237,61 @@ func (h *SupplierHandler) GetAccount(c *gin.Context) {
 	response.Success(c, row)
 }
 
+func (h *SupplierHandler) GetAccountModels(c *gin.Context) {
+	owner, ok := supplierSubject(c)
+	if !ok {
+		return
+	}
+	id, ok := supplierID(c)
+	if !ok {
+		return
+	}
+	if _, err := h.service.GetAccount(c.Request.Context(), owner, id); err != nil {
+		supplierError(c, err)
+		return
+	}
+	if h.accountTest == nil {
+		supplierError(c, service.ErrSupplierUnavailable)
+		return
+	}
+	models, err := h.accountTest.SupplierAvailableModels(c.Request.Context(), owner, id)
+	if err != nil {
+		supplierError(c, err)
+		return
+	}
+	response.Success(c, models)
+}
+
+func (h *SupplierHandler) TestAccount(c *gin.Context) {
+	owner, ok := supplierSubject(c)
+	if !ok {
+		return
+	}
+	id, ok := supplierID(c)
+	if !ok {
+		return
+	}
+	if _, err := h.service.GetAccount(c.Request.Context(), owner, id); err != nil {
+		supplierError(c, err)
+		return
+	}
+	var in struct {
+		ModelID string `json:"model_id"`
+	}
+	if !bindSupplierJSON(c, &in) {
+		return
+	}
+	if h.accountTest == nil {
+		supplierError(c, service.ErrSupplierUnavailable)
+		return
+	}
+	if err := h.accountTest.TestSupplierAccountConnection(c, owner, id, in.ModelID); errors.Is(err, service.ErrSupplierUnavailable) {
+		supplierError(c, err)
+	} else if err != nil {
+		slog.Warn("supplier account test failed", "account_id", id, "supplier_user_id", owner)
+	}
+}
+
 func (h *SupplierHandler) GetAccountUsage(c *gin.Context) {
 	owner, ok := supplierSubject(c)
 	if !ok {
@@ -293,32 +354,6 @@ func (h *SupplierHandler) UpdateAccount(c *gin.Context) {
 		return
 	}
 	row, err := h.service.UpdateAccount(c.Request.Context(), owner, id, in)
-	if err != nil {
-		supplierError(c, err)
-		return
-	}
-	response.Success(c, row)
-}
-func (h *SupplierHandler) PauseAccount(c *gin.Context) {
-	owner, ok := supplierSubject(c)
-	if !ok {
-		return
-	}
-	id, ok := supplierID(c)
-	if !ok {
-		return
-	}
-	var in struct {
-		Paused *bool `json:"paused"`
-	}
-	if !bindSupplierJSON(c, &in) {
-		return
-	}
-	if in.Paused == nil {
-		supplierError(c, service.ErrSupplierInvalid)
-		return
-	}
-	row, err := h.service.PauseAccount(c.Request.Context(), owner, id, *in.Paused)
 	if err != nil {
 		supplierError(c, err)
 		return

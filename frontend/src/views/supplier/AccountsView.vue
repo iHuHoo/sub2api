@@ -2,16 +2,21 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import AppLayout from '@/components/layout/AppLayout.vue'
+import TablePageLayout from '@/components/layout/TablePageLayout.vue'
+import Icon from '@/components/icons/Icon.vue'
 import CreateAccountModal from '@/components/account/CreateAccountModal.vue'
+import AccountStatusIndicator from '@/components/account/AccountStatusIndicator.vue'
 import AccountUsageCell from '@/components/account/AccountUsageCell.vue'
+import AccountTestModal from '@/components/admin/account/AccountTestModal.vue'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import DataTable from '@/components/common/DataTable.vue'
-import HelpTooltip from '@/components/common/HelpTooltip.vue'
 import Pagination from '@/components/common/Pagination.vue'
+import PlatformTypeBadge from '@/components/common/PlatformTypeBadge.vue'
 import Select from '@/components/common/Select.vue'
 import { supplierAPI, supplierErrorKey, type SupplierAccount, type SupplierAccountUpdate, type SupplierProxy } from '@/api/supplier'
 import { useAppStore } from '@/stores/app'
 import type { Account } from '@/types'
+import { formatDateTime, formatRelativeTime } from '@/utils/format'
 
 const { t } = useI18n()
 const appStore = useAppStore()
@@ -20,12 +25,12 @@ const page = ref(1)
 const total = ref(0)
 const loading = ref(false)
 const saving = ref(false)
-const pendingPause = ref<number | null>(null)
 const show = ref(false)
 const showCreate = ref(false)
 const createLoading = ref(false)
 const createProxies = ref<SupplierProxy[]>([])
 const editing = ref<SupplierAccount | null>(null)
+const testing = ref<SupplierAccount | null>(null)
 const initialExpiry = ref('')
 const proxies = ref<SupplierProxy[]>([])
 const proxyPage = ref(1)
@@ -107,9 +112,13 @@ const fields = computed(() => {
   return [...required.map(key => ({ key, required: true })), ...optional.map(key => ({ key, required: false }))]
 })
 const columns = computed(() => [
-  { key: 'name', label: t('supplier.name') }, { key: 'platform', label: t('supplier.platform') },
-  { key: 'status', label: t('supplier.adminLifecycle') }, { key: 'supplier_paused', label: t('supplier.supply') },
-  { key: 'expires_at', label: t('supplier.expiry') }, { key: 'usage', label: t('admin.accounts.columns.usageWindows') },
+  { key: 'name', label: t('admin.accounts.columns.name') },
+  { key: 'platform_type', label: t('admin.accounts.columns.platformType') },
+  { key: 'status', label: t('admin.accounts.columns.status') },
+  { key: 'usage', label: t('admin.accounts.columns.usageWindows') },
+  { key: 'test', label: t('admin.accounts.testConnection') },
+  { key: 'last_used_at', label: t('admin.accounts.columns.lastUsed') },
+  { key: 'created_at', label: t('admin.accounts.columns.createdAt') },
   { key: 'actions', label: t('common.actions') }
 ])
 const usageAccount = (account: SupplierAccount) => ({
@@ -121,14 +130,20 @@ const usageAccount = (account: SupplierAccount) => ({
   concurrency: 0,
   priority: 0,
   error_message: null,
-  last_used_at: null,
+  last_used_at: account.last_used_at,
   auto_pause_on_expired: false,
-  schedulable: false,
+  schedulable: account.schedulable,
   rate_limited_at: null,
-  rate_limit_reset_at: null,
-  overload_until: null,
-  temp_unschedulable_until: null,
+  rate_limit_reset_at: account.rate_limit_reset_at,
+  overload_until: account.overload_until,
+  temp_unschedulable_until: account.temp_unschedulable_until,
   temp_unschedulable_reason: null,
+  quota_limit: null,
+  quota_used: null,
+  quota_daily_limit: null,
+  quota_daily_used: null,
+  quota_weekly_limit: null,
+  quota_weekly_used: null,
   session_window_start: null,
   session_window_end: null,
   session_window_status: null
@@ -233,15 +248,6 @@ async function save() {
   } catch (error) { appStore.showError(t(supplierErrorKey(error))) }
   finally { saving.value = false }
 }
-async function pause(account: SupplierAccount) {
-  if (account.read_only || pendingPause.value !== null) return
-  pendingPause.value = account.id
-  try {
-    await supplierAPI.accounts.pause(account.id, !account.supplier_paused)
-    await load()
-  } catch (error) { appStore.showError(t(supplierErrorKey(error))) }
-  finally { pendingPause.value = null }
-}
 function close() {
   if (saving.value) return
   show.value = false
@@ -252,43 +258,50 @@ onMounted(load)
 
 <template>
   <AppLayout>
-    <div class="space-y-5">
-      <div class="flex flex-wrap items-center justify-between gap-3">
+    <TablePageLayout>
+      <template #actions><div class="flex flex-wrap items-center justify-between gap-3">
         <h2 class="text-xl font-semibold text-gray-900 dark:text-white">{{ t('supplier.accounts') }}</h2>
         <button class="btn btn-primary" :disabled="createLoading" @click="openCreate">{{ t('supplier.addAccount') }}</button>
-      </div>
-      <p class="card p-4 text-sm text-gray-600 dark:text-gray-300">{{ t('supplier.assignmentNotice') }}</p>
-      <div class="card overflow-hidden">
+      </div></template>
+      <template #filters><p class="text-sm text-gray-600 dark:text-gray-300">{{ t('supplier.assignmentNotice') }}</p></template>
+      <template #table>
         <DataTable :columns="columns" :data="accounts" :loading="loading">
           <template #cell-name="{ row }">
-            <div class="font-medium">{{ row.name }} <span class="text-xs text-gray-500">#{{ row.id }}</span></div>
-            <p v-if="row.notes" class="max-w-xs whitespace-pre-wrap break-words text-xs text-gray-500">{{ row.notes }}</p>
-            <span v-if="row.read_only" class="badge badge-gray">{{ t('supplier.readOnly') }}</span>
+            <div class="font-medium text-gray-900 dark:text-white">{{ row.name }}</div>
+            <div class="text-xs text-gray-500 dark:text-gray-400">#{{ row.id }}</div>
+            <p v-if="row.notes" :title="row.notes" class="max-w-xs truncate text-xs text-gray-500 dark:text-gray-400">{{ row.notes }}</p>
+            <span v-if="row.read_only" class="text-xs text-gray-500 dark:text-gray-400">{{ t('supplier.readOnly') }}</span>
           </template>
-          <template #cell-platform="{ row }">{{ row.platform }} / {{ row.type }}</template>
-          <template #cell-status="{ value }">{{ value === 'active' ? t('common.active') : value === 'inactive' ? t('supplier.inactive') : value }}</template>
-          <template #cell-supplier_paused="{ value }">{{ value ? t('supplier.paused') : t('supplier.unpaused') }}</template>
-          <template #cell-expires_at="{ value }">{{ value || '—' }}</template>
-          <template #header-usage="{ column }">
-            <div class="flex items-center">
-              <span>{{ column.label }}</span>
-              <HelpTooltip :content="t('admin.accounts.usageWindowsHint')" width-class="w-72" />
-            </div>
+          <template #cell-platform_type="{ row }">
+            <PlatformTypeBadge :platform="row.platform" :type="row.type" :auth-mode="row.auth_mode" />
+          </template>
+          <template #cell-status="{ row }">
+            <AccountStatusIndicator :account="usageAccount(row)" />
           </template>
           <template #cell-usage="{ row }">
             <AccountUsageCell :account="usageAccount(row)" read-only :usage-fetcher="supplierAPI.accounts.getUsage" />
           </template>
+          <template #cell-test="{ row }">
+            <button :aria-label="t('admin.accounts.testConnection')" class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-primary-600 dark:hover:bg-dark-700 dark:hover:text-primary-400 disabled:opacity-50 disabled:cursor-not-allowed" :disabled="row.read_only" @click="testing = row"><Icon name="play" size="sm" /><span class="text-xs">{{ t('admin.accounts.testConnection') }}</span></button>
+          </template>
+          <template #cell-last_used_at="{ row }"><span class="text-sm text-gray-500 dark:text-dark-400" :data-testid="`last-used-${row.id}`">{{ row.last_used_at ? formatRelativeTime(row.last_used_at) : '—' }}</span></template>
+          <template #cell-created_at="{ value }"><span class="text-sm text-gray-500 dark:text-dark-400">{{ formatDateTime(value) || '—' }}</span></template>
           <template #cell-actions="{ row }">
-            <div class="flex flex-wrap gap-2">
-              <button class="btn btn-secondary btn-sm" :disabled="row.read_only" @click="open(row)">{{ t('common.edit') }}</button>
-              <button class="btn btn-secondary btn-sm" :disabled="row.read_only || pendingPause !== null" @click="pause(row)">{{ row.supplier_paused ? t('supplier.resume') : t('supplier.pause') }}</button>
-            </div>
+            <button :aria-label="t('common.edit')" class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-primary-600 dark:hover:bg-dark-700 dark:hover:text-primary-400 disabled:opacity-50 disabled:cursor-not-allowed" :disabled="row.read_only" @click="open(row)"><Icon name="edit" size="sm" /><span class="text-xs">{{ t('common.edit') }}</span></button>
           </template>
         </DataTable>
-        <Pagination v-if="total" :total="total" :page="page" :page-size="20" :show-page-size-selector="false" @update:page="page = $event; load()" />
-      </div>
-    </div>
+      </template>
+      <template #pagination><Pagination v-if="total" :total="total" :page="page" :page-size="20" :show-page-size-selector="false" @update:page="page = $event; load()" /></template>
+    </TablePageLayout>
     <CreateAccountModal v-if="showCreate" :show="showCreate" supplier :proxies="createProxies" :groups="[]" @close="showCreate = false" @created="load" />
+    <AccountTestModal
+      :show="testing !== null"
+      :account="testing ? usageAccount(testing) : null"
+      :model-loader="supplierAPI.accounts.getModels"
+      :test-path="testing ? `/supplier/accounts/${testing.id}/test` : ''"
+      diagnostic-only
+      @close="testing = null"
+    />
     <BaseDialog :show="show" :title="t('supplier.editAccount')" width="normal" @close="close">
       <form id="supplier-account-form" class="space-y-4" @submit.prevent="save">
         <label class="block"><span class="input-label">{{ t('supplier.name') }}</span><input v-model="form.name" name="name" class="input" required maxlength="100" /></label>

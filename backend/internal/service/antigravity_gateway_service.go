@@ -457,10 +457,13 @@ func (s *AntigravityGatewayService) TestConnectionWithPrompt(ctx context.Context
 // testConnectionHandleError 是 TestConnection 使用的轻量 handleError 回调。
 // 仅记录日志，不做 ops 错误追踪或粘性会话清除。
 func testConnectionHandleError(
-	_ context.Context, prefix string, account *Account,
+	ctx context.Context, prefix string, account *Account,
 	statusCode int, _ http.Header, body []byte,
 	requestedModel string, _ int64, _ string, _ bool,
 ) *handleModelRateLimitResult {
+	if isSupplierAccountTestContext(ctx) {
+		body = []byte("[redacted]")
+	}
 	logger.LegacyPrintf("service.antigravity_gateway",
 		"%s test_handle_error status=%d model=%s account=%d body=%s",
 		prefix, statusCode, requestedModel, account.ID, truncateForLog(body, 200))

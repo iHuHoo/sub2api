@@ -220,4 +220,42 @@ describe('AccountTestModal', () => {
       mode: 'compact'
     })
   })
+
+  it('supplier mode injects restricted endpoints and sends model_id only', async () => {
+    const supplierModels = vi.fn().mockResolvedValue([
+      { id: 'claude-sonnet-4-5', display_name: 'Claude Sonnet 4.5' }
+    ])
+    const wrapper = mount(AccountTestModal, {
+      props: {
+        show: false,
+        account: { id: 7, name: 'Supplier account', platform: 'anthropic', type: 'apikey', status: 'active' } as any,
+        modelLoader: supplierModels,
+        testPath: '/supplier/accounts/7/test',
+        diagnosticOnly: true
+      },
+      global: {
+        stubs: {
+          BaseDialog: { template: '<div><slot /><slot name="footer" /></div>' },
+          Select: { template: '<div class="select-stub"></div>' },
+          TextArea: { template: '<textarea class="textarea-stub" />' },
+          Icon: true
+        }
+      }
+    })
+    await wrapper.setProps({ show: true })
+    await flushPromises()
+
+    expect(supplierModels).toHaveBeenCalledWith(7)
+    expect(getAvailableModels).not.toHaveBeenCalled()
+    expect(wrapper.find('textarea').exists()).toBe(false)
+    ;(wrapper.vm as any).selectedModelId = 'claude-sonnet-4-5'
+    await (wrapper.vm as any).startTest()
+    await flushPromises()
+
+    expect(global.fetch).toHaveBeenCalledTimes(1)
+    const [url, request] = (global.fetch as any).mock.calls[0]
+    expect(url).toContain('/supplier/accounts/7/test')
+    expect(url).not.toContain('/admin/')
+    expect(JSON.parse(request.body)).toEqual({ model_id: 'claude-sonnet-4-5' })
+  })
 })

@@ -9,14 +9,18 @@ describe('supplier API transport', () => {
     expect(await supplierAPI.accounts.list(2)).toEqual(response)
     expect(client.get).toHaveBeenCalledWith('/supplier/accounts', { params: { page: 2, page_size: 20 } })
   })
-  it('sends sparse account edits and a separate supplier pause mutation', async () => {
+  it('sends sparse account edits without exposing a pause mutation', async () => {
     client.put.mockResolvedValue({ data: { id: 3 } })
     client.post.mockResolvedValue({ data: { id: 3 } })
     await supplierAPI.accounts.update(3, { credentials: { api_key: 'synthetic' } })
     expect(client.put).toHaveBeenCalledWith('/supplier/accounts/3', { credentials: { api_key: 'synthetic' } })
-    await supplierAPI.accounts.pause(3, false)
-    expect(client.post).toHaveBeenCalledWith('/supplier/accounts/3/pause', { paused: false })
+    expect(supplierAPI.accounts).not.toHaveProperty('pause')
     expect('delete' in supplierAPI.accounts).toBe(false)
+  })
+  it('loads only the supplier-safe account model view', async () => {
+    client.get.mockResolvedValue({ data: [{ id: 'model-1', display_name: 'Model 1' }] })
+    expect(await supplierAPI.accounts.getModels(3)).toEqual([{ id: 'model-1', display_name: 'Model 1' }])
+    expect(client.get).toHaveBeenCalledWith('/supplier/accounts/3/models')
   })
   it('never accepts a target URL or body for TCP testing', async () => {
     client.post.mockResolvedValue({ data: { reachable: false, latency_ms: 5000 } })

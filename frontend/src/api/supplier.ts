@@ -1,5 +1,5 @@
 import { apiClient } from './client'
-import type { AccountUsageInfo, PaginatedResponse } from '@/types'
+import type { AccountUsageInfo, ClaudeModel, PaginatedResponse } from '@/types'
 
 export interface SupplierAccount {
   id: number
@@ -9,10 +9,17 @@ export interface SupplierAccount {
   type: string
   auth_mode?: 'service_account' | 'apikey'
   status: string
-  supplier_paused: boolean
   read_only: boolean
   proxy_id: number | null
   expires_at: string | null
+  last_used_at: string | null
+  schedulable: boolean
+  rate_limit_reset_at: string | null
+  overload_until: string | null
+  temp_unschedulable_until: string | null
+  extra?: {
+    model_rate_limits?: Record<string, { rate_limited_at: string; rate_limit_reset_at: string }>
+  }
   created_at: string
   updated_at: string
 }
@@ -80,9 +87,9 @@ export const supplierAPI = {
     },
     async get(id: number) { return (await apiClient.get<SupplierAccount>(`/supplier/accounts/${id}`)).data },
     async getUsage(id: number) { return (await apiClient.get<AccountUsageInfo>(`/supplier/accounts/${id}/usage`)).data },
+    async getModels(id: number) { return (await apiClient.get<ClaudeModel[]>(`/supplier/accounts/${id}/models`)).data },
     async create(input: SupplierAccountCreate) { return (await apiClient.post<SupplierAccount>('/supplier/accounts', input)).data },
     async update(id: number, input: SupplierAccountUpdate) { return (await apiClient.put<SupplierAccount>(`/supplier/accounts/${id}`, input)).data },
-    async pause(id: number, paused: boolean) { return (await apiClient.post<SupplierAccount>(`/supplier/accounts/${id}/pause`, { paused })).data }
   },
   proxies: {
     async list(page = 1, pageSize = 20) {
