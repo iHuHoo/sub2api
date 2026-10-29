@@ -14,6 +14,13 @@ export interface SupplierAccount {
   proxy_id: number | null
   expires_at: string | null
   last_used_at: string | null
+  schedulable: boolean
+  rate_limit_reset_at: string | null
+  overload_until: string | null
+  temp_unschedulable_until: string | null
+  extra?: {
+    model_rate_limits?: Record<string, { rate_limited_at: string; rate_limit_reset_at: string }>
+  }
   created_at: string
   updated_at: string
 }

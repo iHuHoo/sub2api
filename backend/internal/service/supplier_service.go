@@ -42,20 +42,34 @@ type SupplierAccountUpdate struct {
 }
 
 type SupplierAccount struct {
-	ID             int64      `json:"id"`
-	Name           string     `json:"name"`
-	Notes          *string    `json:"notes"`
-	Platform       string     `json:"platform"`
-	Type           string     `json:"type"`
-	AuthMode       string     `json:"auth_mode,omitempty"`
-	Status         string     `json:"status"`
-	SupplierPaused bool       `json:"supplier_paused"`
-	ReadOnly       bool       `json:"read_only"`
-	ProxyID        *int64     `json:"proxy_id"`
-	ExpiresAt      *time.Time `json:"expires_at"`
-	LastUsedAt     *time.Time `json:"last_used_at"`
-	CreatedAt      time.Time  `json:"created_at"`
-	UpdatedAt      time.Time  `json:"updated_at"`
+	ID                     int64                 `json:"id"`
+	Name                   string                `json:"name"`
+	Notes                  *string               `json:"notes"`
+	Platform               string                `json:"platform"`
+	Type                   string                `json:"type"`
+	AuthMode               string                `json:"auth_mode,omitempty"`
+	Status                 string                `json:"status"`
+	SupplierPaused         bool                  `json:"supplier_paused"`
+	ReadOnly               bool                  `json:"read_only"`
+	ProxyID                *int64                `json:"proxy_id"`
+	ExpiresAt              *time.Time            `json:"expires_at"`
+	LastUsedAt             *time.Time            `json:"last_used_at"`
+	Schedulable            bool                  `json:"schedulable"`
+	RateLimitResetAt       *time.Time            `json:"rate_limit_reset_at"`
+	OverloadUntil          *time.Time            `json:"overload_until"`
+	TempUnschedulableUntil *time.Time            `json:"temp_unschedulable_until"`
+	Extra                  *SupplierAccountExtra `json:"extra,omitempty"`
+	CreatedAt              time.Time             `json:"created_at"`
+	UpdatedAt              time.Time             `json:"updated_at"`
+}
+
+type SupplierAccountExtra struct {
+	ModelRateLimits map[string]SupplierAccountModelRateLimit `json:"model_rate_limits,omitempty"`
+}
+
+type SupplierAccountModelRateLimit struct {
+	RateLimitedAt    string `json:"rate_limited_at"`
+	RateLimitResetAt string `json:"rate_limit_reset_at"`
 }
 
 type SupplierProxyInput struct {
@@ -128,7 +142,7 @@ func NewSupplierService(repo SupplierRepository, tokenInvalidator TokenCacheInva
 }
 
 func supplierAccountView(a *Account, owner int64) SupplierAccount {
-	out := SupplierAccount{ID: a.ID, Name: a.Name, Notes: a.SupplierNotes, Platform: a.Platform, Type: a.Type, Status: a.Status, SupplierPaused: a.SupplierPaused, ReadOnly: a.ParentAccountID != nil, ExpiresAt: a.ExpiresAt, LastUsedAt: a.LastUsedAt, CreatedAt: a.CreatedAt, UpdatedAt: a.UpdatedAt}
+	out := SupplierAccount{ID: a.ID, Name: a.Name, Notes: a.SupplierNotes, Platform: a.Platform, Type: a.Type, Status: a.Status, SupplierPaused: a.SupplierPaused, ReadOnly: a.ParentAccountID != nil, ExpiresAt: a.ExpiresAt, LastUsedAt: a.LastUsedAt, Schedulable: a.Schedulable, RateLimitResetAt: a.RateLimitResetAt, OverloadUntil: a.OverloadUntil, TempUnschedulableUntil: a.TempUnschedulableUntil, Extra: supplierAccountExtra(a.Extra), CreatedAt: a.CreatedAt, UpdatedAt: a.UpdatedAt}
 	if a.Platform == PlatformGemini && a.Type == AccountTypeServiceAccount {
 		out.AuthMode = supplierVertexAuthMode(a.Credentials)
 	}
@@ -136,6 +150,24 @@ func supplierAccountView(a *Account, owner int64) SupplierAccount {
 		out.ProxyID = a.ProxyID
 	}
 	return out
+}
+
+func supplierAccountExtra(extra map[string]any) *SupplierAccountExtra {
+	rawLimits, _ := extra[modelRateLimitsKey].(map[string]any)
+	limits := make(map[string]SupplierAccountModelRateLimit, len(rawLimits))
+	for model, raw := range rawLimits {
+		value, ok := raw.(map[string]any)
+		if !ok {
+			continue
+		}
+		limitedAt, _ := value["rate_limited_at"].(string)
+		resetAt, _ := value["rate_limit_reset_at"].(string)
+		limits[model] = SupplierAccountModelRateLimit{RateLimitedAt: limitedAt, RateLimitResetAt: resetAt}
+	}
+	if len(limits) == 0 {
+		return nil
+	}
+	return &SupplierAccountExtra{ModelRateLimits: limits}
 }
 func supplierProxyView(p *Proxy) SupplierProxy {
 	return SupplierProxy{ReadOnly: p.AssignedSupplierUserID != nil, ExpiresAt: p.ExpiresAt, ID: p.ID, Name: p.Name, Protocol: p.Protocol, Host: p.Host, Port: p.Port, Username: p.Username, HasPassword: p.Password != "", Status: p.Status, CreatedAt: p.CreatedAt, UpdatedAt: p.UpdatedAt}

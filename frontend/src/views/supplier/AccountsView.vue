@@ -3,6 +3,7 @@ import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import CreateAccountModal from '@/components/account/CreateAccountModal.vue'
+import AccountStatusIndicator from '@/components/account/AccountStatusIndicator.vue'
 import AccountUsageCell from '@/components/account/AccountUsageCell.vue'
 import AccountTestModal from '@/components/admin/account/AccountTestModal.vue'
 import BaseDialog from '@/components/common/BaseDialog.vue'
@@ -129,12 +130,18 @@ const usageAccount = (account: SupplierAccount) => ({
   error_message: null,
   last_used_at: account.last_used_at,
   auto_pause_on_expired: false,
-  schedulable: false,
+  schedulable: account.schedulable,
   rate_limited_at: null,
-  rate_limit_reset_at: null,
-  overload_until: null,
-  temp_unschedulable_until: null,
+  rate_limit_reset_at: account.rate_limit_reset_at,
+  overload_until: account.overload_until,
+  temp_unschedulable_until: account.temp_unschedulable_until,
   temp_unschedulable_reason: null,
+  quota_limit: null,
+  quota_used: null,
+  quota_daily_limit: null,
+  quota_daily_used: null,
+  quota_weekly_limit: null,
+  quota_weekly_used: null,
   session_window_start: null,
   session_window_end: null,
   session_window_status: null
@@ -279,7 +286,7 @@ onMounted(load)
           </template>
           <template #cell-status="{ row }">
             <div class="space-y-1">
-              <div>{{ row.status === 'active' ? t('common.active') : row.status === 'inactive' ? t('supplier.inactive') : row.status }}</div>
+              <AccountStatusIndicator :account="usageAccount(row)" />
               <div class="text-xs text-gray-500">{{ row.supplier_paused ? t('supplier.paused') : t('supplier.unpaused') }}</div>
               <button class="btn btn-secondary btn-sm" :disabled="row.read_only || pendingPause !== null" @click="pause(row)">{{ row.supplier_paused ? t('supplier.resume') : t('supplier.pause') }}</button>
             </div>

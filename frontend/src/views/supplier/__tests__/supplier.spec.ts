@@ -43,7 +43,7 @@ vi.mock('vue-i18n', async (original) => ({
     return String(value ?? key).replace(/\{(\w+)\}/g, (_, name) => String(params[name] ?? name))
   } })
 }))
-const account = { id: 3, name: 'Owned', notes: null, platform: 'openai', type: 'apikey', status: 'inactive', supplier_paused: false, read_only: false, proxy_id: null, expires_at: null, last_used_at: null, created_at: '2026-10-30T01:00:00Z', updated_at: '' }
+const account = { id: 3, name: 'Owned', notes: null, platform: 'openai', type: 'apikey', status: 'inactive', supplier_paused: false, read_only: false, proxy_id: null, expires_at: null, last_used_at: null, schedulable: false, rate_limit_reset_at: null, overload_until: null, temp_unschedulable_until: null, created_at: '2026-10-30T01:00:00Z', updated_at: '' }
 const proxy = { id: 7, name: 'Owned proxy', protocol: 'http', host: '8.8.8.8', port: 8080, username: 'u', has_password: true, status: 'inactive', created_at: '', updated_at: '' }
 const page = (items: unknown[]) => ({ items, total: items.length, pages: 1, page: 1, page_size: 20 })
 function render(component: typeof AccountsView | typeof ProxiesView | typeof UsageView) {
@@ -283,6 +283,28 @@ describe('supplier account editor', () => {
     expect(wrapper.findAll('button').some(button => button.text() === 'Pause supply')).toBe(true)
     vi.useRealTimers()
   })
+  it('uses the admin status indicator without exposing error details', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-10-30T02:00:00Z'))
+    api.accounts.list.mockResolvedValue(page([
+      { ...account, id: 1, status: 'active', schedulable: true },
+      { ...account, id: 2, status: 'error', schedulable: false, error_message: 'UPSTREAM_SECRET' },
+      { ...account, id: 3, status: 'inactive', schedulable: false },
+      { ...account, id: 4, status: 'active', schedulable: true, temp_unschedulable_until: '2026-10-30T03:00:00Z' },
+      { ...account, id: 5, status: 'active', schedulable: true, rate_limit_reset_at: '2026-10-30T03:00:00Z' }
+    ]))
+
+    const wrapper = render(AccountsView)
+    await flushPromises()
+
+    expect(wrapper.text()).toContain(en.admin.accounts.status.active)
+    expect(wrapper.text()).toContain(en.admin.accounts.status.error)
+    expect(wrapper.text()).toContain(en.admin.accounts.status.inactive)
+    expect(wrapper.text()).toContain(en.admin.accounts.status.tempUnschedulable)
+    expect(wrapper.text()).toContain(en.admin.accounts.status.rateLimited)
+    expect(wrapper.text()).not.toContain('UPSTREAM_SECRET')
+    vi.useRealTimers()
+  })
   it('shows an em dash when the account was never used', async () => {
     const wrapper = render(AccountsView)
     await flushPromises()
@@ -298,6 +320,9 @@ describe('supplier account editor', () => {
     await click(wrapper, 'Test Connection')
     expect(api.accounts.getModels).toHaveBeenCalledWith(3)
     expect(admin.getAvailableModels).not.toHaveBeenCalled()
+    const modal = wrapper.findComponent({ name: 'AccountTestModal' })
+    expect(modal.props('testPath')).toBe('/supplier/accounts/3/test')
+    expect(modal.props('diagnosticOnly')).toBe(true)
     expect(wrapper.find('textarea').exists()).toBe(false)
   })
   it('disables all mutations on derived accounts', async () => {

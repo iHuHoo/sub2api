@@ -44,7 +44,25 @@ func TestSupplierAccountResponseWhitelist(t *testing.T) {
 	adminNote := "admin-secret"
 	note := "supplier-note"
 	lastUsedAt := time.Date(2026, 10, 30, 1, 2, 3, 0, time.UTC)
-	a := &Account{ID: 1, Name: "a", SupplierUserID: &owner, Notes: &adminNote, SupplierNotes: &note, Credentials: map[string]any{"api_key": "secret"}, Extra: map[string]any{"customer": "private"}, ProxyID: &proxyID, Proxy: &Proxy{ID: proxyID, SupplierUserID: &foreign, Host: "private", Password: "secret"}, ErrorMessage: "downstream user secret", LastUsedAt: &lastUsedAt}
+	rateLimitedAt := lastUsedAt.Add(time.Minute)
+	rateLimitResetAt := lastUsedAt.Add(time.Hour)
+	overloadUntil := lastUsedAt.Add(2 * time.Hour)
+	tempUnschedulableUntil := lastUsedAt.Add(3 * time.Hour)
+	a := &Account{
+		ID: 1, Name: "a", SupplierUserID: &owner, Notes: &adminNote, SupplierNotes: &note,
+		Credentials: map[string]any{"api_key": "secret"},
+		Extra: map[string]any{
+			"customer": "private",
+			"model_rate_limits": map[string]any{
+				"gpt-5": map[string]any{
+					"rate_limited_at": rateLimitedAt.Format(time.RFC3339), "rate_limit_reset_at": rateLimitResetAt.Format(time.RFC3339), "reason": "private-reason",
+				},
+			},
+		},
+		ProxyID: &proxyID, Proxy: &Proxy{ID: proxyID, SupplierUserID: &foreign, Host: "private", Password: "secret"},
+		Status: StatusActive, ErrorMessage: "downstream user secret", LastUsedAt: &lastUsedAt, Schedulable: true,
+		RateLimitResetAt: &rateLimitResetAt, OverloadUntil: &overloadUntil, TempUnschedulableUntil: &tempUnschedulableUntil,
+	}
 	out := supplierAccountView(a, owner)
 	require.Nil(t, out.ProxyID)
 	raw, err := json.Marshal(out)
@@ -55,8 +73,15 @@ func TestSupplierAccountResponseWhitelist(t *testing.T) {
 	require.Contains(t, string(raw), "supplier-note")
 	var fields map[string]any
 	require.NoError(t, json.Unmarshal(raw, &fields))
-	require.ElementsMatch(t, []string{"id", "name", "notes", "platform", "type", "status", "supplier_paused", "read_only", "proxy_id", "expires_at", "last_used_at", "created_at", "updated_at"}, mapKeys(fields))
+	require.ElementsMatch(t, []string{"id", "name", "notes", "platform", "type", "status", "supplier_paused", "read_only", "proxy_id", "expires_at", "last_used_at", "created_at", "updated_at", "schedulable", "rate_limit_reset_at", "overload_until", "temp_unschedulable_until", "extra"}, mapKeys(fields))
 	require.Equal(t, lastUsedAt.Format(time.RFC3339), fields["last_used_at"])
+	require.Equal(t, true, fields["schedulable"])
+	require.Equal(t, rateLimitResetAt.Format(time.RFC3339), fields["rate_limit_reset_at"])
+	require.Equal(t, overloadUntil.Format(time.RFC3339), fields["overload_until"])
+	require.Equal(t, tempUnschedulableUntil.Format(time.RFC3339), fields["temp_unschedulable_until"])
+	require.Equal(t, map[string]any{"model_rate_limits": map[string]any{"gpt-5": map[string]any{
+		"rate_limited_at": rateLimitedAt.Format(time.RFC3339), "rate_limit_reset_at": rateLimitResetAt.Format(time.RFC3339),
+	}}}, fields["extra"])
 
 	a.Platform = PlatformGemini
 	a.Type = AccountTypeServiceAccount
