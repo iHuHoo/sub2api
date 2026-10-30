@@ -48,6 +48,23 @@ func assertProxyCredentialsAbsent(t *testing.T, text, username, password string)
 	}
 }
 
+func TestOpenAIWSInvalidProxyCredentials(t *testing.T) {
+	for _, userinfo := range []string{"fictional-user:fictional-password", "fictional%40user:fictional%3Ap%40ss%2Fword"} {
+		t.Run(userinfo, func(t *testing.T) {
+			dialer := newDefaultOpenAIWSClientDialer()
+			conn, status, headers, err := dialer.Dial(context.Background(), "wss://upstream.invalid", nil, "http://"+userinfo+"@proxy.invalid:bad-port")
+			require.Error(t, err)
+			require.Nil(t, conn)
+			require.Zero(t, status)
+			require.Nil(t, headers)
+			assertProxyCredentialsAbsent(t, err.Error(), "fictional-user", "fictional-password")
+			assertProxyCredentialsAbsent(t, err.Error(), "fictional@user", "fictional:p@ss/word")
+			require.EqualError(t, err, "invalid proxy URL")
+			require.Nil(t, errors.Unwrap(err))
+		})
+	}
+}
+
 func TestForwardProxyCredentialLogging(t *testing.T) {
 	logs := captureProxyLogs(t)
 	upstream := &anthropicHTTPUpstreamRecorder{resp: &http.Response{StatusCode: 200, Header: http.Header{"Content-Type": {"application/json"}}, Body: io.NopCloser(strings.NewReader(`{"id":"msg_test","type":"message","role":"assistant","content":[],"usage":{"input_tokens":1,"output_tokens":1}}`))}}
