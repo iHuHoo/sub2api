@@ -1072,33 +1072,23 @@
         <div v-if="accountCategory === 'oauth-based'" class="mt-4" data-testid="gemini-oauth-tier">
           <label class="input-label">{{ t('admin.accounts.gemini.tier.label') }}</label>
           <div class="mt-2">
-            <select
+            <Select
               v-if="geminiOAuthType === 'google_one'"
               v-model="geminiTierGoogleOne"
-              class="input"
-            >
-              <option value="google_one_free">{{ t('admin.accounts.gemini.tier.googleOne.free') }}</option>
-              <option value="google_ai_pro">{{ t('admin.accounts.gemini.tier.googleOne.pro') }}</option>
-              <option value="google_ai_ultra">{{ t('admin.accounts.gemini.tier.googleOne.ultra') }}</option>
-            </select>
+              :options="geminiTierGoogleOneOptions"
+            />
 
-            <select
+            <Select
               v-else-if="geminiOAuthType === 'code_assist'"
               v-model="geminiTierGcp"
-              class="input"
-            >
-              <option value="gcp_standard">{{ t('admin.accounts.gemini.tier.gcp.standard') }}</option>
-              <option value="gcp_enterprise">{{ t('admin.accounts.gemini.tier.gcp.enterprise') }}</option>
-            </select>
+              :options="geminiTierGcpOptions"
+            />
 
-            <select
+            <Select
               v-else
               v-model="geminiTierAIStudio"
-              class="input"
-            >
-              <option value="aistudio_free">{{ t('admin.accounts.gemini.tier.aiStudio.free') }}</option>
-              <option value="aistudio_paid">{{ t('admin.accounts.gemini.tier.aiStudio.paid') }}</option>
-            </select>
+              :options="geminiTierAIStudioOptions"
+            />
           </div>
           <p class="input-hint">{{ t('admin.accounts.gemini.tier.hint') }}</p>
         </div>
@@ -1268,25 +1258,11 @@
             </div>
             <div v-if="vertexProjectId.trim()">
               <label class="input-label">Location</label>
-              <select
+              <Select
                 v-model="vertexLocation"
-                required
-                class="input font-mono"
-              >
-                <optgroup
-                  v-for="group in VERTEX_LOCATION_OPTIONS"
-                  :key="group.label"
-                  :label="group.label"
-                >
-                  <option
-                    v-for="option in group.options"
-                    :key="option.value"
-                    :value="option.value"
-                  >
-                    {{ option.label }}
-                  </option>
-                </optgroup>
-              </select>
+                class="font-mono"
+                :options="vertexLocationOptions"
+              />
               <p class="input-hint">{{ t('admin.accounts.vertexLocationHint') }}</p>
             </div>
           </div>
@@ -1357,25 +1333,11 @@
             </div>
             <div>
               <label class="input-label">Location</label>
-              <select
+              <Select
                 v-model="vertexLocation"
-                required
-                class="input font-mono"
-              >
-                <optgroup
-                  v-for="group in VERTEX_LOCATION_OPTIONS"
-                  :key="group.label"
-                  :label="group.label"
-                >
-                  <option
-                    v-for="option in group.options"
-                    :key="option.value"
-                    :value="option.value"
-                  >
-                    {{ option.label }}
-                  </option>
-                </optgroup>
-              </select>
+                class="font-mono"
+                :options="vertexLocationOptions"
+              />
               <p class="input-hint">{{ t('admin.accounts.vertexLocationHint') }}</p>
             </div>
           </div>
@@ -1600,10 +1562,7 @@
         <!-- Gemini API Key tier selection -->
         <div v-if="form.platform === 'gemini' && isOfficialGeminiBaseUrl(apiKeyBaseUrl)">
           <label class="input-label">{{ t('admin.accounts.gemini.tier.label') }}</label>
-          <select v-model="geminiTierAIStudio" class="input" data-testid="gemini-apikey-tier">
-            <option value="aistudio_free">{{ t('admin.accounts.gemini.tier.aiStudio.free') }}</option>
-            <option value="aistudio_paid">{{ t('admin.accounts.gemini.tier.aiStudio.paid') }}</option>
-          </select>
+          <Select v-model="geminiTierAIStudio" data-testid="gemini-apikey-tier" :options="geminiTierAIStudioOptions" />
           <p class="input-hint">{{ t('admin.accounts.gemini.tier.aiStudioHint') }}</p>
         </div>
 
@@ -2122,41 +2081,7 @@
         <!-- Shared: Region -->
         <div>
           <label class="input-label">{{ t('admin.accounts.bedrockRegion') }}</label>
-          <select v-model="bedrockRegion" class="input">
-            <optgroup label="US">
-              <option value="us-east-1">us-east-1 (N. Virginia)</option>
-              <option value="us-east-2">us-east-2 (Ohio)</option>
-              <option value="us-west-1">us-west-1 (N. California)</option>
-              <option value="us-west-2">us-west-2 (Oregon)</option>
-              <option value="us-gov-east-1">us-gov-east-1 (GovCloud US-East)</option>
-              <option value="us-gov-west-1">us-gov-west-1 (GovCloud US-West)</option>
-            </optgroup>
-            <optgroup label="Europe">
-              <option value="eu-west-1">eu-west-1 (Ireland)</option>
-              <option value="eu-west-2">eu-west-2 (London)</option>
-              <option value="eu-west-3">eu-west-3 (Paris)</option>
-              <option value="eu-central-1">eu-central-1 (Frankfurt)</option>
-              <option value="eu-central-2">eu-central-2 (Zurich)</option>
-              <option value="eu-south-1">eu-south-1 (Milan)</option>
-              <option value="eu-south-2">eu-south-2 (Spain)</option>
-              <option value="eu-north-1">eu-north-1 (Stockholm)</option>
-            </optgroup>
-            <optgroup label="Asia Pacific">
-              <option value="ap-northeast-1">ap-northeast-1 (Tokyo)</option>
-              <option value="ap-northeast-2">ap-northeast-2 (Seoul)</option>
-              <option value="ap-northeast-3">ap-northeast-3 (Osaka)</option>
-              <option value="ap-south-1">ap-south-1 (Mumbai)</option>
-              <option value="ap-south-2">ap-south-2 (Hyderabad)</option>
-              <option value="ap-southeast-1">ap-southeast-1 (Singapore)</option>
-              <option value="ap-southeast-2">ap-southeast-2 (Sydney)</option>
-            </optgroup>
-            <optgroup label="Canada">
-              <option value="ca-central-1">ca-central-1 (Canada)</option>
-            </optgroup>
-            <optgroup label="South America">
-              <option value="sa-east-1">sa-east-1 (São Paulo)</option>
-            </optgroup>
-          </select>
+          <Select v-model="bedrockRegion" :options="bedrockRegionOptions" />
           <p class="input-hint">{{ t('admin.accounts.bedrockRegionHint') }}</p>
         </div>
 
@@ -3131,11 +3056,7 @@
           </div>
           <!-- Profile selector -->
           <div v-if="tlsFingerprintEnabled" class="mt-3">
-            <select v-model="tlsFingerprintProfileId" class="input">
-              <option :value="null">{{ t('admin.accounts.quotaControl.tlsFingerprint.defaultProfile') }}</option>
-              <option v-if="tlsFingerprintProfiles.length > 0" :value="-1">{{ t('admin.accounts.quotaControl.tlsFingerprint.randomProfile') }}</option>
-              <option v-for="p in tlsFingerprintProfiles" :key="p.id" :value="p.id">{{ p.name }}</option>
-            </select>
+            <Select v-model="tlsFingerprintProfileId" :options="tlsFingerprintProfileIdOptions" />
           </div>
         </div>
 
@@ -3193,13 +3114,11 @@
           </div>
           <div v-if="cacheTTLOverrideEnabled" class="mt-3">
             <label class="input-label text-xs">{{ t('admin.accounts.quotaControl.cacheTTLOverride.target') }}</label>
-            <select
+            <Select
               v-model="cacheTTLOverrideTarget"
-              class="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500 dark:border-dark-500 dark:bg-dark-700 dark:text-white"
-            >
-              <option value="5m">5m</option>
-              <option value="1h">1h</option>
-            </select>
+              class="mt-1"
+              :options="cacheTTLOverrideTargetOptions"
+            />
             <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
               {{ t('admin.accounts.quotaControl.cacheTTLOverride.targetHint') }}
             </p>
@@ -3247,10 +3166,7 @@
           <label class="input-label mb-0">{{ t('admin.accounts.proxy') }}</label>
           <ProxyAdBanner v-if="!supplier" />
         </div>
-        <select v-if="supplier" v-model="form.proxy_id" class="input" data-testid="supplier-proxy">
-          <option :value="null">{{ t('admin.accounts.noProxy') }}</option>
-          <option v-for="proxy in proxies" :key="proxy.id" :value="proxy.id">{{ proxy.name }} · #{{ proxy.id }}</option>
-        </select>
+        <Select v-if="supplier" v-model="form.proxy_id" data-testid="supplier-proxy" :options="supplierProxyOptions" />
         <ProxySelector v-else v-model="form.proxy_id" :proxies="proxies as Proxy[]" />
       </div>
 
@@ -3431,10 +3347,7 @@
               {{ t('admin.accounts.anthropic.apiKeyAuthSchemeDesc') }}
             </p>
           </div>
-          <select v-model="anthropicAPIKeyAuthScheme" class="input w-52 text-sm">
-            <option value="x_api_key">{{ t('admin.accounts.anthropic.apiKeyAuthSchemeXApiKey') }}</option>
-            <option value="authorization_bearer">{{ t('admin.accounts.anthropic.apiKeyAuthSchemeBearer') }}</option>
-          </select>
+          <Select v-model="anthropicAPIKeyAuthScheme" class="w-52 text-sm" :options="anthropicAPIKeyAuthSchemeOptions" />
         </div>
       </div>
 
@@ -3450,11 +3363,7 @@
               {{ t('admin.accounts.anthropic.webSearchEmulationDesc') }}
             </p>
           </div>
-          <select v-model="webSearchEmulationMode" class="input w-24 text-sm">
-            <option value="default">{{ t('admin.accounts.anthropic.webSearchDefault') }}</option>
-            <option value="enabled">{{ t('admin.accounts.anthropic.webSearchEnabled') }}</option>
-            <option value="disabled">{{ t('admin.accounts.anthropic.webSearchDisabled') }}</option>
-          </select>
+          <Select v-model="webSearchEmulationMode" class="w-24 text-sm" :options="webSearchEmulationModeOptions" />
         </div>
       </div>
 
@@ -7094,7 +7003,7 @@ const handleAntigravityValidateRT = async (refreshTokenInput: string) => {
 
         const credentials = antigravityOAuth.buildCredentials(tokenInfo, refreshTokens[i])
         applyAntigravityProjectID(credentials, antigravityProjectId.value, 'create')
-        
+
         // Generate account name with index for batch
         const accountName = refreshTokens.length > 1 ? `${form.name} #${i + 1}` : form.name
 
@@ -7528,4 +7437,85 @@ const handleCookieAuth = async (sessionKey: string) => {
     oauth.loading.value = false
   }
 }
+
+const geminiTierGoogleOneOptions = computed(() => [
+  { value: 'google_one_free', label: t('admin.accounts.gemini.tier.googleOne.free') },
+  { value: 'google_ai_pro', label: t('admin.accounts.gemini.tier.googleOne.pro') },
+  { value: 'google_ai_ultra', label: t('admin.accounts.gemini.tier.googleOne.ultra') }
+])
+
+const geminiTierGcpOptions = computed(() => [
+  { value: 'gcp_standard', label: t('admin.accounts.gemini.tier.gcp.standard') },
+  { value: 'gcp_enterprise', label: t('admin.accounts.gemini.tier.gcp.enterprise') }
+])
+
+const geminiTierAIStudioOptions = computed(() => [
+  { value: 'aistudio_free', label: t('admin.accounts.gemini.tier.aiStudio.free') },
+  { value: 'aistudio_paid', label: t('admin.accounts.gemini.tier.aiStudio.paid') }
+])
+
+const vertexLocationOptions = VERTEX_LOCATION_OPTIONS.flatMap(group => [
+  { value: `group:${group.label}`, label: group.label, kind: 'group', disabled: true },
+  ...group.options
+])
+
+const bedrockRegionOptions = [
+  { value: 'group:US', label: 'US', kind: 'group', disabled: true },
+  { value: 'us-east-1', label: 'us-east-1 (N. Virginia)' },
+  { value: 'us-east-2', label: 'us-east-2 (Ohio)' },
+  { value: 'us-west-1', label: 'us-west-1 (N. California)' },
+  { value: 'us-west-2', label: 'us-west-2 (Oregon)' },
+  { value: 'us-gov-east-1', label: 'us-gov-east-1 (GovCloud US-East)' },
+  { value: 'us-gov-west-1', label: 'us-gov-west-1 (GovCloud US-West)' },
+  { value: 'group:Europe', label: 'Europe', kind: 'group', disabled: true },
+  { value: 'eu-west-1', label: 'eu-west-1 (Ireland)' },
+  { value: 'eu-west-2', label: 'eu-west-2 (London)' },
+  { value: 'eu-west-3', label: 'eu-west-3 (Paris)' },
+  { value: 'eu-central-1', label: 'eu-central-1 (Frankfurt)' },
+  { value: 'eu-central-2', label: 'eu-central-2 (Zurich)' },
+  { value: 'eu-south-1', label: 'eu-south-1 (Milan)' },
+  { value: 'eu-south-2', label: 'eu-south-2 (Spain)' },
+  { value: 'eu-north-1', label: 'eu-north-1 (Stockholm)' },
+  { value: 'group:Asia Pacific', label: 'Asia Pacific', kind: 'group', disabled: true },
+  { value: 'ap-northeast-1', label: 'ap-northeast-1 (Tokyo)' },
+  { value: 'ap-northeast-2', label: 'ap-northeast-2 (Seoul)' },
+  { value: 'ap-northeast-3', label: 'ap-northeast-3 (Osaka)' },
+  { value: 'ap-south-1', label: 'ap-south-1 (Mumbai)' },
+  { value: 'ap-south-2', label: 'ap-south-2 (Hyderabad)' },
+  { value: 'ap-southeast-1', label: 'ap-southeast-1 (Singapore)' },
+  { value: 'ap-southeast-2', label: 'ap-southeast-2 (Sydney)' },
+  { value: 'group:Canada', label: 'Canada', kind: 'group', disabled: true },
+  { value: 'ca-central-1', label: 'ca-central-1 (Canada)' },
+  { value: 'group:South America', label: 'South America', kind: 'group', disabled: true },
+  { value: 'sa-east-1', label: 'sa-east-1 (São Paulo)' }
+]
+
+const tlsFingerprintProfileIdOptions = computed(() => [
+  { value: null, label: t('admin.accounts.quotaControl.tlsFingerprint.defaultProfile') },
+  ...(tlsFingerprintProfiles.value.length > 0
+    ? [{ value: -1, label: t('admin.accounts.quotaControl.tlsFingerprint.randomProfile') }]
+    : []),
+  ...tlsFingerprintProfiles.value.map(profile => ({ value: profile.id, label: profile.name }))
+])
+
+const cacheTTLOverrideTargetOptions = [
+  { value: '5m', label: '5m' },
+  { value: '1h', label: '1h' }
+]
+
+const supplierProxyOptions = computed(() => [
+  { value: null, label: t('admin.accounts.noProxy') },
+  ...props.proxies.map(proxy => ({ value: proxy.id, label: `${proxy.name} · #${proxy.id}` }))
+])
+
+const anthropicAPIKeyAuthSchemeOptions = computed(() => [
+  { value: 'x_api_key', label: t('admin.accounts.anthropic.apiKeyAuthSchemeXApiKey') },
+  { value: 'authorization_bearer', label: t('admin.accounts.anthropic.apiKeyAuthSchemeBearer') }
+])
+
+const webSearchEmulationModeOptions = computed(() => [
+  { value: 'default', label: t('admin.accounts.anthropic.webSearchDefault') },
+  { value: 'enabled', label: t('admin.accounts.anthropic.webSearchEnabled') },
+  { value: 'disabled', label: t('admin.accounts.anthropic.webSearchDisabled') }
+])
 </script>

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import Select from '@/components/common/Select.vue'
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import BaseDialog from '@/components/common/BaseDialog.vue'
@@ -9,6 +10,7 @@ import { clashSubscriptionAPI, type ClashMetadata } from '@/api/clashSubscriptio
 const props = defineProps<{ show: boolean; role: 'admin' | 'supplier' }>()
 const emit = defineEmits<{ close: [] }>()
 const { t } = useI18n()
+const dayOptions = computed(() => [30, 90, 365].map(value => ({ value, label: t('clash.days', { count: value }) })))
 const stepUp = useStepUp()
 const metadata = ref<ClashMetadata | null>(null)
 const link = ref('')
@@ -86,7 +88,7 @@ async function act(action: 'create' | 'reset' | 'revoke' | 'copy') {
     <p v-if="metadata.expires_at">{{ t('clash.expires') }}: {{ new Date(metadata.expires_at).toLocaleString() }}</p>
     <p v-if="metadata.exportable_count === 0">{{ t('clash.zero') }}</p>
     <label class="block">{{ t('clash.duration') }}
-     <select v-model="days" class="input mt-1" :disabled="busy"><option v-for="n in [30, 90, 365]" :key="n" :value="n">{{ t('clash.days', { count: n }) }}</option></select>
+     <Select :aria-label="t('clash.duration')" v-model="days" :options="dayOptions" class="mt-1" :disabled="busy" />
     </label>
     <div v-if="link" class="space-y-2"><p>{{ t('clash.once') }}</p><input data-test="link" :value="link" class="input" readonly autocomplete="off" :aria-label="t('clash.title')" /><button class="btn btn-secondary" :disabled="!available" @click="act('copy')">{{ t('clash.copy') }}</button></div>
     <p v-else-if="metadata.exists">{{ t('clash.noRecover') }}</p>

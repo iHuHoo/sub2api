@@ -1,5 +1,6 @@
 import { mount, flushPromises } from '@vue/test-utils'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import Select from '@/components/common/Select.vue'
 import ClashSubscriptionDialog from '../ClashSubscriptionDialog.vue'
 
 const api = vi.hoisted(() => ({ metadata: vi.fn(), create: vi.fn(), reset: vi.fn(), revoke: vi.fn() }))
@@ -11,6 +12,11 @@ const metadata = { exists: false, active: false, version: 0, expires_at: null, r
 const mountDialog = (role: "admin" | "supplier" = "supplier") => mount(ClashSubscriptionDialog, { props: { show: true, role }, global: { stubs: { TotpStepUpDialog: { props: ["controller"], template: `<div v-if="controller.visible.value"><button data-test="verified" @click="controller.onVerified()">Verify</button><button data-test="cancel-step" @click="controller.onCancel()">Cancel</button></div>` }, BaseDialog: { template: '<div><slot/><slot name="footer"/></div>' } } } })
 describe('ClashSubscriptionDialog', () => {
  beforeEach(() => { vi.resetAllMocks(); api.metadata.mockResolvedValue({ ...metadata }) })
+ it('names the duration selector with its translated label', async () => {
+  const wrapper = mountDialog(); await flushPromises()
+  expect(wrapper.getComponent(Select).get('button').attributes('aria-label')).toBe('clash.duration')
+  wrapper.unmount()
+ })
  for (const role of ['admin', 'supplier'] as const) {
   for (const action of ['create', 'reset'] as const) {
    it(`${role} ${action}: verifies but waits for explicit retry`, async () => {

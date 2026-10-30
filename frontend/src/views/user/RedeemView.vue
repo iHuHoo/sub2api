@@ -339,14 +339,14 @@
             <span>{{ t('common.total') }}: {{ historyTotal }} {{ t('pagination.results') }}</span>
             <label>
               {{ t('pagination.perPage') }}
-              <select
+              <Select
                 v-model="historyPageSize"
-                class="input w-20"
+                :aria-label="t('pagination.perPage')"
+                class="w-24"
                 :disabled="loadingHistory || submitting"
                 @change="fetchHistory(1)"
-              >
-                <option v-for="size in [20, 50, 100]" :key="size" :value="size">{{ size }}</option>
-              </select>
+                :options="historyPageSizeOptions"
+              />
             </label>
             <button
               class="btn btn-secondary"
@@ -366,6 +366,7 @@
 </template>
 
 <script setup lang="ts">
+import Select from '@/components/common/Select.vue'
 import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
@@ -400,6 +401,7 @@ const errorMessage = ref('')
 const history = ref<RedeemHistoryItem[]>([])
 const loadingHistory = ref(false)
 const historyPage = ref(1)
+const historyPageSizeOptions = [20, 50, 100].map(value => ({ value, label: String(value) }))
 const historyPageSize = ref(20)
 const historyTotal = ref(0)
 let historyRequest = 0

@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
+import Select from '@/components/common/Select.vue'
 import RedeemView from '../RedeemView.vue'
 
 const { redeem, getHistory, refreshUser, fetchActiveSubscriptions, showError, showWarning, showSuccess } = vi.hoisted(() => ({
@@ -29,6 +30,13 @@ vi.mock('vue-i18n', async () => {
   const actual = await vi.importActual<typeof import('vue-i18n')>('vue-i18n')
   return { ...actual, useI18n: () => ({ t: (key: string) => key }) }
 })
+
+async function changeSize(wrapper: ReturnType<typeof mount>, value: number) {
+  const select = wrapper.getComponent(Select)
+  select.vm.$emit('update:modelValue', value)
+  select.vm.$emit('change', value)
+  await wrapper.vm.$nextTick()
+}
 
 async function submitCode() {
   const wrapper = mount(RedeemView, {
@@ -99,11 +107,12 @@ describe('RedeemView refresh after redemption', () => {
     await button('pagination.previous').trigger('click')
     await flushPromises()
     expect(getHistory).toHaveBeenLastCalledWith(1, 20)
-    expect(wrapper.findAll('select option').map(o => o.text())).toEqual(['20', '50', '100'])
-    await wrapper.get('select').setValue('50')
+    expect(wrapper.getComponent(Select).get('button').attributes('aria-label')).toBe('pagination.perPage')
+    expect(wrapper.getComponent(Select).props('options')).toEqual([20, 50, 100].map(value => ({ value, label: String(value) })))
+    await changeSize(wrapper, 50)
     await flushPromises()
     expect(getHistory).toHaveBeenLastCalledWith(1, 50)
-    await wrapper.get('select').setValue('100')
+    await changeSize(wrapper, 100)
     await flushPromises()
     await button('pagination.next').trigger('click')
     await flushPromises()
@@ -131,12 +140,12 @@ describe('RedeemView refresh after redemption', () => {
     await flushPromises()
     let rejectRequest!: (error: Error) => void
     getHistory.mockImplementationOnce(() => new Promise((_resolve, reject) => { rejectRequest = reject }))
-    await wrapper.get('select').setValue('50')
+    await changeSize(wrapper, 50)
     expect(getHistory).toHaveBeenLastCalledWith(1, 50)
     expect(button('pagination.next').attributes('disabled')).toBeDefined()
     rejectRequest(new Error('Network error'))
     await flushPromises()
-    expect(wrapper.get('select').element.value).toBe('20')
+    expect(wrapper.getComponent(Select).props('modelValue')).toBe(20)
     expect(wrapper.text()).toContain('OLD-ROWS')
     expect(wrapper.text()).toContain('61')
     expect(button('pagination.previous').attributes('disabled')).toBeUndefined()
@@ -145,10 +154,10 @@ describe('RedeemView refresh after redemption', () => {
     await button('pagination.next').trigger('click')
     await flushPromises()
     expect(getHistory).toHaveBeenLastCalledWith(3, 20)
-    await wrapper.get('select').setValue('50')
+    await changeSize(wrapper, 50)
     await flushPromises()
     expect(getHistory).toHaveBeenLastCalledWith(1, 50)
-    expect(wrapper.get('select').element.value).toBe('50')
+    expect(wrapper.getComponent(Select).props('modelValue')).toBe(50)
     expect(button('pagination.previous').attributes('disabled')).toBeDefined()
     wrapper.unmount()
   })
@@ -167,7 +176,7 @@ describe('RedeemView refresh after redemption', () => {
       id: 2, code: 'NEW-ROWS', type: 'balance', value: 30, used_at: '2026-03-08T00:00:00Z',
     }], total: 61 })
     // Force overlapping requests to exercise responses arriving out of order.
-    await wrapper.get('select').setValue('50')
+    await changeSize(wrapper, 50)
     await flushPromises()
     const button = (text: string) => wrapper.findAll('button').find(b => b.text() === text)!
     await button('pagination.next').trigger('click')
@@ -179,12 +188,12 @@ describe('RedeemView refresh after redemption', () => {
       rejectOld(new Error('Stale network error'))
     }
     await flushPromises()
-    expect(wrapper.get('select').element.value).toBe('50')
+    expect(wrapper.getComponent(Select).props('modelValue')).toBe(50)
     expect(wrapper.text()).toContain('NEW-ROWS')
     expect(wrapper.text()).toContain('61')
     expect(button('pagination.previous').attributes('disabled')).toBeUndefined()
     expect(button('pagination.next').attributes('disabled')).toBeDefined()
-    expect(wrapper.get('select').attributes('disabled')).toBeUndefined()
+    expect(wrapper.getComponent(Select).props('disabled')).toBe(false)
     expect(showError).not.toHaveBeenCalled()
     await button('pagination.previous').trigger('click')
     await flushPromises()

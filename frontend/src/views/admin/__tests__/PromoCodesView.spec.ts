@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, shallowMount } from '@vue/test-utils'
 import PromoCodesView from '../PromoCodesView.vue'
+import Select from '@/components/common/Select.vue'
 
 const list = vi.hoisted(() => vi.fn())
 const createPromo = vi.hoisted(() => vi.fn())
@@ -74,7 +75,8 @@ describe('PromoCodesView subscription promos', () => {
     const wrapper = mountView()
     await flushPromises()
     await wrapper.findAll('button').find(button => button.text().includes('admin.promo.createCode'))!.trigger('click')
-    await wrapper.get('[data-testid="promo-purpose"]').setValue('subscription_discount')
+    wrapper.findAllComponents(Select).find(select => select.attributes('data-testid') === 'promo-purpose')!.vm.$emit('update:modelValue', 'subscription_discount')
+    await flushPromises()
     await wrapper.get('[data-testid="promo-pay-percent"]').setValue('80')
     await wrapper.get('#create-promo-form').trigger('submit')
     await flushPromises()

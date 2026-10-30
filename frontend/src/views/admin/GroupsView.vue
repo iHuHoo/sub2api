@@ -579,35 +579,22 @@
             </span>
           </div>
           <!-- 分组选择下拉 -->
-          <select
-            class="input"
+          <Select
+            :model-value="''"
+            :options="copyAccountsGroupOptions"
+            :placeholder="t('admin.groups.copyAccounts.selectPlaceholder')"
             @change="
-              (e) => {
-                const val = Number((e.target as HTMLSelectElement).value);
+              (value) => {
                 if (
-                  val &&
-                  !createForm.copy_accounts_from_group_ids.includes(val)
+                  typeof value === 'number' &&
+                  value &&
+                  !createForm.copy_accounts_from_group_ids.includes(value)
                 ) {
-                  createForm.copy_accounts_from_group_ids.push(val);
+                  createForm.copy_accounts_from_group_ids.push(value);
                 }
-                (e.target as HTMLSelectElement).value = '';
               }
             "
-          >
-            <option value="">
-              {{ t("admin.groups.copyAccounts.selectPlaceholder") }}
-            </option>
-            <option
-              v-for="opt in copyAccountsGroupOptions"
-              :key="opt.value"
-              :value="opt.value"
-              :disabled="
-                createForm.copy_accounts_from_group_ids.includes(opt.value)
-              "
-            >
-              {{ opt.label }}
-            </option>
-          </select>
+          />
           <p class="input-hint">{{ t("admin.groups.copyAccounts.hint") }}</p>
         </div>
         <template v-if="!authStore.isSimpleMode">
@@ -2231,35 +2218,22 @@
             </span>
           </div>
           <!-- 分组选择下拉 -->
-          <select
-            class="input"
+          <Select
+            :model-value="''"
+            :options="copyAccountsGroupOptionsForEdit"
+            :placeholder="t('admin.groups.copyAccounts.selectPlaceholder')"
             @change="
-              (e) => {
-                const val = Number((e.target as HTMLSelectElement).value);
+              (value) => {
                 if (
-                  val &&
-                  !editForm.copy_accounts_from_group_ids.includes(val)
+                  typeof value === 'number' &&
+                  value &&
+                  !editForm.copy_accounts_from_group_ids.includes(value)
                 ) {
-                  editForm.copy_accounts_from_group_ids.push(val);
+                  editForm.copy_accounts_from_group_ids.push(value);
                 }
-                (e.target as HTMLSelectElement).value = '';
               }
             "
-          >
-            <option value="">
-              {{ t("admin.groups.copyAccounts.selectPlaceholder") }}
-            </option>
-            <option
-              v-for="opt in copyAccountsGroupOptionsForEdit"
-              :key="opt.value"
-              :value="opt.value"
-              :disabled="
-                editForm.copy_accounts_from_group_ids.includes(opt.value)
-              "
-            >
-              {{ opt.label }}
-            </option>
-          </select>
+          />
           <p class="input-hint">
             {{ t("admin.groups.copyAccounts.hintEdit") }}
           </p>
@@ -4792,6 +4766,7 @@ const copyAccountsGroupOptions = computed(() => {
   return eligibleGroups.map((g) => ({
     value: g.id,
     label: copyAccountsGroupLabel(g),
+    disabled: createForm.copy_accounts_from_group_ids.includes(g.id),
   }));
 });
 
@@ -4807,6 +4782,7 @@ const copyAccountsGroupOptionsForEdit = computed(() => {
   return eligibleGroups.map((g) => ({
     value: g.id,
     label: copyAccountsGroupLabel(g),
+    disabled: editForm.copy_accounts_from_group_ids.includes(g.id),
   }));
 });
 

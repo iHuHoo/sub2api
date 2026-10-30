@@ -389,11 +389,7 @@
         <p v-if="assignmentProxy?.assignment_valid === false" class="text-red-600">{{ t('supplier.invalidAssignment') }}</p>
         <label class="block"><span class="input-label">{{ t('common.search') }}</span><input v-model="supplierSearch" name="supplier_search" class="input" :disabled="assignmentSaving || suppliersLoading" @keydown.enter.prevent="loadSuppliers(1)" /></label>
         <button type="button" data-testid="supplier-search" class="btn btn-secondary" :disabled="assignmentSaving || suppliersLoading" @click="loadSuppliers(1)">{{ t('common.search') }}</button>
-        <label class="block"><span class="input-label">{{ t('supplier.assignment') }}</span><select v-model="assignmentTarget" name="supplier_assignment" class="input" :disabled="assignmentSaving || suppliersLoading">
-          <option value="">{{ t('supplier.revokeAssignment') }}</option>
-          <option v-if="assignmentTarget && !supplierChoices.some(user => String(user.id) === assignmentTarget)" :value="assignmentTarget">#{{ assignmentTarget }}</option>
-          <option v-for="user in supplierChoices" :key="user.id" :value="String(user.id)">{{ user.username || user.email }} · #{{ user.id }}</option>
-        </select></label>
+        <label class="block"><span class="input-label">{{ t('supplier.assignment') }}</span><Select v-model="assignmentTarget" name="supplier_assignment" :options="assignmentOptions" :aria-label="t('supplier.assignment')" :disabled="assignmentSaving || suppliersLoading" /></label>
         <div class="flex items-center gap-3"><button type="button" class="btn btn-secondary" :disabled="supplierPage <= 1 || suppliersLoading || assignmentSaving" @click="loadSuppliers(supplierPage - 1)">{{ t('common.back') }}</button><span>{{ supplierPage }} / {{ supplierPages }}</span><button type="button" data-testid="supplier-next" class="btn btn-secondary" :disabled="supplierPage >= supplierPages || suppliersLoading || assignmentSaving" @click="loadSuppliers(supplierPage + 1)">{{ t('common.next') }}</button></div>
       </form>
       <template #footer><button class="btn btn-secondary" :disabled="assignmentSaving" @click="assignmentProxy = null">{{ t('common.cancel') }}</button><button form="proxy-assignment-form" type="submit" class="btn btn-primary" :disabled="assignmentSaving || suppliersLoading">{{ t('common.save') }}</button></template>
@@ -2283,4 +2279,10 @@ onUnmounted(() => {
   abortController?.abort()
   document.removeEventListener('click', closeCopyMenu)
 })
+const assignmentOptions = computed(() => [
+  { value: '', label: t('supplier.revokeAssignment') },
+  ...(assignmentTarget.value && !supplierChoices.value.some(user => String(user.id) === assignmentTarget.value)
+    ? [{ value: assignmentTarget.value, label: `#${assignmentTarget.value}` }] : []),
+  ...supplierChoices.value.map(user => ({ value: String(user.id), label: `${user.username || user.email} · #${user.id}` })),
+])
 </script>

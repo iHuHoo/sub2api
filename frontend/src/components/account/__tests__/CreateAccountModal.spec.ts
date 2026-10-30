@@ -45,6 +45,7 @@ vi.mock('@/api/admin', () => ({
   adminAPI: {
     accounts: {
       create: createAccountMock,
+      exchangeCode: vi.fn(),
       probeUpstreamBilling: probeUpstreamBillingMock,
       syncUpstreamModels: syncUpstreamModelsMock,
       checkMixedChannelRisk: vi.fn().mockResolvedValue({ has_risk: false }),
@@ -74,6 +75,7 @@ vi.mock('vue-i18n', async () => {
 })
 
 import CreateAccountModal from '../CreateAccountModal.vue'
+import Select from '@/components/common/Select.vue'
 
 beforeEach(async () => {
   const { adminAPI } = await import('@/api/admin')
@@ -145,7 +147,7 @@ const ModelWhitelistSelectorStub = defineComponent({
   >models</button>`,
 })
 
-function mountModal(groups: any[] = [], supplier = false) {
+function mountModal(groups: any[] = [], supplier = false, realSelect = false) {
   return mount(CreateAccountModal, {
     props: { show: true, proxies: [], groups, supplier },
     global: {
@@ -153,7 +155,7 @@ function mountModal(groups: any[] = [], supplier = false) {
         BaseDialog: BaseDialogStub,
         OAuthAuthorizationFlow: OAuthAuthorizationFlowStub,
         ConfirmDialog: true,
-        Select: true,
+        Select: !realSelect,
         Icon: true,
         PlatformIcon: true,
         ProxySelector: true,
@@ -1238,7 +1240,7 @@ describe('CreateAccountModal gemini explicit cache upstream switch', () => {
     await selectButtonByText(wrapper, 'admin.accounts.gemini.accountType.apiKeyTitle')
     expect(wrapper.find('[data-testid="gemini-oauth-tier"]').exists()).toBe(false)
     expect(wrapper.find('[data-testid="gemini-apikey-note"]').exists()).toBe(true)
-    await wrapper.get('[data-testid="gemini-apikey-tier"]').setValue('aistudio_paid')
+    await wrapper.getComponent('[data-testid="gemini-apikey-tier"]').setValue('aistudio_paid')
 
     const baseUrlInput = wrapper
       .findAll('form#create-account-form input[type="text"]')
@@ -1271,7 +1273,7 @@ describe('CreateAccountModal gemini explicit cache upstream switch', () => {
     const wrapper = mountModal()
     await selectButtonByText(wrapper, 'Gemini')
     await selectButtonByText(wrapper, 'admin.accounts.gemini.accountType.apiKeyTitle')
-    await wrapper.get('[data-testid="gemini-apikey-tier"]').setValue('aistudio_paid')
+    await wrapper.getComponent('[data-testid="gemini-apikey-tier"]').setValue('aistudio_paid')
     await wrapper.get('form#create-account-form input[type="text"]').setValue('gemini official')
     await wrapper.get('form#create-account-form input[type="password"]').setValue('AIza-official')
     await wrapper.get('form#create-account-form').trigger('submit.prevent')
@@ -1339,5 +1341,157 @@ describe('CreateAccountModal Vertex API key auth', () => {
     await selectButtonByText(wrapper, 'admin.accounts.vertexLabel')
     expect(wrapper.find('[data-testid="vertex-auth-mode-apikey"]').exists()).toBe(false)
     expect(wrapper.find('[data-testid="vertex-api-key-input"]').exists()).toBe(false)
+  })
+})
+
+
+describe('account Select payload parity', () => {
+  beforeEach(async () => {
+    const { adminAPI } = await import('@/api/admin')
+    vi.mocked(adminAPI.accounts.checkMixedChannelRisk).mockResolvedValue({ has_risk: false } as any)
+    authIsSimpleMode.value = true
+    vi.clearAllMocks()
+    createAccountMock.mockResolvedValue({ id: 42 })
+    probeUpstreamBillingMock.mockResolvedValue({})
+  })
+  afterEach(() => vi.restoreAllMocks())
+
+  async function choose(wrapper: ReturnType<typeof mountModal>, value: string | number | null, label?: string) {
+    const select = wrapper.findAllComponents(Select).find(component =>
+      component.props('options').some(option => option.value === value && (!label || option.label === label)))!
+    expect(select).toBeDefined()
+    await select.get('button').trigger('click')
+    const option = select.props('options').find(option => option.value === value && (!label || option.label === label))!
+    const element = [...document.querySelectorAll<HTMLElement>('[role="listbox"]:last-of-type [role="option"]')].find(element => element.textContent?.trim() === option.label)!
+    expect(element).toBeDefined()
+    element.click()
+    await flushPromises()
+    return select
+  }
+
+  it.each([null, 17])('submits supplier proxy %s through the real Select without administrator calls', async proxyId => {
+    const { apiClient } = await import('@/api/client')
+    const { adminAPI } = await import('@/api/admin')
+    const get = vi.spyOn(apiClient, 'get').mockResolvedValue({ data: {} })
+    const post = vi.spyOn(apiClient, 'post').mockResolvedValue({ data: { id: 9 } })
+    const wrapper = mountModal([], true, true)
+    await wrapper.setProps({ proxies: [{ id: 17, name: 'Supplier proxy' }] as any })
+    await selectButtonByText(wrapper, 'admin.accounts.claudeConsole')
+    await wrapper.get('form input[type="text"]').setValue('Supplier account')
+    await wrapper.get('form input[type="password"]').setValue('test-key')
+    expect(wrapper.getComponent('[data-testid="supplier-proxy"]').vm.$options.__name).toBe('Select')
+    // Choose by visible label so a null-to-zero mutation reaches the payload assertion.
+    const select = wrapper.getComponent('[data-testid="supplier-proxy"]')
+    await select.get('button').trigger('click')
+    const label = proxyId === null ? 'admin.accounts.noProxy' : 'Supplier proxy · #17'
+    const option = [...document.querySelectorAll<HTMLElement>('[role="listbox"]:last-of-type [role="option"]')].find(option => option.textContent?.trim() === label)!
+    option.click()
+    await flushPromises()
+    await wrapper.get('form').trigger('submit.prevent')
+    await flushPromises()
+    expect(post).toHaveBeenCalledWith('/supplier/accounts', expect.objectContaining({ proxy_id: proxyId }))
+    expect([...get.mock.calls, ...post.mock.calls].every(call => !call[0].startsWith('/admin/'))).toBe(true)
+    expect(adminAPI.accounts.create).not.toHaveBeenCalled()
+    expect(adminAPI.settings.getSettings).not.toHaveBeenCalled()
+    expect(adminAPI.settings.getWebSearchEmulationConfig).not.toHaveBeenCalled()
+    expect(adminAPI.tlsFingerprintProfiles.list).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
+  it.each([null, -1, 23])('preserves TLS fingerprint profile %s in the administrator payload', async profileId => {
+    const { adminAPI } = await import('@/api/admin')
+    vi.mocked(adminAPI.tlsFingerprintProfiles.list).mockResolvedValue([{ id: 23, name: 'Chrome' }] as any)
+    vi.mocked(adminAPI.accounts.exchangeCode).mockResolvedValue({ access_token: 'test-access', refresh_token: 'test-refresh' } as any)
+    const wrapper = mountModal([], false, true)
+    await wrapper.setProps({ show: false })
+    await wrapper.setProps({ show: true })
+    await flushPromises()
+    await wrapper.get('form input[type="text"]').setValue('TLS account')
+    const label = wrapper.findAll('label').find(label => label.text() === 'admin.accounts.quotaControl.tlsFingerprint.label')!
+    await label.element.parentElement!.parentElement!.querySelector<HTMLButtonElement>('button')!.click()
+    await flushPromises()
+    await choose(wrapper, profileId)
+    await wrapper.get('form').trigger('submit.prevent')
+    await flushPromises()
+    wrapper.getComponent(OAuthAuthorizationFlowStub).vm.$emit('cookie-auth', 'test-session')
+    await flushPromises()
+    expect(createAccountMock).toHaveBeenCalledOnce()
+    expect(createAccountMock.mock.calls[0]![0].extra.enable_tls_fingerprint).toBe(true)
+    expect(createAccountMock.mock.calls[0]![0].extra.tls_fingerprint_profile_id).toBe(profileId ?? undefined)
+    wrapper.unmount()
+  })
+
+  it.each(['x_api_key', 'authorization_bearer'])('preserves Anthropic auth scheme %s in the administrator payload', async scheme => {
+    const wrapper = mountModal([], false, true)
+    await selectButtonByText(wrapper, 'admin.accounts.claudeConsole')
+    await wrapper.get('form input[type="text"]').setValue('Anthropic')
+    await wrapper.get('form input[type="password"]').setValue('test-key')
+    await choose(wrapper, scheme)
+    await wrapper.get('form').trigger('submit.prevent')
+    await flushPromises()
+    expect(createAccountMock).toHaveBeenCalledOnce()
+    expect(createAccountMock.mock.calls[0]?.[0]?.extra?.anthropic_apikey_auth_scheme).toBe(scheme === 'x_api_key' ? undefined : scheme)
+    wrapper.unmount()
+  })
+
+  it('preserves Bedrock region and disabled group headers', async () => {
+    const wrapper = mountModal([], false, true)
+    await selectButtonByText(wrapper, 'admin.accounts.bedrockLabel')
+    await wrapper.get('form input[type="text"]').setValue('Bedrock')
+    await wrapper.get('input[placeholder="AKIA..."]').setValue('access-key')
+    await wrapper.get('form input[type="password"]').setValue('secret-key')
+    const select = await choose(wrapper, 'ap-southeast-1')
+    expect(select.props('options').filter(option => option.kind === 'group').map(option => [option.label, option.disabled])).toEqual([
+      ['US', true], ['Europe', true], ['Asia Pacific', true], ['Canada', true], ['South America', true]
+    ])
+    await wrapper.get('form').trigger('submit.prevent')
+    await flushPromises()
+    expect(createAccountMock.mock.calls[0]?.[0]?.credentials.aws_region).toBe('ap-southeast-1')
+    wrapper.unmount()
+  })
+
+  it('rejects an empty Vertex service-account location before creation', async () => {
+    const wrapper = mountModal([], false, true)
+    await selectButtonByText(wrapper, 'admin.accounts.vertexLabel')
+    await wrapper.get('form input[type="text"]').setValue('Vertex service account')
+    const input = wrapper.get('input[type="file"]')
+    const content = JSON.stringify({ type: 'service_account', project_id: 'project', client_email: 'test@project.iam.gserviceaccount.com', private_key: 'private-key' })
+    Object.defineProperty(input.element, 'files', { value: [{ text: async () => content }] })
+    await input.trigger('change')
+    await flushPromises()
+    const select = await choose(wrapper, 'us-central1')
+    select.vm.$emit('update:modelValue', '')
+    await flushPromises()
+    await wrapper.get('form').trigger('submit.prevent')
+    await flushPromises()
+    expect(createAccountMock).not.toHaveBeenCalled()
+    await choose(wrapper, 'us-central1')
+    await wrapper.get('form').trigger('submit.prevent')
+    await flushPromises()
+    expect(createAccountMock).toHaveBeenCalledOnce()
+    expect(createAccountMock.mock.calls[0]![0].credentials.location).toBe('us-central1')
+    wrapper.unmount()
+  })
+
+  it('preserves Vertex location and rejects an empty required location', async () => {
+    const wrapper = mountModal([], false, true)
+    await selectButtonByText(wrapper, 'Gemini')
+    await selectButtonByText(wrapper, 'admin.accounts.vertexLabel')
+    await wrapper.get('[data-testid="vertex-auth-mode-apikey"]').setValue(true)
+    await wrapper.get('form input[type="text"]').setValue('Vertex')
+    await wrapper.get('[data-testid="vertex-api-key-input"]').setValue('vertex-key')
+    await wrapper.get('[data-testid="vertex-api-key-project-id-input"]').setValue('project')
+    const select = await choose(wrapper, 'us-central1')
+    expect(select.props('options').filter(option => option.kind === 'group').every(option => option.disabled)).toBe(true)
+    select.vm.$emit('update:modelValue', '')
+    await flushPromises()
+    await wrapper.get('form').trigger('submit.prevent')
+    await flushPromises()
+    expect(createAccountMock).not.toHaveBeenCalled()
+    await choose(wrapper, 'us-central1')
+    await wrapper.get('form').trigger('submit.prevent')
+    await flushPromises()
+    expect(createAccountMock.mock.calls[0]?.[0]?.credentials.location).toBe('us-central1')
+    wrapper.unmount()
   })
 })

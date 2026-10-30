@@ -25,6 +25,7 @@ vi.mock('file-saver', () => ({
 import zhDashboard from '@/i18n/locales/zh/dashboard'
 import enDashboard from '@/i18n/locales/en/dashboard'
 
+import Select from '@/components/common/Select.vue'
 import UseKeyModal from '../UseKeyModal.vue'
 
 function readBlobAsText(blob: Blob): Promise<string> {
@@ -982,7 +983,8 @@ describe('UseKeyModal', () => {
     expect(unixConfig).toContain('env_key = "AOXTOKEN_API_KEY"')
     expect(fetchMock).not.toHaveBeenCalled()
 
-    await wrapper.get('[data-testid="codex-model-catalog-mode"]').setValue('file')
+    wrapper.getComponent(Select).vm.$emit('update:modelValue', 'file')
+    await nextTick()
 
     await wrapper.get('[data-testid="codex-model-catalog-fetch"]').trigger('click')
     await flushPromises()
@@ -1152,14 +1154,16 @@ describe('UseKeyModal', () => {
         expect(configToml).not.toContain('client_version')
         expect(wrapper.find('[data-testid="codex-model-catalog"]').exists()).toBe(true)
 
-        await wrapper.get('[data-testid="codex-model-catalog-mode"]').setValue('file')
+        wrapper.getComponent(Select).vm.$emit('update:modelValue', 'file')
+        await nextTick()
         const fileConfig = wrapper.findAll('pre code')
           .map((code) => code.text())
           .find((content) => content.includes('model_provider = "OpenAI"'))!
         expect(fileConfig).toContain('model_catalog_json = "~/.codex/codex-models.json"')
         expect(fileConfig).not.toContain('model_catalog_url')
         expect(fileConfig.indexOf('model_catalog_json')).toBeLessThan(fileConfig.indexOf('[model_providers.OpenAI]'))
-        await wrapper.get('[data-testid="codex-model-catalog-mode"]').setValue('remote')
+        wrapper.getComponent(Select).vm.$emit('update:modelValue', 'remote')
+        await nextTick()
       }
     }
     expect(fetchMock).not.toHaveBeenCalled()
@@ -1195,9 +1199,9 @@ describe('UseKeyModal', () => {
       await flushPromises()
 
       const oversized = responseBytes > 1024 * 1024
-      const mode = wrapper.get('[data-testid="codex-model-catalog-mode"]')
-      expect((mode.element as HTMLSelectElement).value).toBe(oversized ? 'file' : 'remote')
-      expect((mode.get('option[value="remote"]').element as HTMLOptionElement).disabled).toBe(oversized)
+      const mode = wrapper.getComponent(Select)
+      expect(mode.props('modelValue')).toBe(oversized ? 'file' : 'remote')
+      expect(mode.props('options').find(option => option.value === 'remote')?.disabled).toBe(oversized)
       const config = wrapper.findAll('pre code').map((code) => code.text())
         .find((content) => content.includes('model_provider = "OpenAI"'))!
       if (oversized) {
@@ -1211,7 +1215,7 @@ describe('UseKeyModal', () => {
         expect(JSON.parse(await readBlobAsText(downloaded))).toEqual(manifest)
 
         await wrapper.setProps({ apiKey: 'sk-new-group' })
-        expect((mode.get('option[value="remote"]').element as HTMLOptionElement).disabled).toBe(false)
+        expect(mode.props('options').find(option => option.value === 'remote')?.disabled).toBe(false)
         expect(wrapper.text()).not.toContain('keys.useKeyModal.codexModelCatalog.oversized')
       } else {
         expect(config).toContain('model_catalog_url = "https://example.com/v1/models"')
