@@ -15,6 +15,8 @@ import PlatformTypeBadge from '@/components/common/PlatformTypeBadge.vue'
 import Select from '@/components/common/Select.vue'
 import { supplierAPI, supplierErrorKey, type SupplierAccount, type SupplierAccountUpdate, type SupplierProxy } from '@/api/supplier'
 import { useAppStore } from '@/stores/app'
+import { getProviderProfile, officialBaseURLs } from '@/constants/platformCatalog'
+import { providerModeLabel } from '@/components/account/credentialsBuilder'
 import type { Account } from '@/types'
 import { formatDateTime, formatRelativeTime } from '@/utils/format'
 
@@ -47,15 +49,6 @@ const platformTypes: Record<string, string[]> = {
   kimi: ['apikey'], zhipu: ['apikey'], deepseek: ['apikey'], minimax: ['apikey'],
   opencode_go: ['apikey'], typesafe: ['apikey'], command_code: ['apikey'], cline: ['apikey']
 }
-const officialURLs: Record<string, string[]> = {
-  anthropic: ['https://api.anthropic.com'], openai: ['https://api.openai.com/v1'],
-  gemini: ['https://generativelanguage.googleapis.com'], grok: ['https://api.x.ai/v1'],
-  kimi: ['https://api.moonshot.cn/v1', 'https://api.kimi.com/coding/v1'],
-  zhipu: ['https://open.bigmodel.cn/api/paas/v4', 'https://open.bigmodel.cn/api/coding/paas/v4'],
-  deepseek: ['https://api.deepseek.com'], minimax: ['https://api.minimaxi.com/v1'],
-  opencode_go: ['https://opencode.ai/zen/go/v1', 'https://opencode.ai/zen/v1'],
-  typesafe: ['https://api.typesafe.ai'], command_code: ['https://api.commandcode.ai/provider/v1'], cline: ['https://api.cline.bot/api/v1']
-}
 const supported = computed(() => platformTypes[form.platform]?.includes(form.type) ?? false)
 const platformOptions = computed(() => [
   ...(!platformTypes[form.platform] ? [{ value: form.platform, label: form.platform }] : []),
@@ -67,9 +60,30 @@ const typeOptions = computed(() => [
 ])
 const baseURLOptions = computed(() => [
   { value: '', label: t('supplier.retainEndpoint') },
-  ...(officialURLs[form.platform] || []).map(url => ({ value: url, label: url }))
+  ...officialBaseURLs(form.platform, credentials.account_mode, credentials.api_protocol === 'adaptive' ? 'chat_completions' : credentials.api_protocol).map(url => ({ value: url, label: url }))
 ])
 const vertexAPIKeyEdit = computed(() => form.platform === 'gemini' && form.type === 'service_account' && editing.value?.auth_mode === 'apikey')
+const providerProfile = computed(() => form.type === 'apikey' ? getProviderProfile(form.platform) : undefined)
+const retainOption = computed(() => ({ value: '', label: t('supplier.retain') }))
+const accountModeOptions = computed(() => [
+  retainOption.value,
+  ...(providerProfile.value?.modes ?? []).map(mode => ({ value: mode.mode, label: providerModeLabel(mode.mode, t) }))
+])
+const nativeProtocols = computed(() => [...new Set((providerProfile.value?.modes ?? [])
+  .filter(mode => !credentials.account_mode || mode.mode === credentials.account_mode)
+  .flatMap(mode => Object.keys(mode.base_urls)))])
+const protocolOptions = computed(() => [
+  retainOption.value,
+  ...['adaptive', ...nativeProtocols.value].map(protocol => ({ value: protocol, label: protocol }))
+])
+const forceGlobalOptions = computed(() => [
+  retainOption.value, { value: 'true', label: t('common.yes') }, { value: 'false', label: t('common.no') }
+])
+const protocolURLs = reactive<Record<string, string>>({})
+function protocolURLOptions(protocol: string) {
+  return [{ value: '', label: t('supplier.unspecifiedEndpoint') }, ...officialBaseURLs(form.platform, credentials.account_mode, protocol)
+    .map(url => ({ value: url, label: url }))]
+}
 const authModeOptions = computed(() => [
   { value: '', label: t('supplier.retain') },
   { value: 'sigv4', label: 'AWS SigV4' }, { value: 'apikey', label: 'API Key' }
@@ -86,7 +100,10 @@ const fields = computed(() => {
   let required: string[] = []
   let optional: string[] = []
   switch (form.type) {
-    case 'apikey': required = ['api_key']; optional = ['base_url']; break
+    case 'apikey':
+      required = ['api_key']
+      optional = providerProfile.value ? ['account_mode', 'api_protocol', 'base_url'] : ['base_url']
+      break
     case 'upstream': required = ['api_key', 'base_url']; break
     case 'oauth':
       required = ['access_token']
@@ -101,11 +118,12 @@ const fields = computed(() => {
       else { required = ['service_account_json']; optional = ['project_id', 'location'] }
       break
     case 'bedrock':
+      optional = ['aws_force_global']
       required = ['aws_region', 'auth_mode']
       if (credentials.auth_mode === 'apikey') required.push('api_key')
       if (credentials.auth_mode === 'sigv4' || !credentials.auth_mode) {
         required.push('aws_access_key_id', 'aws_secret_access_key')
-        optional = ['aws_session_token']
+        optional.push('aws_session_token')
       }
       break
   }
@@ -149,6 +167,7 @@ const usageAccount = (account: SupplierAccount) => ({
   session_window_status: null
 })
 function resetCredentials() {
+  Object.keys(protocolURLs).forEach(key => delete protocolURLs[key])
   Object.keys(credentials).forEach(key => delete credentials[key])
   Object.keys(clearCredentials).forEach(key => delete clearCredentials[key])
 }
@@ -156,6 +175,14 @@ watch(() => form.platform, () => {
   resetCredentials()
 })
 watch(() => form.type, resetCredentials)
+watch(() => credentials.account_mode, () => {
+  Object.keys(protocolURLs).forEach(key => delete protocolURLs[key])
+  credentials.base_url = ''
+})
+watch(() => credentials.api_protocol, () => {
+  Object.keys(protocolURLs).forEach(key => delete protocolURLs[key])
+  credentials.base_url = ''
+})
 
 async function load() {
   loading.value = true
@@ -208,7 +235,7 @@ function open(account: SupplierAccount) {
   void loadProxies()
 }
 function canClear(field: { key: string; required: boolean }) {
-  return !field.required && !['base_url', 'project_id', 'location', 'expires_at'].includes(field.key)
+  return !field.required && !['base_url', 'account_mode', 'api_protocol', 'aws_force_global', 'project_id', 'location', 'expires_at'].includes(field.key)
 }
 function isSecret(key: string) {
   return ['api_key', 'access_token', 'refresh_token', 'id_token', 'aws_access_key_id', 'aws_secret_access_key', 'aws_session_token'].includes(key)
@@ -220,10 +247,17 @@ async function save() {
     return
   }
   const changes: SupplierAccountUpdate = {}
-  const imported: Record<string, string | number> = {}
+  const imported: NonNullable<SupplierAccountUpdate['credentials']> = {}
   for (const field of fields.value) {
     if (clearCredentials[field.key] && canClear(field)) imported[field.key] = ''
     else if (credentials[field.key]) imported[field.key] = credentials[field.key]
+  }
+  const urls = Object.fromEntries(Object.entries(protocolURLs).filter(([, url]) => url))
+  if (Object.keys(urls).length) {
+    imported.api_base_urls = urls
+    imported.api_protocol = 'adaptive'
+    // Match creation: the selected Chat endpoint is also the adaptive fallback.
+    if (urls.chat_completions && !imported.base_url) imported.base_url = urls.chat_completions
   }
   if (Object.keys(imported).length) changes.credentials = imported
   if (form.name !== editing.value.name) changes.name = form.name
@@ -322,10 +356,20 @@ onMounted(load)
         <div v-for="field in fields" :key="field.key" class="space-y-1">
           <label :for="'credential-' + field.key" class="input-label">{{ t(vertexAPIKeyEdit && field.key === 'api_key' ? 'supplier.vertexApiKey' : 'supplier.credential.' + field.key) }} <span class="font-mono text-xs">({{ field.key }})</span></label>
           <Select v-if="field.key === 'base_url'" :id="'credential-' + field.key" v-model="credentials[field.key]" :options="baseURLOptions" :aria-label="t('supplier.credential.' + field.key)" />
+          <Select v-else-if="field.key === 'account_mode'" :id="'credential-' + field.key" v-model="credentials[field.key]" :options="accountModeOptions" :aria-label="t('supplier.credential.' + field.key)" />
+          <Select v-else-if="field.key === 'api_protocol'" :id="'credential-' + field.key" v-model="credentials[field.key]" :options="protocolOptions" :aria-label="t('supplier.credential.' + field.key)" />
+          <Select v-else-if="field.key === 'aws_force_global'" :id="'credential-' + field.key" v-model="credentials[field.key]" :options="forceGlobalOptions" :aria-label="t('supplier.credential.' + field.key)" />
           <Select v-else-if="field.key === 'auth_mode'" :id="'credential-' + field.key" v-model="credentials[field.key]" :options="authModeOptions" :aria-label="t('supplier.credential.' + field.key)" />
           <textarea v-else-if="field.key === 'service_account_json'" :id="'credential-' + field.key" v-model="credentials[field.key]" :name="field.key" class="input font-mono" rows="5" maxlength="32768" :placeholder="t('supplier.serviceAccountHint')" />
           <input v-else :id="'credential-' + field.key" v-model="credentials[field.key]" :name="field.key" :type="isSecret(field.key) ? 'password' : 'text'" class="input" :maxlength="field.key === 'expires_at' ? 64 : 16384" autocomplete="off" :disabled="clearCredentials[field.key]" :placeholder="field.key === 'expires_at' ? t('supplier.tokenExpiryHint') : t('supplier.retainCredential')" />
           <label v-if="canClear(field)" class="flex items-center gap-2 text-sm"><input v-model="clearCredentials[field.key]" type="checkbox" />{{ t('supplier.clearCredential', { field: field.key }) }}</label>
+        </div>
+        <div v-if="providerProfile && (!credentials.api_protocol || credentials.api_protocol === 'adaptive')" class="space-y-3">
+          <p class="input-hint">{{ t('supplier.protocolEndpointsHint') }}</p>
+          <div v-for="protocol in nativeProtocols" :key="protocol">
+            <label :for="'credential-api_base_urls-' + protocol" class="input-label">{{ protocol }}</label>
+            <Select :id="'credential-api_base_urls-' + protocol" v-model="protocolURLs[protocol]" :options="protocolURLOptions(protocol)" :aria-label="protocol" />
+          </div>
         </div>
         <p v-if="form.type === 'service_account' && !vertexAPIKeyEdit" class="input-hint">{{ t('supplier.serviceAccountNotice') }}</p>
         <p class="input-hint">{{ t('supplier.endpointPolicy') }}</p>

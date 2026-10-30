@@ -25,6 +25,7 @@ export interface ProviderModeInfo {
   mode: string
   /** 以上游协议为键的官方默认基址；缺少某协议即该模式不提供该原生端点。 */
   base_urls: Partial<Record<string, string>>
+  official_base_urls?: Partial<Record<string, string[]>>
   protocol_rules?: ProviderProtocolRule[]
 }
 
@@ -45,6 +46,7 @@ export interface PlatformSpec {
   cn_provider: boolean
   litellm_provider?: string
   multi_protocol?: ProviderProfileInfo
+  official_urls?: string[]
 }
 
 export interface PlatformCatalog {
@@ -124,4 +126,16 @@ export function getProviderMode(platform: string | null | undefined, mode: strin
     profile.modes.find(item => item.mode === profile.default_mode) ??
     profile.modes[0]
   )
+}
+
+/** Official presets for a mode/protocol, or the whole platform when routing is retained. */
+export function officialBaseURLs(platform: string, mode?: string, protocol?: string): string[] {
+  const spec = getPlatformSpec(platform)
+  if (!spec?.multi_protocol || (!mode && !protocol)) return spec?.official_urls ?? []
+  const modes = mode ? [getProviderMode(platform, mode)] : spec.multi_protocol.modes
+  return [...new Set(modes.flatMap(item => {
+    const urls = item?.official_base_urls ?? {}
+    if (protocol && protocol !== 'adaptive') return urls[protocol] ?? []
+    return Object.values(urls).flatMap(values => values ?? [])
+  }))]
 }

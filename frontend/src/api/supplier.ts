@@ -28,14 +28,14 @@ export interface SupplierAccountCreate {
   notes?: string | null
   platform: string
   type: string
-  credentials: Record<string, string | number>
+  credentials: Record<string, string | number | Record<string, string>>
   proxy_id?: number | null
   expires_at?: number | null
 }
 export interface SupplierAccountUpdate {
   name?: string | null
   notes?: string | null
-  credentials?: Record<string, string | number> | null
+  credentials?: Record<string, string | number | Record<string, string>> | null
   proxy_id?: number | null
   expires_at?: number | null
 }

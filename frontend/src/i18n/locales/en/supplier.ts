@@ -84,7 +84,13 @@ export default {
   "invalidRange": "Choose a valid inclusive UTC range of at most 366 days and a positive account ID.",
   "unavailable": "Resource unavailable",
   "proxyInUse": "Proxy is in use and cannot be deleted.",
+  "unspecifiedEndpoint": "Unspecified",
+  "protocolEndpointsHint": "Leave all protocol endpoints blank to retain them. Selecting any replaces the endpoint map and enables adaptive routing; unselected protocols fall back to the retained base URL or official defaults.",
   "credential": {
+    "account_mode": "Account mode",
+    "api_protocol": "API protocol",
+    "aws_force_global": "Force global region",
+
     "api_key": "API key",
     "base_url": "Official upstream endpoint",
     "access_token": "Access token / inference token",

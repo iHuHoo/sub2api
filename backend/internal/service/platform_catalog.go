@@ -1,6 +1,8 @@
 package service
 
 import (
+	"github.com/Wei-Shaw/sub2api/internal/pkg/xai"
+	"slices"
 	"sort"
 
 	"github.com/Wei-Shaw/sub2api/internal/domain"
@@ -20,6 +22,7 @@ type PlatformCatalog struct {
 // PlatformCatalogEntry 描述一个具体平台；MultiProtocol 仅多协议 API Key 供应商有值。
 type PlatformCatalogEntry struct {
 	domain.PlatformSpec
+	OfficialURLs  []string             `json:"official_urls,omitempty"`
 	MultiProtocol *ProviderProfileInfo `json:"multi_protocol,omitempty"`
 }
 
@@ -36,9 +39,10 @@ type ProviderProfileInfo struct {
 
 // ProviderModeInfo 是某接入模式的默认端点；BaseURLs 缺少某协议即该模式不提供该原生端点。
 type ProviderModeInfo struct {
-	Mode          string            `json:"mode"`
-	BaseURLs      map[string]string `json:"base_urls"`
-	ProtocolRules []ProtocolRule    `json:"protocol_rules,omitempty"`
+	OfficialBaseURLs map[string][]string `json:"official_base_urls"`
+	Mode             string              `json:"mode"`
+	BaseURLs         map[string]string   `json:"base_urls"`
+	ProtocolRules    []ProtocolRule      `json:"protocol_rules,omitempty"`
 }
 
 // BuildPlatformCatalog 按展示顺序返回全部具体平台（不含 composite）。
@@ -51,6 +55,7 @@ func BuildPlatformCatalog() PlatformCatalog {
 	for _, spec := range specs {
 		catalog.Platforms = append(catalog.Platforms, PlatformCatalogEntry{
 			PlatformSpec:  spec,
+			OfficialURLs:  platformOfficialURLs(spec.ID),
 			MultiProtocol: providerProfileInfo(LookupProviderProfile(spec.ID)),
 		})
 	}
@@ -89,9 +94,10 @@ func providerProfileInfo(profile *ProviderProfile) *ProviderProfileInfo {
 			baseURLs[protocol] = baseURL
 		}
 		info.Modes = append(info.Modes, ProviderModeInfo{
-			Mode:          mode,
-			BaseURLs:      baseURLs,
-			ProtocolRules: cloneProtocolRules(endpoints.ProtocolRules),
+			Mode:             mode,
+			OfficialBaseURLs: endpoints.OfficialBaseURLs(),
+			BaseURLs:         baseURLs,
+			ProtocolRules:    cloneProtocolRules(endpoints.ProtocolRules),
 		})
 	}
 	return info
@@ -107,4 +113,31 @@ func cloneProtocolRules(rules []ProtocolRule) []ProtocolRule {
 		out[i].Protocols = append([]string(nil), rule.Protocols...)
 	}
 	return out
+}
+
+// platformOfficialURLs is shared by the catalog and supplier credential validation.
+func platformOfficialURLs(platform string) []string {
+	if profile := LookupProviderProfile(platform); profile != nil {
+		var urls []string
+		for _, mode := range profile.Modes {
+			for _, values := range mode.OfficialBaseURLs() {
+				urls = append(urls, values...)
+			}
+		}
+		slices.Sort(urls)
+		return slices.Compact(urls)
+	}
+	switch platform {
+	case PlatformAnthropic:
+		return []string{"https://api.anthropic.com"}
+	case PlatformOpenAI:
+		return []string{"https://api.openai.com/v1"}
+	case PlatformGemini:
+		return []string{"https://generativelanguage.googleapis.com"}
+	case PlatformGrok:
+		return []string{xai.DefaultCLIBaseURL, xai.DefaultBaseURL, xai.DefaultUSEast1BaseURL, xai.DefaultUSWest2BaseURL, xai.DefaultEUWest1BaseURL}
+	case PlatformTypeSafe:
+		return []string{"https://api.typesafe.ai"}
+	}
+	return nil
 }
