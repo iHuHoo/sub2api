@@ -1498,6 +1498,8 @@ describe("admin SettingsView payment visible method controls", () => {
     await openGatewayTab(wrapper);
 
     const modeSelect = wrapper.get('[data-testid="openai-ttft-mode"]');
+    expect(modeSelect.attributes("aria-label")).toBe("admin.settings.gatewayForwarding.openaiTTFTMode");
+    expect(wrapper.get('[data-testid="grok-default-base-url-mode"]').attributes("aria-label")).toBe("admin.settings.gatewayForwarding.grokDefaultBaseURLMode");
     expect((modeSelect.element as HTMLSelectElement).value).toBe("visible");
 
     await modeSelect.setValue("semantic");

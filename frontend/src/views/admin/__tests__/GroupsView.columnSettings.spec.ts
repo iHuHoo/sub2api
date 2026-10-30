@@ -3,8 +3,10 @@ import { flushPromises, mount } from '@vue/test-utils'
 
 import type { AdminGroup } from '@/types'
 import GroupsView from '../GroupsView.vue'
+import Select from '@/components/common/Select.vue'
 
 const {
+  createGroupRequest,
   listGroups,
   getAllGroups,
   getModelAllowlistCandidates,
@@ -18,6 +20,7 @@ const {
   nextStep,
   authState,
 } = vi.hoisted(() => ({
+  createGroupRequest: vi.fn(),
   listGroups: vi.fn(),
   getAllGroups: vi.fn(),
   getModelAllowlistCandidates: vi.fn(),
@@ -59,7 +62,7 @@ vi.mock('@/api/admin', () => ({
       getUsageSummary,
       getCapacitySummary,
       getLiveCapability,
-      create: vi.fn(),
+      create: createGroupRequest,
       update: vi.fn(),
       delete: vi.fn(),
       updateSortOrder: vi.fn(),
@@ -167,21 +170,6 @@ const DataTableStub = {
   `,
 }
 
-const SelectStub = {
-  props: ['modelValue', 'options', 'placeholder'],
-  emits: ['update:modelValue', 'change'],
-  template: `
-    <select
-      :value="modelValue"
-      @change="$emit('update:modelValue', $event.target.value); $emit('change')"
-    >
-      <option v-for="option in options" :key="String(option.value)" :value="option.value">
-        {{ option.label }}
-      </option>
-    </select>
-  `,
-}
-
 const BaseDialogStub = {
   props: ['show'],
   template: '<div v-if="show"><slot /><slot name="footer" /></div>',
@@ -203,7 +191,6 @@ const mountView = async () => {
         BaseDialog: BaseDialogStub,
         ConfirmDialog: true,
         EmptyState: true,
-        Select: SelectStub,
         PlatformIcon: true,
         Icon: IconStub,
         GroupCapacityBadge: true,
@@ -237,6 +224,7 @@ describe('admin GroupsView column settings', () => {
   beforeEach(() => {
     localStorage.clear()
 
+    createGroupRequest.mockReset().mockResolvedValue(createGroup())
     listGroups.mockReset()
     getAllGroups.mockReset()
     getModelAllowlistCandidates.mockReset()
@@ -280,11 +268,38 @@ describe('admin GroupsView column settings', () => {
       expect.objectContaining({ is_exclusive: undefined }),
       expect.anything(),
     )
-    expect(wrapper.find('select').text()).not.toContain('admin.groups.allGroups')
+    expect(wrapper.findAllComponents(Select).flatMap(select => select.props('options')).map(option => option.label)).not.toContain('admin.groups.allGroups')
   })
 
   afterEach(() => {
     localStorage.clear()
+  })
+
+
+  it('copies numeric source IDs once and keeps the picker reset before submission', async () => {
+    const wrapper = await mountView()
+    await wrapper.get('[data-tour="groups-create-btn"]').trigger('click')
+    await flushPromises()
+    const picker = wrapper.findAllComponents(Select).find(select =>
+      select.props('placeholder') === 'admin.groups.copyAccounts.selectPlaceholder',
+    )!
+    expect(picker.exists()).toBe(true)
+    expect(picker.props('options')[0].value).toBe(1)
+    await picker.get('button').trigger('click')
+    const option = document.body.querySelector<HTMLElement>('[role="option"].select-option')!
+    expect(option).not.toBeNull()
+    option.click()
+    await flushPromises()
+    expect(picker.props('modelValue')).toBe('')
+    expect(picker.props('options')[0].disabled).toBe(true)
+    await picker.get('button').trigger('click')
+    expect(document.body.querySelector('[role="option"]')?.getAttribute('aria-disabled')).toBe('true')
+    document.body.querySelector<HTMLElement>('[role="option"]')!.click()
+    await wrapper.get('#create-group-form input').setValue('Copied group')
+    await wrapper.get('#create-group-form').trigger('submit')
+    await flushPromises()
+    expect(createGroupRequest).toHaveBeenCalledWith(expect.objectContaining({ copy_accounts_from_group_ids: [1] }))
+    wrapper.unmount()
   })
 
   it('hides the id column by default while keeping other group columns visible', async () => {

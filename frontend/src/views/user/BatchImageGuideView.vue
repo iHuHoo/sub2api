@@ -553,12 +553,7 @@
 
           <div class="md:col-span-2">
             <label class="input-label">API Key</label>
-            <select v-model.number="form.apiKeyId" class="input" :disabled="loadingKeys">
-              <option :value="0">{{ loadingKeys ? t('batchImage.create.loadingKeys') : t('batchImage.create.selectKeyPlaceholder') }}</option>
-              <option v-for="key in geminiApiKeys" :key="key.id" :value="key.id">
-                {{ key.name }} · {{ key.group?.name || 'Gemini' }}
-              </option>
-            </select>
+            <Select v-model="form.apiKeyId" :disabled="loadingKeys" :options="createApiKeyOptions" />
             <p v-if="!loadingKeys && geminiApiKeys.length === 0" class="input-hint text-amber-600 dark:text-amber-400">
               {{ t('batchImage.create.noKeysHint') }}
             </p>
@@ -566,13 +561,7 @@
 
           <div>
             <label class="input-label">{{ t('batchImage.create.model') }}</label>
-            <select v-model="form.model" class="input" :disabled="loadingModels || availableBatchImageModels.length === 0">
-              <option v-if="loadingModels" value="">{{ batchImageText('loadingModels') }}</option>
-              <option v-else-if="availableBatchImageModels.length === 0" value="">{{ batchImageText('noModels') }}</option>
-              <option v-for="model in availableBatchImageModels" :key="model.value" :value="model.value">
-                {{ model.label }}
-              </option>
-            </select>
+            <Select v-model="form.model" :disabled="loadingModels || availableBatchImageModels.length === 0" :options="createModelOptions" />
             <p v-if="modelLoadError" class="input-hint text-amber-600 dark:text-amber-400">
               {{ modelLoadError }}
             </p>
@@ -591,11 +580,7 @@
 
           <div>
             <label class="input-label">{{ t('batchImage.create.outputFormat') }}</label>
-            <select v-model="form.responseMimeType" class="input">
-              <option value="image/png">PNG</option>
-              <option value="image/jpeg">JPEG</option>
-              <option value="image/webp">WebP</option>
-            </select>
+            <Select v-model="form.responseMimeType" :options="responseMimeTypeOptions" />
           </div>
 
           <div>
@@ -618,7 +603,7 @@
               class="h-[76px] w-full resize-y rounded-md border border-gray-300 px-3 py-2 text-sm leading-5 outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100 dark:border-dark-600 dark:bg-dark-900 dark:text-gray-100 dark:focus:border-primary-500 dark:focus:ring-primary-900/40"
               :placeholder="t('batchImage.create.promptPlaceholder')"
             />
-            <div class="mt-2 grid gap-2 md:grid-cols-[minmax(0,1fr)_112px_132px_112px] md:items-center">
+            <div class="mt-2 grid gap-2 md:grid-cols-[minmax(0,1fr)_132px_132px_112px] md:items-center">
               <input
                 v-model="customIdDraft"
                 type="text"
@@ -626,16 +611,12 @@
                 class="input h-9 text-sm"
                 :placeholder="t('batchImage.create.customIdPlaceholder')"
               />
-              <select
-                v-model.number="outputCountDraft"
-                class="batch-output-count-select input h-9 text-sm"
+              <Select
+                v-model="outputCountDraft"
                 :title="t('batchImage.create.outputCountPerPrompt')"
                 :aria-label="t('batchImage.create.outputCountPerPrompt')"
-              >
-                <option v-for="count in outputCountOptions" :key="count" :value="count">
-                  {{ t('batchImage.create.outputCountOption', { n: count }, count) }}
-                </option>
-              </select>
+                :options="outputCountSelectOptions"
+              />
               <label
                 class="btn btn-secondary h-9 cursor-pointer justify-center text-sm"
                 :class="referenceImageDrafts.length >= selectedModelReferenceLimit ? 'pointer-events-none opacity-60' : ''"
@@ -944,6 +925,24 @@ const geminiApiKeys = computed(() =>
     key.group?.allow_batch_image_generation === true,
   ),
 )
+
+const createApiKeyOptions = computed(() => [
+  { value: 0, label: loadingKeys.value ? t('batchImage.create.loadingKeys') : t('batchImage.create.selectKeyPlaceholder') },
+  ...geminiApiKeys.value.map(key => ({ value: key.id, label: `${key.name} · ${key.group?.name || 'Gemini'}` })),
+])
+const createModelOptions = computed(() => [
+  ...(loadingModels.value ? [{ value: '', label: batchImageText('loadingModels') }]
+    : availableBatchImageModels.value.length === 0 ? [{ value: '', label: batchImageText('noModels') }] : []),
+  ...availableBatchImageModels.value,
+])
+const responseMimeTypeOptions = [
+  { value: 'image/png', label: 'PNG' },
+  { value: 'image/jpeg', label: 'JPEG' },
+  { value: 'image/webp', label: 'WebP' },
+]
+const outputCountSelectOptions = computed(() => outputCountOptions.map(count => ({
+  value: count, label: t('batchImage.create.outputCountOption', { n: count }, count),
+})))
 
 const selectedApiKey = computed(() =>
   geminiApiKeys.value.find((key) => key.id === Number(form.apiKeyId)) || null,
@@ -2681,13 +2680,4 @@ onBeforeUnmount(() => {
   scrollbar-width: thin;
 }
 
-.batch-output-count-select {
-  height: 36px;
-  min-height: 36px;
-  padding-top: 0;
-  padding-bottom: 0;
-  padding-left: 14px;
-  padding-right: 34px;
-  line-height: 36px;
-}
 </style>

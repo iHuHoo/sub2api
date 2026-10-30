@@ -185,10 +185,7 @@
         </div>
         <div>
           <label class="input-label">{{ t('admin.promo.purpose') }}</label>
-          <select v-model="createForm.purpose" data-testid="promo-purpose" class="input">
-            <option value="registration_bonus">{{ t('admin.promo.purposes.registration_bonus') }}</option>
-            <option value="subscription_discount">{{ t('admin.promo.purposes.subscription_discount') }}</option>
-          </select>
+          <Select v-model="createForm.purpose" data-testid="promo-purpose" :options="promoPurposeOptions" />
         </div>
         <div v-if="createForm.purpose === 'registration_bonus'">
           <label class="input-label">{{ t('admin.promo.bonusAmount') }}</label>
@@ -280,10 +277,7 @@
         </div>
         <div>
           <label class="input-label">{{ t('admin.promo.purpose') }}</label>
-          <select v-model="editForm.purpose" class="input">
-            <option value="registration_bonus">{{ t('admin.promo.purposes.registration_bonus') }}</option>
-            <option value="subscription_discount">{{ t('admin.promo.purposes.subscription_discount') }}</option>
-          </select>
+          <Select v-model="editForm.purpose" :options="promoPurposeOptions" />
         </div>
         <div v-if="editForm.purpose === 'registration_bonus'">
           <label class="input-label">{{ t('admin.promo.bonusAmount') }}</label>
@@ -804,4 +798,10 @@ onUnmounted(() => {
   clearTimeout(searchTimeout)
   abortController?.abort()
 })
+
+const promoPurposeOptions = computed(() => [
+  { value: 'registration_bonus', label: t('admin.promo.purposes.registration_bonus') },
+  { value: 'subscription_discount', label: t('admin.promo.purposes.subscription_discount') }
+])
+
 </script>

@@ -1755,6 +1755,28 @@ describe('EditAccountModal', () => {
     expect(updateAccountMock).not.toHaveBeenCalled()
   })
 
+  it.each(['service_account', 'apikey'])('rejects an empty required Vertex location when editing %s credentials', async authMode => {
+    const account = buildVertexAccount()
+    if (authMode === 'apikey') {
+      account.credentials = { auth_mode: 'apikey', project_id: 'demo-project', location: 'us-central1', tier_id: 'vertex' } as any
+      account.credentials_status = { has_api_key: true }
+    }
+    updateAccountMock.mockReset().mockResolvedValue(account)
+    checkMixedChannelRiskMock.mockResolvedValue({ has_risk: false })
+    const wrapper = mountModal(account)
+    const location = wrapper.findAllComponents(SelectStub).find(select =>
+      (select.props('options') as Array<{ value: string }>).some(option => option.value === 'us-central1'))!
+    expect(location).toBeDefined()
+    await location.setValue('')
+    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
+    expect(updateAccountMock).not.toHaveBeenCalled()
+    await location.setValue('us-east1')
+    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
+    expect(updateAccountMock).toHaveBeenCalledOnce()
+    expect(updateAccountMock.mock.calls[0]![1].credentials.location).toBe('us-east1')
+    wrapper.unmount()
+  })
+
   it('keeps the redacted Vertex API key when saving without entering a new one', async () => {
     const account = buildVertexAccount()
     account.credentials = {

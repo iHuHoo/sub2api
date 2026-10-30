@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent } from 'vue'
-import { mount } from '@vue/test-utils'
+import { mount, flushPromises } from '@vue/test-utils'
+import Select from '@/components/common/Select.vue'
 import EndpointPool from '../components/EndpointPool.vue'
 import PolicyPanel from '../components/PolicyPanel.vue'
 import EventWorkspace from '../components/EventWorkspace.vue'
@@ -105,6 +106,23 @@ describe('Prompt Audit components', () => {
     expect(wrapper.emitted('selection')?.at(-1)?.[0]).toEqual([1])
   })
 
+
+  it('emits string filter selections and preserves the empty all-filter value', async () => {
+    const wrapper = mount(EventWorkspace, {
+      props: { events: [], total: 0, page: 1, pageSize: 20, filters: emptyEventFilters(), selectedIds: [], loading: false, error: '' },
+      global: { stubs: { Pagination: PaginationStub } },
+    })
+    const decision = wrapper.findAllComponents(Select)[0]!
+    for (const [label, value] of [['admin.promptAudit.decisions.flag', 'flag'], ['common.all', '']]) {
+      await decision.get('button').trigger('click')
+      Array.from(document.body.querySelectorAll<HTMLElement>('[role="option"]')).find(option => option.textContent?.trim() === label)!.click()
+      await flushPromises()
+      expect(wrapper.emitted('filters-change')?.at(-1)?.[0]).toEqual({ ...emptyEventFilters(), decision: value })
+    }
+    expect(wrapper.emitted('filters-change')).toHaveLength(2)
+    wrapper.unmount()
+  })
+
   it('resolves delete range presets to an epoch start and a cutoff end', () => {
     const now = Date.parse('2026-07-17T12:00:00.000Z')
     const sevenDays = resolveDeleteRangeFilters(emptyEventFilters(), '7d', now)
@@ -136,7 +154,11 @@ describe('Prompt Audit components', () => {
 
     await wrapper.get('[data-test="range-preset-30d"]').setValue()
     expect(wrapper.emitted('criteria-change')?.length).toBeGreaterThan(0)
-    await wrapper.get('[data-test="delete-risk"]').setValue('high')
+    const riskSelect = wrapper.findAllComponents(Select).find(select => select.attributes('data-test') === 'delete-risk')!
+    await riskSelect.get('button').trigger('click')
+    const highOption = Array.from(document.body.querySelectorAll<HTMLElement>('[role="option"]')).find(option => option.textContent?.includes('admin.promptAudit.riskLevels.high'))!
+    highOption.click()
+    await flushPromises()
     await wrapper.get('[data-test="run-delete-preview"]').trigger('click')
     const presetPreview = wrapper.emitted('preview')?.at(-1)?.[0] as PromptEventFilters
     expect(presetPreview.risk_level).toBe('high')
@@ -197,7 +219,7 @@ describe('Prompt Audit components', () => {
     })
     expect(wrapper.get<HTMLInputElement>('[data-test="range-preset-custom"]').element.checked).toBe(true)
     expect(wrapper.get<HTMLInputElement>('[data-test="custom-range"] [aria-label="admin.promptAudit.events.startAt"]').element.value).toBe('2026-07-01T00:00')
-    expect(wrapper.get<HTMLSelectElement>('[data-test="delete-decision"]').element.value).toBe('critical')
+    expect(wrapper.findAllComponents(Select).find(select => select.attributes('data-test') === 'delete-decision')!.props('modelValue')).toBe('critical')
     expect(wrapper.get('[data-test="run-delete-preview"]').attributes()).not.toHaveProperty('disabled')
   })
 
