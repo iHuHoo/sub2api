@@ -34,7 +34,7 @@ func (s *supplierAccountTestRunnerStub) TestSupplierAccountConnection(c *gin.Con
 }
 
 func supplierAccountDiagnosticRequest(method string, account *service.Account, runner *supplierAccountTestRunnerStub, owner int64, body string) (*SupplierHandler, *httptest.ResponseRecorder, *gin.Context) {
-	h := NewSupplierHandler(service.NewSupplierService(&supplierUsageRepo{account: account}, nil))
+	h := NewSupplierHandler(service.NewSupplierService(&supplierUsageRepo{account: account}, nil, nil))
 	h.accountTest = runner
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)

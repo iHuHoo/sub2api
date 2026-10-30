@@ -855,10 +855,14 @@ func ProvideAPIKeyService(
 	return svc
 }
 
+func ProvideSupplierService(repo SupplierRepository, tokenInvalidator TokenCacheInvalidator, admin AdminService) *SupplierService {
+	return NewSupplierService(repo, tokenInvalidator, admin)
+}
+
 // ProviderSet is the Wire provider set for all services
 var ProviderSet = wire.NewSet(
 	NewClashSubscriptionService,
-	NewSupplierService,
+	ProvideSupplierService,
 	// Core services
 	ProvideAuthService,
 	NewPasskeyService,

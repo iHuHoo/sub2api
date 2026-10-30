@@ -3,6 +3,8 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
+	"maps"
 	"net"
 	"regexp"
 	"strconv"
@@ -130,13 +132,22 @@ type SupplierRepository interface {
 	Usage(context.Context, int64, time.Time, time.Time, *int64) (*SupplierUsage, error)
 }
 
+// SupplierPrivacyService reuses the administrator privacy implementation.
+type SupplierPrivacyService interface {
+	EnsureOpenAIPrivacy(context.Context, *Account) string
+	EnsureAntigravityPrivacy(context.Context, *Account) string
+	ForceOpenAIPrivacy(context.Context, *Account) string
+	ForceAntigravityPrivacy(context.Context, *Account) string
+}
+
 type SupplierService struct {
+	privacy          SupplierPrivacyService
 	repo             SupplierRepository
 	tokenInvalidator TokenCacheInvalidator
 }
 
-func NewSupplierService(repo SupplierRepository, tokenInvalidator TokenCacheInvalidator) *SupplierService {
-	return &SupplierService{repo: repo, tokenInvalidator: tokenInvalidator}
+func NewSupplierService(repo SupplierRepository, tokenInvalidator TokenCacheInvalidator, privacy SupplierPrivacyService) *SupplierService {
+	return &SupplierService{repo: repo, tokenInvalidator: tokenInvalidator, privacy: privacy}
 }
 
 func supplierAccountView(a *Account, owner int64) SupplierAccount {
@@ -212,6 +223,7 @@ func (s *SupplierService) CreateAccount(ctx context.Context, owner int64, in Sup
 	if err = s.repo.CreateAccount(ctx, owner, a); err != nil {
 		return nil, err
 	}
+	s.ensurePrivacyAsync(a, false)
 	return s.GetAccount(ctx, owner, a.ID)
 }
 func (s *SupplierService) UpdateAccount(ctx context.Context, owner, id int64, in SupplierAccountUpdate) (*SupplierAccount, error) {
@@ -239,6 +251,7 @@ func (s *SupplierService) UpdateAccount(ctx context.Context, owner, id int64, in
 
 	}
 	previous := a
+	previousAccessToken := a.GetCredential("access_token")
 	a, err = s.repo.UpdateAccount(ctx, owner, id, in)
 	if err != nil {
 		return nil, err
@@ -249,9 +262,47 @@ func (s *SupplierService) UpdateAccount(ctx context.Context, owner, id int64, in
 		_ = s.tokenInvalidator.InvalidateToken(ctx, previous)
 		_ = s.tokenInvalidator.InvalidateToken(ctx, a)
 	}
+	if in.Credentials != nil {
+		s.ensurePrivacyAsync(a, previousAccessToken != a.GetCredential("access_token"))
+	}
 	out := supplierAccountView(a, owner)
 	return &out, nil
 }
+
+// Called only after the supplier repository has committed the account write.
+func (s *SupplierService) ensurePrivacyAsync(account *Account, force bool) {
+	if s.privacy == nil || account.Type != AccountTypeOAuth || (account.Platform != PlatformOpenAI && account.Platform != PlatformAntigravity) {
+		return
+	}
+	// Existing privacy methods may update Extra in memory; isolate response readers.
+	snapshot := *account
+	snapshot.Extra = maps.Clone(account.Extra)
+	snapshot.Credentials = maps.Clone(account.Credentials)
+	go func() {
+		defer func() {
+			if recover() != nil {
+				// Panic payloads may contain credentials; log only safe account identifiers.
+				slog.Error("supplier_account_privacy_panic", "account_id", snapshot.ID, "platform", snapshot.Platform)
+			}
+		}()
+		ctx := context.Background()
+		switch snapshot.Platform {
+		case PlatformOpenAI:
+			if force {
+				s.privacy.ForceOpenAIPrivacy(ctx, &snapshot)
+			} else {
+				s.privacy.EnsureOpenAIPrivacy(ctx, &snapshot)
+			}
+		case PlatformAntigravity:
+			if force {
+				s.privacy.ForceAntigravityPrivacy(ctx, &snapshot)
+			} else {
+				s.privacy.EnsureAntigravityPrivacy(ctx, &snapshot)
+			}
+		}
+	}()
+}
+
 func (s *SupplierService) ListProxies(ctx context.Context, owner int64, p pagination.PaginationParams) ([]SupplierProxy, int64, error) {
 	rows, total, err := s.repo.ListProxies(ctx, owner, p)
 	if err != nil {

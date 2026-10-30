@@ -157,7 +157,7 @@ func (i *supplierCommitInvalidator) InvalidateToken(_ context.Context, a *Accoun
 func TestSupplierRotationInvalidatesAfterCommit(t *testing.T) {
 	repo := &supplierRotationRepo{a: &Account{ID: 7, Platform: PlatformOpenAI, Type: AccountTypeOAuth, Credentials: map[string]any{"access_token": "old", "_token_version": int64(10)}}}
 	inv := &supplierCommitInvalidator{repo: repo, t: t}
-	svc := NewSupplierService(repo, inv)
+	svc := NewSupplierService(repo, inv, nil)
 	_, err := svc.UpdateAccount(context.Background(), 11, 7, SupplierAccountUpdate{Credentials: map[string]any{"access_token": "new"}})
 	require.NoError(t, err)
 	require.Equal(t, []int64{10, 11}, inv.versions)
