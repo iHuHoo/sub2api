@@ -5,6 +5,7 @@ package service
 import (
 	"context"
 	"errors"
+	"log"
 	"log/slog"
 	"maps"
 	"strings"
@@ -239,7 +240,10 @@ type supplierPrivacyLogHandler struct{ records chan slog.Record }
 
 func (h supplierPrivacyLogHandler) Enabled(context.Context, slog.Level) bool { return true }
 func (h supplierPrivacyLogHandler) Handle(_ context.Context, r slog.Record) error {
-	h.records <- r.Clone()
+	select {
+	case h.records <- r.Clone():
+	default:
+	}
 	return nil
 }
 func (h supplierPrivacyLogHandler) WithAttrs([]slog.Attr) slog.Handler { return h }
@@ -248,8 +252,19 @@ func TestSupplierPrivacyPanicDoesNotLeakCredentials(t *testing.T) {
 	const marker = "synthetic-privacy-token-must-not-be-logged"
 	logs := make(chan slog.Record, 8)
 	previous := slog.Default()
+	previousWriter, previousFlags := log.Writer(), log.Flags()
+	// Cleanup runs in reverse order: verify the restoration below after it runs.
+	t.Cleanup(func() {
+		if log.Writer() != previousWriter || log.Flags() != previousFlags {
+			t.Error("standard logger output and flags were not restored")
+		}
+	})
 	slog.SetDefault(slog.New(supplierPrivacyLogHandler{logs}))
-	t.Cleanup(func() { slog.SetDefault(previous) })
+	t.Cleanup(func() {
+		slog.SetDefault(previous)
+		log.SetOutput(previousWriter)
+		log.SetFlags(previousFlags)
+	})
 	r := &supplierPrivacyRepo{}
 	f := newSupplierPrivacyFake(r)
 	f.panicValue = marker
