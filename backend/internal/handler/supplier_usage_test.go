@@ -47,7 +47,7 @@ func (s *supplierUsageStub) GetPassiveUsage(context.Context, int64) (*service.Us
 
 func supplierUsageRequest(t *testing.T, account *service.Account, usage *supplierUsageStub, owner int64) *httptest.ResponseRecorder {
 	t.Helper()
-	h := NewSupplierHandler(service.NewSupplierService(&supplierUsageRepo{account: account}, nil))
+	h := NewSupplierHandler(service.NewSupplierService(&supplierUsageRepo{account: account}, nil, nil))
 	h.accountUsage = usage
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)

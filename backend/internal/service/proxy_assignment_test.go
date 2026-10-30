@@ -62,7 +62,7 @@ func TestAssignedSupplierMutationAndOAuthTrust(t *testing.T) {
 	owner := int64(42)
 	p := &Proxy{ID: 1, Name: "assigned", Protocol: "http", Host: "admin.example.com", Port: 8080, Status: StatusActive, AssignedSupplierUserID: &owner, AssignmentValid: true}
 	repo := &assignedProxyTestRepo{p: p}
-	s := NewSupplierService(repo, nil)
+	s := NewSupplierService(repo, nil, nil)
 	_, err := s.UpdateProxy(context.Background(), owner, p.ID, SupplierProxyInput{})
 	require.ErrorIs(t, err, ErrSupplierProxyReadOnly)
 	require.ErrorIs(t, s.DeleteProxy(context.Background(), owner, p.ID), ErrSupplierProxyReadOnly)

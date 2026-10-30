@@ -119,7 +119,7 @@ func (r *supplierCreateTestRepo) GetAccount(context.Context, int64, int64) (*Acc
 
 func TestSupplierCreateAccountMatchesAdminDefaultPriority(t *testing.T) {
 	repo := &supplierCreateTestRepo{}
-	svc := NewSupplierService(repo, nil)
+	svc := NewSupplierService(repo, nil, nil)
 
 	_, err := svc.CreateAccount(context.Background(), 11, SupplierAccountCreate{
 		Name:        "supplier-account",
@@ -213,7 +213,7 @@ func TestSupplierCreateGeminiVertexRejectsMixedJSONCredentials(t *testing.T) {
 				credentials["auth_mode"] = tt.authMode
 			}
 			repo := &supplierCreateTestRepo{}
-			_, err := NewSupplierService(repo, nil).CreateAccount(context.Background(), 11, SupplierAccountCreate{
+			_, err := NewSupplierService(repo, nil, nil).CreateAccount(context.Background(), 11, SupplierAccountCreate{
 				Name: "vertex", Platform: PlatformGemini, Type: AccountTypeServiceAccount, Credentials: credentials,
 			})
 
@@ -225,7 +225,7 @@ func TestSupplierCreateGeminiVertexRejectsMixedJSONCredentials(t *testing.T) {
 
 func TestSupplierCreateGeminiVertexRejectsInvalidAuthMode(t *testing.T) {
 	repo := &supplierCreateTestRepo{}
-	_, err := NewSupplierService(repo, nil).CreateAccount(context.Background(), 11, SupplierAccountCreate{
+	_, err := NewSupplierService(repo, nil, nil).CreateAccount(context.Background(), 11, SupplierAccountCreate{
 		Name:     "vertex",
 		Platform: PlatformGemini,
 		Type:     AccountTypeServiceAccount,
@@ -272,7 +272,7 @@ func TestSupplierGeminiVertexCreateNormalizesCredentialsAndRoutes(t *testing.T) 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			repo := &supplierCreateTestRepo{}
-			svc := NewSupplierService(repo, nil)
+			svc := NewSupplierService(repo, nil, nil)
 			_, err := svc.CreateAccount(context.Background(), 11, SupplierAccountCreate{
 				Name: "vertex", Platform: PlatformGemini, Type: AccountTypeServiceAccount, Credentials: tt.credentials,
 			})
@@ -310,7 +310,7 @@ func (r *supplierEditTestRepo) UpdateAccount(_ context.Context, _ int64, _ int64
 func TestSupplierCredentialEditPreservesAdministratorEndpoint(t *testing.T) {
 	owner := int64(11)
 	repo := &supplierEditTestRepo{a: &Account{ID: 1, SupplierUserID: &owner, Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Credentials: map[string]any{"api_key": "old", "base_url": "https://admin-configured.example/v1", "header_overrides": map[string]any{"x": "admin"}}}}
-	s := NewSupplierService(repo, nil)
+	s := NewSupplierService(repo, nil, nil)
 	_, err := s.UpdateAccount(context.Background(), owner, 1, SupplierAccountUpdate{Credentials: map[string]any{"api_key": "new"}})
 	require.NoError(t, err)
 	require.Equal(t, "https://admin-configured.example/v1", repo.a.Credentials["base_url"])
@@ -342,7 +342,7 @@ func TestSupplierGeminiVertexEditRejectsAuthOrEndpointModeSwitch(t *testing.T) {
 			tt.account.ID = 1
 			tt.account.SupplierUserID = &owner
 			repo := &supplierEditTestRepo{a: tt.account}
-			_, err := NewSupplierService(repo, nil).UpdateAccount(context.Background(), owner, 1, SupplierAccountUpdate{Credentials: tt.credentials})
+			_, err := NewSupplierService(repo, nil, nil).UpdateAccount(context.Background(), owner, 1, SupplierAccountUpdate{Credentials: tt.credentials})
 			if tt.wantErr != nil {
 				require.ErrorIs(t, err, tt.wantErr)
 				return
@@ -355,6 +355,6 @@ func TestSupplierGeminiVertexEditRejectsAuthOrEndpointModeSwitch(t *testing.T) {
 
 func TestSupplierGeminiVertexEditKeepsOwnershipBoundary(t *testing.T) {
 	repo := &supplierEditTestRepo{getErr: ErrSupplierUnavailable}
-	_, err := NewSupplierService(repo, nil).UpdateAccount(context.Background(), 11, 99, SupplierAccountUpdate{Credentials: map[string]any{"api_key": "new"}})
+	_, err := NewSupplierService(repo, nil, nil).UpdateAccount(context.Background(), 11, 99, SupplierAccountUpdate{Credentials: map[string]any{"api_key": "new"}})
 	require.ErrorIs(t, err, ErrSupplierUnavailable)
 }

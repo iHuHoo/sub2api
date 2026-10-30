@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"net/http/httptest"
 	"testing"
+	"time"
 )
 
 type supplierImportRepo struct {
@@ -31,9 +32,24 @@ func (r *supplierImportRepo) GetAccount(_ context.Context, owner, id int64) (*se
 	}
 	return r.account, nil
 }
+
+type supplierImportPrivacy struct {
+	service.SupplierPrivacyService
+	calls chan int64
+}
+
+func (p *supplierImportPrivacy) EnsureOpenAIPrivacy(ctx context.Context, a *service.Account) string {
+	if ctx.Done() != nil {
+		panic("privacy context must be detached")
+	}
+	p.calls <- a.ID
+	return "training_disabled"
+}
+
 func TestSupplierCodexImportCreatesOnlyOwnedAccount(t *testing.T) {
 	repo := &supplierImportRepo{}
-	h := NewSupplierHandler(service.NewSupplierService(repo, nil))
+	privacy := &supplierImportPrivacy{calls: make(chan int64, 2)}
+	h := NewSupplierHandler(service.NewSupplierService(repo, nil, privacy))
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Set(string(middleware.ContextKeyUser), middleware.AuthSubject{UserID: 11})
@@ -47,6 +63,17 @@ func TestSupplierCodexImportCreatesOnlyOwnedAccount(t *testing.T) {
 	require.Equal(t, "import-secret", repo.account.Credentials["access_token"])
 	require.NotContains(t, w.Body.String(), "import-secret")
 	require.Contains(t, w.Body.String(), `"created":1`)
+	select {
+	case id := <-privacy.calls:
+		require.EqualValues(t, 7, id)
+	case <-time.After(time.Second):
+		t.Fatal("Codex import did not invoke supplier privacy")
+	}
+	select {
+	case <-privacy.calls:
+		t.Fatal("duplicate privacy invocation")
+	case <-time.After(50 * time.Millisecond):
+	}
 }
 
 func TestSupplierCodexImportRejectsManagementFields(t *testing.T) {

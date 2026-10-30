@@ -88,7 +88,7 @@ func TestSupplierOAuthOwnedRefreshAndRevokedSessionProxy(t *testing.T) {
 	client := &supplierRefreshClient{}
 	upstream := NewOpenAIOAuthService(nil, client)
 	defer upstream.Stop()
-	s := NewSupplierOAuthService(NewSupplierService(repo, nil), upstream, nil, nil, nil, nil)
+	s := NewSupplierOAuthService(NewSupplierService(repo, nil, nil), upstream, nil, nil, nil, nil)
 	out, err := s.Execute(context.Background(), owner, PlatformOpenAI, "refresh-token", SupplierOAuthInput{ProxyID: &id, RefreshToken: "rt"})
 	require.NoError(t, err)
 	require.Equal(t, "new-at", out.(*OpenAITokenInfo).AccessToken)
@@ -151,7 +151,7 @@ func (r *supplierOAuthProxyRepo) GetProxy(context.Context, int64, int64) (*Proxy
 }
 func TestSupplierOAuthRejectsForeignProxyBeforeUpstream(t *testing.T) {
 	r := &supplierOAuthProxyRepo{}
-	s := &SupplierOAuthService{supplier: NewSupplierService(r, nil)}
+	s := &SupplierOAuthService{supplier: NewSupplierService(r, nil, nil)}
 	id := int64(9)
 	_, err := s.Execute(context.Background(), 11, PlatformOpenAI, "refresh-token", SupplierOAuthInput{ProxyID: &id, RefreshToken: "secret"})
 	require.ErrorIs(t, err, ErrSupplierUnavailable)
