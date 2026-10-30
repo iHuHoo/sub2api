@@ -254,6 +254,17 @@ func (s *SupplierService) UpdateAccount(ctx context.Context, owner, id int64, in
 			in.Credentials["api_base_urls"] = map[string]any{}
 		}
 		merged := mergeMap(a.Credentials, in.Credentials)
+		if baseChanged && !modeChanged && !protocolChanged && !urlsChanged && a.IsAdaptiveAPIProtocol() {
+			if urls, ok := merged["api_base_urls"].(map[string]any); ok {
+				if _, hasChat := urls[APIProtocolChatCompletions]; hasChat {
+					// Adaptive Chat overrides base_url; replace the map without mutating stored credentials.
+					urls = maps.Clone(urls)
+					urls[APIProtocolChatCompletions] = merged["base_url"]
+					in.Credentials["api_base_urls"] = urls
+					merged["api_base_urls"] = urls
+				}
+			}
+		}
 		if modeChanged || protocolChanged || urlsChanged || baseChanged {
 			if err = validateSupplierEndpointCombination(a.Platform, a.Type, merged); err != nil {
 				return nil, err

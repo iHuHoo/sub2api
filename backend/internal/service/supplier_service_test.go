@@ -495,3 +495,44 @@ func TestSupplierAnthropicToAdaptiveEditorPatch(t *testing.T) {
 		require.Equal(t, url, repo.a.GetCNProtocolBaseURL(protocol))
 	}
 }
+
+func TestSupplierAdaptiveBaseURLUpdate(t *testing.T) {
+	const international = "https://api.minimax.io/v1"
+	for _, tt := range []struct {
+		name, protocol     string
+		patch              map[string]any
+		wantBase, wantChat string
+		wantErr            bool
+	}{
+		{"base only", APIProtocolAdaptive, map[string]any{"base_url": international}, international, international, false},
+		{"key only", APIProtocolAdaptive, map[string]any{"api_key": "new"}, DefaultMiniMaxBaseURL, DefaultMiniMaxBaseURL, false},
+		{"fixed protocol", APIProtocolChatCompletions, map[string]any{"base_url": international}, international, DefaultMiniMaxBaseURL, false},
+		{"invalid combination", APIProtocolAdaptive, map[string]any{"base_url": "https://api.minimax.io/anthropic"}, DefaultMiniMaxBaseURL, DefaultMiniMaxBaseURL, true},
+		{"explicit map wins", APIProtocolAdaptive, map[string]any{"base_url": international, "api_base_urls": map[string]any{APIProtocolChatCompletions: DefaultMiniMaxBaseURL, APIProtocolAnthropic: DefaultMiniMaxAnthropicBaseURL}}, international, DefaultMiniMaxBaseURL, false},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			owner := int64(11)
+			originalURLs := map[string]any{APIProtocolChatCompletions: DefaultMiniMaxBaseURL, APIProtocolAnthropic: DefaultMiniMaxAnthropicBaseURL}
+			originalCreds := map[string]any{"api_key": "old", "base_url": DefaultMiniMaxBaseURL, "account_mode": AccountModePayG, "api_protocol": tt.protocol, "api_base_urls": originalURLs}
+			repo := &supplierEditTestRepo{a: &Account{ID: 1, SupplierUserID: &owner, Platform: PlatformMiniMax, Type: AccountTypeAPIKey, Credentials: originalCreds}}
+			_, err := NewSupplierService(repo, nil, nil).UpdateAccount(context.Background(), owner, 1, SupplierAccountUpdate{Credentials: tt.patch})
+			if tt.wantErr {
+				require.ErrorIs(t, err, ErrSupplierInvalid)
+			} else {
+				require.NoError(t, err)
+			}
+			require.Equal(t, tt.wantBase, repo.a.Credentials["base_url"])
+			updatedURLs := repo.a.Credentials["api_base_urls"].(map[string]any)
+			require.Equal(t, tt.wantChat, updatedURLs[APIProtocolChatCompletions])
+			require.Equal(t, DefaultMiniMaxAnthropicBaseURL, updatedURLs[APIProtocolAnthropic])
+			require.Equal(t, map[string]any{APIProtocolChatCompletions: DefaultMiniMaxBaseURL, APIProtocolAnthropic: DefaultMiniMaxAnthropicBaseURL}, originalURLs)
+			require.Equal(t, DefaultMiniMaxBaseURL, originalCreds["base_url"])
+			if tt.protocol == APIProtocolAdaptive {
+				require.Equal(t, tt.wantChat, repo.a.GetOpenAIBaseURL())
+				require.Equal(t, tt.wantChat, repo.a.GetCNProtocolBaseURL(APIProtocolChatCompletions))
+			} else {
+				require.Equal(t, tt.wantBase, repo.a.GetOpenAIBaseURL())
+			}
+		})
+	}
+}
