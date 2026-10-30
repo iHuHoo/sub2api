@@ -603,7 +603,7 @@
               class="h-[76px] w-full resize-y rounded-md border border-gray-300 px-3 py-2 text-sm leading-5 outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100 dark:border-dark-600 dark:bg-dark-900 dark:text-gray-100 dark:focus:border-primary-500 dark:focus:ring-primary-900/40"
               :placeholder="t('batchImage.create.promptPlaceholder')"
             />
-            <div class="mt-2 grid gap-2 md:grid-cols-[minmax(0,1fr)_112px_132px_112px] md:items-center">
+            <div class="mt-2 grid gap-2 md:grid-cols-[minmax(0,1fr)_132px_132px_112px] md:items-center">
               <input
                 v-model="customIdDraft"
                 type="text"
@@ -613,7 +613,6 @@
               />
               <Select
                 v-model="outputCountDraft"
-                class="h-9 text-sm"
                 :title="t('batchImage.create.outputCountPerPrompt')"
                 :aria-label="t('batchImage.create.outputCountPerPrompt')"
                 :options="outputCountSelectOptions"

@@ -1,6 +1,8 @@
 .PHONY: build build-backend build-frontend test test-backend test-frontend test-frontend-critical
 
 FRONTEND_CRITICAL_VITEST := \
+	src/__tests__/nativeSelect.spec.ts \
+	src/components/common/__tests__/Select.groups.spec.ts \
 	src/api/__tests__/admin.proxies.diagnostics.spec.ts \
 	src/composables/__tests__/useProxyDiagnostics.spec.ts \
 	src/components/proxy/__tests__/ProxyDiagnosticsReport.spec.ts \
