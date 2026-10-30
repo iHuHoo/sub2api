@@ -1504,8 +1504,15 @@
       <div v-if="form.type === 'apikey' && form.platform !== 'antigravity'" class="space-y-4">
         <div v-if="!isMultiProtocolPlatform || apiProtocol !== 'adaptive'">
           <label class="input-label">{{ t('admin.accounts.baseUrl') }}</label>
+          <Select
+            v-if="supplier"
+            v-model="apiKeyBaseUrl"
+            :options="supplierEndpointOptions(apiProtocol)"
+            :aria-label="t('admin.accounts.baseUrl')"
+            data-testid="supplier-base-url"
+          />
           <input
-            :readonly="supplier"
+            v-else
             v-model="apiKeyBaseUrl"
             type="text"
             class="input"
@@ -1535,8 +1542,15 @@
               <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">
                 {{ t(`admin.accounts.cnProviders.apiProtocol.${item.labelKey}`) }}
               </label>
+              <Select
+                v-if="supplier"
+                v-model="adaptiveBaseUrls[item.value]"
+                :options="supplierEndpointOptions(item.value)"
+                :aria-label="t('admin.accounts.cnProviders.apiProtocol.' + item.labelKey)"
+                :data-testid="`cn-adaptive-base-url-${item.value}`"
+              />
               <input
-                :readonly="supplier"
+                v-else
                 v-model="adaptiveBaseUrls[item.value]"
                 type="text"
                 class="input"
@@ -2147,7 +2161,7 @@
         </div>
 
         <!-- Shared: Force Global -->
-        <div v-if="!supplier">
+        <div>
           <label class="flex items-center gap-2 cursor-pointer">
             <input
               v-model="bedrockForceGlobal"
@@ -4134,6 +4148,7 @@ import {
   isValidWildcardPattern
 } from '@/composables/useModelWhitelist'
 import { adminAPI } from '@/api/admin'
+import { officialBaseURLs } from '@/constants/platformCatalog'
 import { supplierAccountCreationAPI } from '@/api/supplierAccountCreation'
 import { useQuotaNotifyState } from '@/composables/useQuotaNotifyState'
 import {
@@ -4476,6 +4491,17 @@ const cnProtocolOptions = computed<Array<{ value: CnApiProtocol; labelKey: strin
   { value: 'adaptive', labelKey: 'adaptive' },
   ...cnAdaptiveProtocolOptions.value
 ])
+
+watch(apiKeyBaseUrl, value => {
+  if (props.supplier && form.platform === 'openai' && value === 'https://api.openai.com') {
+    apiKeyBaseUrl.value = 'https://api.openai.com/v1'
+  }
+})
+
+function supplierEndpointOptions(protocol: string) {
+  return officialBaseURLs(form.platform, currentOpenCodeOrCNMode(), protocol)
+    .map(url => ({ value: url, label: url }))
+}
 
 function resetAdaptiveBaseUrls(platform: string, mode: string) {
   adaptiveBaseUrls.value = defaultCNAdaptiveBaseUrls(platform, mode)

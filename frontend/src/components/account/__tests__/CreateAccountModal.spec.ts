@@ -936,6 +936,59 @@ describe('supplier account creation boundary', () => {
 
 
 describe('supplier shared account actions', () => {
+  it.each([
+    ['Grok', 'https://cli-chat-proxy.grok.com/v1'],
+    ['Grok', 'https://api.x.ai/v1'],
+    ['Grok', 'https://us-east-1.api.x.ai/v1'],
+    ['Grok', 'https://us-west-2.api.x.ai/v1'],
+    ['Grok', 'https://eu-west-1.api.x.ai/v1'],
+    ['MiniMax', 'https://api.minimax.io/v1']
+  ])('creates supplier %s with official preset %s', async (platform, url) => {
+    const { apiClient } = await import('@/api/client')
+    const post = vi.spyOn(apiClient, 'post').mockResolvedValue({ data: { id: 9 } })
+    const wrapper = mountModal([], true)
+    await selectButtonByText(wrapper, platform)
+    if (platform === 'Grok') await selectButtonByText(wrapper, 'API Key')
+    if (platform === 'MiniMax') await selectButtonByText(wrapper, 'admin.accounts.cnProviders.apiProtocol.chatCompletions')
+    const endpoint = wrapper.findComponent('[data-testid="supplier-base-url"]')
+    expect(endpoint.exists()).toBe(true)
+    expect((endpoint.props() as any).options.map((o: any) => o.value)).toContain(url)
+    endpoint.vm.$emit('update:modelValue', url)
+    await flushPromises()
+    expect(wrapper.find('input[placeholder="https://api.x.ai/v1"]').exists()).toBe(false)
+    expect(wrapper.findAll('input').some(input => (input.element as HTMLInputElement).value.startsWith('https://'))).toBe(false)
+    await wrapper.get('form input[type="text"]').setValue('Supplier endpoint')
+    await wrapper.get('form input[type="password"]').setValue('test-key')
+    await wrapper.get('form').trigger('submit.prevent')
+    await flushPromises()
+    expect(post).toHaveBeenCalledWith('/supplier/accounts', expect.objectContaining({credentials: expect.objectContaining({base_url: url})}))
+    expect(post.mock.calls.every(call => call[0].startsWith('/supplier/'))).toBe(true)
+    wrapper.unmount()
+  })
+
+  it('selects MiniMax international endpoints for every adaptive protocol', async () => {
+    const { apiClient } = await import('@/api/client')
+    const post = vi.spyOn(apiClient, 'post').mockResolvedValue({ data: { id: 9 } })
+    const wrapper = mountModal([], true)
+    await selectButtonByText(wrapper, 'MiniMax')
+    await selectButtonByText(wrapper, 'admin.accounts.cnProviders.apiProtocol.adaptive')
+    for (const protocol of ['chat_completions', 'anthropic', 'responses']) {
+      const endpoint = wrapper.findComponent('[data-testid="cn-adaptive-base-url-' + protocol + '"]')
+      expect(endpoint.exists()).toBe(true)
+      const url = 'https://api.minimax.io/' + (protocol === 'anthropic' ? 'anthropic' : 'v1')
+      expect((endpoint.props() as any).options.map((o: any) => o.value)).toContain(url)
+      endpoint.vm.$emit('update:modelValue', url)
+    }
+    await wrapper.get('form input[type="text"]').setValue('Supplier adaptive')
+    await wrapper.get('form input[type="password"]').setValue('test-key')
+    await wrapper.get('form').trigger('submit.prevent')
+    await flushPromises()
+    expect(post).toHaveBeenCalledWith('/supplier/accounts', expect.objectContaining({credentials: expect.objectContaining({
+      api_base_urls: {chat_completions: 'https://api.minimax.io/v1', anthropic: 'https://api.minimax.io/anthropic', responses: 'https://api.minimax.io/v1'}
+    })}))
+    wrapper.unmount()
+  })
+
   afterEach(() => vi.restoreAllMocks())
 
   it('creates an API key account through the supplier allowlist', async () => {
@@ -966,6 +1019,24 @@ describe('supplier shared account actions', () => {
     await selectButtonByText(wrapper, 'admin.accounts.cnProviders.accountMode.coding')
     expect(wrapper.text()).not.toContain('admin.accounts.cnProviders.zhipuTeam.title')
     expect(wrapper.findComponent({ name: 'OpenCodeGoProtocolRulesEditor' }).exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('allows suppliers to force the Bedrock global region', async () => {
+    const { apiClient } = await import('@/api/client')
+    const post = vi.spyOn(apiClient, 'post').mockResolvedValue({ data: { id: 9 } })
+    const wrapper = mountModal([], true)
+    await selectButtonByText(wrapper, 'admin.accounts.bedrockLabel')
+    const label = wrapper.findAll('label').find(label => label.text().includes('admin.accounts.bedrockForceGlobal'))!
+    expect(label).toBeDefined()
+    await label.get('input[type="checkbox"]').setValue(true)
+    await wrapper.get('form input[type="text"]').setValue('Supplier global')
+    await wrapper.get('input[placeholder="AKIA..."]').setValue('access-key')
+    await wrapper.get('form input[type="password"]').setValue('secret-key')
+    await wrapper.get('form').trigger('submit.prevent')
+    await flushPromises()
+    expect(post).toHaveBeenCalledWith('/supplier/accounts', expect.objectContaining({credentials: expect.objectContaining({aws_force_global: 'true'})}))
+    expect(post.mock.calls.every(call => call[0].startsWith('/supplier/'))).toBe(true)
     wrapper.unmount()
   })
 

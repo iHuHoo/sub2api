@@ -84,7 +84,13 @@ export default {
   "invalidRange": "请选择最多 366 天的有效 UTC 日期范围，并使用正整数账号 ID。",
   "unavailable": "资源不可用",
   "proxyInUse": "代理正在使用中，无法删除。",
+  "unspecifiedEndpoint": "未指定",
+  "protocolEndpointsHint": "协议端点全部留空时保留原值。选择任一端点会替换整组端点并启用自适应路由，未选择的协议回落到保留的基础地址或官方默认地址。",
   "credential": {
+    "account_mode": "接入模式",
+    "api_protocol": "API 协议",
+    "aws_force_global": "强制全局区域",
+
     "api_key": "API 密钥",
     "base_url": "官方上游地址",
     "access_token": "访问 Token / 推理 Token",

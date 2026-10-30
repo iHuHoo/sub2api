@@ -5,21 +5,30 @@
       "display_name": "Anthropic",
       "gateway": "anthropic",
       "cn_provider": false,
-      "litellm_provider": "anthropic"
+      "litellm_provider": "anthropic",
+      "official_urls": [
+        "https://api.anthropic.com"
+      ]
     },
     {
       "id": "openai",
       "display_name": "OpenAI",
       "gateway": "openai",
       "cn_provider": false,
-      "litellm_provider": "openai"
+      "litellm_provider": "openai",
+      "official_urls": [
+        "https://api.openai.com/v1"
+      ]
     },
     {
       "id": "gemini",
       "display_name": "Gemini",
       "gateway": "gemini",
       "cn_provider": false,
-      "litellm_provider": "gemini"
+      "litellm_provider": "gemini",
+      "official_urls": [
+        "https://generativelanguage.googleapis.com"
+      ]
     },
     {
       "id": "antigravity",
@@ -33,7 +42,14 @@
       "display_name": "Grok",
       "gateway": "openai",
       "cn_provider": false,
-      "litellm_provider": "xai"
+      "litellm_provider": "xai",
+      "official_urls": [
+        "https://cli-chat-proxy.grok.com/v1",
+        "https://api.x.ai/v1",
+        "https://us-east-1.api.x.ai/v1",
+        "https://us-west-2.api.x.ai/v1",
+        "https://eu-west-1.api.x.ai/v1"
+      ]
     },
     {
       "id": "kimi",
@@ -41,11 +57,28 @@
       "gateway": "openai",
       "cn_provider": true,
       "litellm_provider": "moonshot",
+      "official_urls": [
+        "https://api.kimi.com/coding",
+        "https://api.kimi.com/coding/v1",
+        "https://api.moonshot.cn/anthropic",
+        "https://api.moonshot.cn/v1"
+      ],
       "multi_protocol": {
         "default_mode": "payg",
         "routing": "by_inbound",
         "modes": [
           {
+            "official_base_urls": {
+              "anthropic": [
+                "https://api.moonshot.cn/anthropic"
+              ],
+              "chat_completions": [
+                "https://api.moonshot.cn/v1"
+              ],
+              "responses": [
+                "https://api.moonshot.cn/v1"
+              ]
+            },
             "mode": "payg",
             "base_urls": {
               "anthropic": "https://api.moonshot.cn/anthropic",
@@ -54,6 +87,17 @@
             }
           },
           {
+            "official_base_urls": {
+              "anthropic": [
+                "https://api.kimi.com/coding"
+              ],
+              "chat_completions": [
+                "https://api.kimi.com/coding/v1"
+              ],
+              "responses": [
+                "https://api.kimi.com/coding/v1"
+              ]
+            },
             "mode": "coding",
             "base_urls": {
               "anthropic": "https://api.kimi.com/coding",
@@ -70,11 +114,24 @@
       "gateway": "openai",
       "cn_provider": true,
       "litellm_provider": "zhipu",
+      "official_urls": [
+        "https://open.bigmodel.cn/api/anthropic",
+        "https://open.bigmodel.cn/api/coding/paas/v4",
+        "https://open.bigmodel.cn/api/paas/v4"
+      ],
       "multi_protocol": {
         "default_mode": "payg",
         "routing": "by_inbound",
         "modes": [
           {
+            "official_base_urls": {
+              "anthropic": [
+                "https://open.bigmodel.cn/api/anthropic"
+              ],
+              "chat_completions": [
+                "https://open.bigmodel.cn/api/paas/v4"
+              ]
+            },
             "mode": "payg",
             "base_urls": {
               "anthropic": "https://open.bigmodel.cn/api/anthropic",
@@ -82,6 +139,14 @@
             }
           },
           {
+            "official_base_urls": {
+              "anthropic": [
+                "https://open.bigmodel.cn/api/anthropic"
+              ],
+              "chat_completions": [
+                "https://open.bigmodel.cn/api/coding/paas/v4"
+              ]
+            },
             "mode": "coding",
             "base_urls": {
               "anthropic": "https://open.bigmodel.cn/api/anthropic",
@@ -97,12 +162,27 @@
       "gateway": "openai",
       "cn_provider": true,
       "litellm_provider": "deepseek",
+      "official_urls": [
+        "https://api.deepseek.com",
+        "https://api.deepseek.com/anthropic"
+      ],
       "multi_protocol": {
         "default_mode": "payg",
         "routing": "by_inbound",
         "responses_path": "/responses",
         "modes": [
           {
+            "official_base_urls": {
+              "anthropic": [
+                "https://api.deepseek.com/anthropic"
+              ],
+              "chat_completions": [
+                "https://api.deepseek.com"
+              ],
+              "responses": [
+                "https://api.deepseek.com"
+              ]
+            },
             "mode": "payg",
             "base_urls": {
               "anthropic": "https://api.deepseek.com/anthropic",
@@ -119,11 +199,31 @@
       "gateway": "openai",
       "cn_provider": true,
       "litellm_provider": "minimax",
+      "official_urls": [
+        "https://api.minimax.io/anthropic",
+        "https://api.minimax.io/v1",
+        "https://api.minimaxi.com/anthropic",
+        "https://api.minimaxi.com/v1"
+      ],
       "multi_protocol": {
         "default_mode": "payg",
         "routing": "by_inbound",
         "modes": [
           {
+            "official_base_urls": {
+              "anthropic": [
+                "https://api.minimax.io/anthropic",
+                "https://api.minimaxi.com/anthropic"
+              ],
+              "chat_completions": [
+                "https://api.minimax.io/v1",
+                "https://api.minimaxi.com/v1"
+              ],
+              "responses": [
+                "https://api.minimax.io/v1",
+                "https://api.minimaxi.com/v1"
+              ]
+            },
             "mode": "payg",
             "base_urls": {
               "anthropic": "https://api.minimaxi.com/anthropic",
@@ -132,6 +232,20 @@
             }
           },
           {
+            "official_base_urls": {
+              "anthropic": [
+                "https://api.minimax.io/anthropic",
+                "https://api.minimaxi.com/anthropic"
+              ],
+              "chat_completions": [
+                "https://api.minimax.io/v1",
+                "https://api.minimaxi.com/v1"
+              ],
+              "responses": [
+                "https://api.minimax.io/v1",
+                "https://api.minimaxi.com/v1"
+              ]
+            },
             "mode": "coding",
             "base_urls": {
               "anthropic": "https://api.minimaxi.com/anthropic",
@@ -148,11 +262,28 @@
       "gateway": "openai",
       "cn_provider": false,
       "litellm_provider": "opencode-go",
+      "official_urls": [
+        "https://opencode.ai/zen",
+        "https://opencode.ai/zen/go",
+        "https://opencode.ai/zen/go/v1",
+        "https://opencode.ai/zen/v1"
+      ],
       "multi_protocol": {
         "default_mode": "go",
         "routing": "by_model",
         "modes": [
           {
+            "official_base_urls": {
+              "anthropic": [
+                "https://opencode.ai/zen/go"
+              ],
+              "chat_completions": [
+                "https://opencode.ai/zen/go/v1"
+              ],
+              "responses": [
+                "https://opencode.ai/zen/go/v1"
+              ]
+            },
             "mode": "go",
             "base_urls": {
               "anthropic": "https://opencode.ai/zen/go",
@@ -183,6 +314,17 @@
             ]
           },
           {
+            "official_base_urls": {
+              "anthropic": [
+                "https://opencode.ai/zen"
+              ],
+              "chat_completions": [
+                "https://opencode.ai/zen/v1"
+              ],
+              "responses": [
+                "https://opencode.ai/zen/v1"
+              ]
+            },
             "mode": "zen",
             "base_urls": {
               "anthropic": "https://opencode.ai/zen",
@@ -224,19 +366,37 @@
       "display_name": "TypeSafe / Jev",
       "gateway": "anthropic",
       "cn_provider": false,
-      "litellm_provider": "typesafe"
+      "litellm_provider": "typesafe",
+      "official_urls": [
+        "https://api.typesafe.ai"
+      ]
     },
     {
       "id": "command_code",
       "display_name": "Command Code",
       "gateway": "openai",
       "cn_provider": false,
+      "official_urls": [
+        "https://api.commandcode.ai/provider",
+        "https://api.commandcode.ai/provider/v1"
+      ],
       "multi_protocol": {
         "default_mode": "payg",
         "routing": "by_model",
         "model_catalog": true,
         "modes": [
           {
+            "official_base_urls": {
+              "anthropic": [
+                "https://api.commandcode.ai/provider"
+              ],
+              "chat_completions": [
+                "https://api.commandcode.ai/provider/v1"
+              ],
+              "responses": [
+                "https://api.commandcode.ai/provider/v1"
+              ]
+            },
             "mode": "payg",
             "base_urls": {
               "anthropic": "https://api.commandcode.ai/provider",
@@ -266,11 +426,19 @@
       "display_name": "Cline",
       "gateway": "openai",
       "cn_provider": false,
+      "official_urls": [
+        "https://api.cline.bot/api/v1"
+      ],
       "multi_protocol": {
         "default_mode": "payg",
         "routing": "by_inbound",
         "modes": [
           {
+            "official_base_urls": {
+              "chat_completions": [
+                "https://api.cline.bot/api/v1"
+              ]
+            },
             "mode": "payg",
             "base_urls": {
               "chat_completions": "https://api.cline.bot/api/v1"

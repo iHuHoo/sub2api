@@ -1,6 +1,9 @@
 package service
 
-import "strings"
+import (
+	"slices"
+	"strings"
+)
 
 // ProviderEndpoints 是多协议 API Key 供应商在某个接入模式下的官方默认端点与
 // 内置分流规则。账号凭证里的 base_url / api_base_urls / protocol_rules 仍优先于这里。
@@ -9,6 +12,8 @@ type ProviderEndpoints struct {
 	// 值为该协议的官方默认基址。缺少某协议的条目即表示该模式不提供该原生端点。
 	// Anthropic 基址的上游路径为 {base}/v1/messages。
 	BaseURLs map[string]string
+	// AlternativeBaseURLs adds official regions without changing routing defaults.
+	AlternativeBaseURLs map[string][]string
 	// ProtocolRules 是按模型分流的内置默认表（首条命中生效）；为空表示该模式
 	// 不按模型分流，由账号 api_protocol 决定上游协议。
 	ProtocolRules []ProtocolRule
@@ -152,6 +157,11 @@ var providerProfiles = map[string]*ProviderProfile{
 		Modes: map[string]ProviderEndpoints{
 			// 按量付费与 Coding/Token Plan 共用推理域名，靠 API Key 区分套餐。
 			AccountModePayG: {
+				AlternativeBaseURLs: map[string][]string{
+					APIProtocolChatCompletions: {"https://api.minimax.io/v1"},
+					APIProtocolResponses:       {"https://api.minimax.io/v1"},
+					APIProtocolAnthropic:       {"https://api.minimax.io/anthropic"},
+				},
 				BaseURLs: map[string]string{
 					APIProtocolChatCompletions: DefaultMiniMaxBaseURL,
 					APIProtocolResponses:       DefaultMiniMaxBaseURL,
@@ -159,6 +169,11 @@ var providerProfiles = map[string]*ProviderProfile{
 				},
 			},
 			AccountModeCoding: {
+				AlternativeBaseURLs: map[string][]string{
+					APIProtocolChatCompletions: {"https://api.minimax.io/v1"},
+					APIProtocolResponses:       {"https://api.minimax.io/v1"},
+					APIProtocolAnthropic:       {"https://api.minimax.io/anthropic"},
+				},
 				BaseURLs: map[string]string{
 					APIProtocolChatCompletions: DefaultMiniMaxBaseURL,
 					APIProtocolResponses:       DefaultMiniMaxBaseURL,
@@ -264,4 +279,15 @@ func (a *Account) routesByModel() bool {
 func (a *Account) RoutesProtocolByInbound() bool {
 	profile := a.providerProfile()
 	return profile != nil && profile.Routing != ProviderRoutingByModel
+}
+
+// OfficialBaseURLs includes each protocol default and its official alternatives.
+func (e ProviderEndpoints) OfficialBaseURLs() map[string][]string {
+	out := make(map[string][]string, len(e.BaseURLs))
+	for protocol, url := range e.BaseURLs {
+		out[protocol] = append([]string{url}, e.AlternativeBaseURLs[protocol]...)
+		slices.Sort(out[protocol])
+		out[protocol] = slices.Compact(out[protocol])
+	}
+	return out
 }

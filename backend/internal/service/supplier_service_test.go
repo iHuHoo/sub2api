@@ -11,6 +11,7 @@ import (
 	"encoding/pem"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -357,4 +358,181 @@ func TestSupplierGeminiVertexEditKeepsOwnershipBoundary(t *testing.T) {
 	repo := &supplierEditTestRepo{getErr: ErrSupplierUnavailable}
 	_, err := NewSupplierService(repo, nil, nil).UpdateAccount(context.Background(), 11, 99, SupplierAccountUpdate{Credentials: map[string]any{"api_key": "new"}})
 	require.ErrorIs(t, err, ErrSupplierUnavailable)
+}
+
+func TestSupplierOfficialEndpointExpansion(t *testing.T) {
+	for _, tt := range []struct{ platform, mode, protocol, url string }{
+		{PlatformMiniMax, AccountModePayG, APIProtocolChatCompletions, "https://api.minimax.io/v1"},
+		{PlatformMiniMax, AccountModeCoding, APIProtocolAnthropic, "https://api.minimax.io/anthropic"},
+		{PlatformGrok, "", "", "https://cli-chat-proxy.grok.com/v1"},
+		{PlatformGrok, "", "", "https://us-east-1.api.x.ai/v1"},
+		{PlatformGrok, "", "", "https://us-west-2.api.x.ai/v1"},
+		{PlatformGrok, "", "", "https://eu-west-1.api.x.ai/v1"},
+	} {
+		t.Run(tt.url, func(t *testing.T) {
+			creds := map[string]any{"api_key": "test", "base_url": tt.url}
+			if tt.mode != "" {
+				creds["account_mode"] = tt.mode
+				creds["api_protocol"] = tt.protocol
+			}
+			require.NoError(t, validateSupplierCredentials(tt.platform, AccountTypeAPIKey, creds, true))
+		})
+	}
+}
+
+func TestSupplierOfficialEndpointVariants(t *testing.T) {
+	for _, spec := range BuildPlatformCatalog().Platforms {
+		for _, url := range supplierOfficialURLs(spec.ID) {
+			// Every official address must work under its actual mode and protocol.
+			modes := []map[string]any{{}}
+			if profile := LookupProviderProfile(spec.ID); profile != nil {
+				modes = nil
+				for mode, endpoints := range profile.Modes {
+					for protocol := range endpoints.BaseURLs {
+						modes = append(modes, map[string]any{"account_mode": mode, "api_protocol": protocol})
+					}
+				}
+			}
+			accepted := false
+			for _, mode := range modes {
+				creds := mergeMap(mode, map[string]any{"api_key": "test", "base_url": url})
+				if validateSupplierCredentials(spec.ID, AccountTypeAPIKey, creds, true) != nil {
+					continue
+				}
+				accepted = true
+				for _, bad := range []string{strings.ToUpper(url), url + "/", url + "/extra", url + "?x=1", "https://outside.example"} {
+					creds["base_url"] = bad
+					require.Error(t, validateSupplierCredentials(spec.ID, AccountTypeAPIKey, creds, true), "%s %s", spec.ID, bad)
+				}
+				if protocol, ok := mode["api_protocol"].(string); ok {
+					delete(creds, "base_url")
+					creds["api_protocol"] = APIProtocolAdaptive
+					creds["api_base_urls"] = map[string]any{protocol: url}
+					require.NoError(t, validateSupplierCredentials(spec.ID, AccountTypeAPIKey, creds, true))
+					for _, bad := range []string{strings.ToUpper(url), url + "/", url + "/extra", url + "?x=1", "https://outside.example"} {
+						creds["api_base_urls"] = map[string]any{protocol: bad}
+						require.Error(t, validateSupplierCredentials(spec.ID, AccountTypeAPIKey, creds, true))
+						require.Error(t, validateSupplierCredentials(spec.ID, AccountTypeAPIKey, creds, false))
+					}
+				}
+			}
+			require.True(t, accepted, "%s official endpoint %s", spec.ID, url)
+		}
+	}
+}
+
+func TestSupplierEndpointCombinations(t *testing.T) {
+	for _, patch := range []map[string]any{
+		{"account_mode": AccountModeZen},
+		{"account_mode": AccountModeCoding, "base_url": DefaultKimiPayGBaseURL},
+		{"api_protocol": APIProtocolAnthropic, "base_url": DefaultKimiPayGBaseURL},
+		{"base_url": DefaultMiniMaxBaseURL},
+		{"api_protocol": APIProtocolAdaptive, "api_base_urls": map[string]any{APIProtocolAnthropic: DefaultKimiPayGBaseURL}},
+	} {
+		require.Error(t, validateSupplierCredentials(PlatformKimi, AccountTypeAPIKey, mergeMap(map[string]any{"api_key": "test"}, patch), true))
+	}
+	for _, value := range []any{"true", "false", true, false, "yes", ""} {
+		err := validateSupplierCredentials(PlatformAnthropic, AccountTypeBedrock, map[string]any{"aws_force_global": value}, false)
+		if value == "true" || value == "false" {
+			require.NoError(t, err)
+		} else {
+			require.Error(t, err)
+		}
+	}
+}
+
+func TestSupplierRoutingUpdateReplacesProtocolURLs(t *testing.T) {
+	owner := int64(11)
+	repo := &supplierEditTestRepo{a: &Account{ID: 1, SupplierUserID: &owner, Platform: PlatformKimi, Type: AccountTypeAPIKey, Credentials: map[string]any{
+		"api_key": "test", "account_mode": AccountModePayG, "api_protocol": APIProtocolAdaptive, "base_url": DefaultKimiPayGBaseURL,
+		"api_base_urls": map[string]any{APIProtocolChatCompletions: DefaultKimiPayGBaseURL, APIProtocolAnthropic: DefaultKimiPayGAnthropicBaseURL},
+	}}}
+	s := NewSupplierService(repo, nil, nil)
+	_, err := s.UpdateAccount(context.Background(), owner, 1, SupplierAccountUpdate{Credentials: map[string]any{"api_base_urls": map[string]any{APIProtocolAnthropic: DefaultKimiPayGAnthropicBaseURL}}})
+	require.NoError(t, err)
+	require.Equal(t, map[string]any{APIProtocolAnthropic: DefaultKimiPayGAnthropicBaseURL}, repo.a.Credentials["api_base_urls"])
+	_, err = s.UpdateAccount(context.Background(), owner, 1, SupplierAccountUpdate{Credentials: map[string]any{"account_mode": AccountModeCoding, "api_protocol": APIProtocolAnthropic, "base_url": DefaultKimiCodingAnthropicBaseURL}})
+	require.NoError(t, err)
+	require.Empty(t, repo.a.Credentials["api_base_urls"])
+	_, err = s.UpdateAccount(context.Background(), owner, 1, SupplierAccountUpdate{Credentials: map[string]any{"base_url": DefaultKimiPayGBaseURL}})
+	require.Error(t, err)
+}
+
+func TestSupplierModeProtocolBelongsToPlatform(t *testing.T) {
+	for _, tt := range []struct{ platform, mode, protocol string }{
+		{PlatformDeepseek, AccountModeCoding, APIProtocolAnthropic},
+		{PlatformCline, AccountModePayG, APIProtocolResponses},
+		{PlatformZhipu, AccountModeCoding, APIProtocolResponses},
+		{PlatformOpenCodeGo, AccountModePayG, APIProtocolAdaptive},
+	} {
+		require.Error(t, validateSupplierCredentials(tt.platform, AccountTypeAPIKey, map[string]any{"api_key": "test", "account_mode": tt.mode, "api_protocol": tt.protocol}, true))
+	}
+}
+
+func TestSupplierUnchangedLegacyRoutingRetained(t *testing.T) {
+	owner := int64(11)
+	oldURLs := map[string]any{APIProtocolAnthropic: "https://legacy.example/anthropic"}
+	repo := &supplierEditTestRepo{a: &Account{ID: 1, SupplierUserID: &owner, Platform: PlatformMiniMax, Type: AccountTypeAPIKey, Credentials: map[string]any{
+		"api_key": "old", "base_url": "https://legacy.example", "account_mode": AccountModePayG, "api_protocol": APIProtocolAdaptive, "api_base_urls": oldURLs,
+	}}}
+	_, err := NewSupplierService(repo, nil, nil).UpdateAccount(context.Background(), owner, 1, SupplierAccountUpdate{Credentials: map[string]any{"api_key": "new"}})
+	require.NoError(t, err)
+	require.Equal(t, "https://legacy.example", repo.a.Credentials["base_url"])
+	require.Equal(t, oldURLs, repo.a.Credentials["api_base_urls"])
+}
+
+func TestSupplierAnthropicToAdaptiveEditorPatch(t *testing.T) {
+	owner := int64(11)
+	repo := &supplierEditTestRepo{a: &Account{ID: 1, SupplierUserID: &owner, Platform: PlatformMiniMax, Type: AccountTypeAPIKey, Credentials: map[string]any{
+		"api_key": "test", "base_url": DefaultMiniMaxAnthropicBaseURL, "account_mode": AccountModePayG, "api_protocol": APIProtocolAnthropic,
+	}}}
+	urls := map[string]any{APIProtocolChatCompletions: "https://api.minimax.io/v1", APIProtocolAnthropic: "https://api.minimax.io/anthropic", APIProtocolResponses: "https://api.minimax.io/v1"}
+	_, err := NewSupplierService(repo, nil, nil).UpdateAccount(context.Background(), owner, 1, SupplierAccountUpdate{Credentials: map[string]any{
+		"api_protocol": APIProtocolAdaptive, "base_url": urls[APIProtocolChatCompletions], "api_base_urls": urls,
+	}})
+	require.NoError(t, err)
+	for protocol, url := range urls {
+		require.Equal(t, url, repo.a.GetCNProtocolBaseURL(protocol))
+	}
+}
+
+func TestSupplierAdaptiveBaseURLUpdate(t *testing.T) {
+	const international = "https://api.minimax.io/v1"
+	for _, tt := range []struct {
+		name, protocol     string
+		patch              map[string]any
+		wantBase, wantChat string
+		wantErr            bool
+	}{
+		{"base only", APIProtocolAdaptive, map[string]any{"base_url": international}, international, international, false},
+		{"key only", APIProtocolAdaptive, map[string]any{"api_key": "new"}, DefaultMiniMaxBaseURL, DefaultMiniMaxBaseURL, false},
+		{"fixed protocol", APIProtocolChatCompletions, map[string]any{"base_url": international}, international, DefaultMiniMaxBaseURL, false},
+		{"invalid combination", APIProtocolAdaptive, map[string]any{"base_url": "https://api.minimax.io/anthropic"}, DefaultMiniMaxBaseURL, DefaultMiniMaxBaseURL, true},
+		{"explicit map wins", APIProtocolAdaptive, map[string]any{"base_url": international, "api_base_urls": map[string]any{APIProtocolChatCompletions: DefaultMiniMaxBaseURL, APIProtocolAnthropic: DefaultMiniMaxAnthropicBaseURL}}, international, DefaultMiniMaxBaseURL, false},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			owner := int64(11)
+			originalURLs := map[string]any{APIProtocolChatCompletions: DefaultMiniMaxBaseURL, APIProtocolAnthropic: DefaultMiniMaxAnthropicBaseURL}
+			originalCreds := map[string]any{"api_key": "old", "base_url": DefaultMiniMaxBaseURL, "account_mode": AccountModePayG, "api_protocol": tt.protocol, "api_base_urls": originalURLs}
+			repo := &supplierEditTestRepo{a: &Account{ID: 1, SupplierUserID: &owner, Platform: PlatformMiniMax, Type: AccountTypeAPIKey, Credentials: originalCreds}}
+			_, err := NewSupplierService(repo, nil, nil).UpdateAccount(context.Background(), owner, 1, SupplierAccountUpdate{Credentials: tt.patch})
+			if tt.wantErr {
+				require.ErrorIs(t, err, ErrSupplierInvalid)
+			} else {
+				require.NoError(t, err)
+			}
+			require.Equal(t, tt.wantBase, repo.a.Credentials["base_url"])
+			updatedURLs := repo.a.Credentials["api_base_urls"].(map[string]any)
+			require.Equal(t, tt.wantChat, updatedURLs[APIProtocolChatCompletions])
+			require.Equal(t, DefaultMiniMaxAnthropicBaseURL, updatedURLs[APIProtocolAnthropic])
+			require.Equal(t, map[string]any{APIProtocolChatCompletions: DefaultMiniMaxBaseURL, APIProtocolAnthropic: DefaultMiniMaxAnthropicBaseURL}, originalURLs)
+			require.Equal(t, DefaultMiniMaxBaseURL, originalCreds["base_url"])
+			if tt.protocol == APIProtocolAdaptive {
+				require.Equal(t, tt.wantChat, repo.a.GetOpenAIBaseURL())
+				require.Equal(t, tt.wantChat, repo.a.GetCNProtocolBaseURL(APIProtocolChatCompletions))
+			} else {
+				require.Equal(t, tt.wantBase, repo.a.GetOpenAIBaseURL())
+			}
+		})
+	}
 }

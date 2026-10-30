@@ -7,6 +7,7 @@ import (
 	"maps"
 	"net"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -244,7 +245,31 @@ func (s *SupplierService) UpdateAccount(ctx context.Context, owner, id int64, in
 		if err = validateSupplierCredentials(a.Platform, a.Type, in.Credentials, false); err != nil {
 			return nil, err
 		}
+		_, modeChanged := in.Credentials["account_mode"]
+		_, protocolChanged := in.Credentials["api_protocol"]
+		_, urlsChanged := in.Credentials["api_base_urls"]
+		_, baseChanged := in.Credentials["base_url"]
+		if (modeChanged || protocolChanged) && !urlsChanged && LookupProviderProfile(a.Platform) != nil {
+			// Nested maps are replaced by the repository's top-level JSON merge.
+			in.Credentials["api_base_urls"] = map[string]any{}
+		}
 		merged := mergeMap(a.Credentials, in.Credentials)
+		if baseChanged && !modeChanged && !protocolChanged && !urlsChanged && a.IsAdaptiveAPIProtocol() {
+			if urls, ok := merged["api_base_urls"].(map[string]any); ok {
+				if _, hasChat := urls[APIProtocolChatCompletions]; hasChat {
+					// Adaptive Chat overrides base_url; replace the map without mutating stored credentials.
+					urls = maps.Clone(urls)
+					urls[APIProtocolChatCompletions] = merged["base_url"]
+					in.Credentials["api_base_urls"] = urls
+					merged["api_base_urls"] = urls
+				}
+			}
+		}
+		if modeChanged || protocolChanged || urlsChanged || baseChanged {
+			if err = validateSupplierEndpointCombination(a.Platform, a.Type, merged); err != nil {
+				return nil, err
+			}
+		}
 		if err = validateSupplierAuthentication(a.Platform, a.Type, merged); err != nil {
 			return nil, err
 		}
@@ -513,33 +538,7 @@ func supplierCredentialKeys(platform, typ string) map[string]bool {
 }
 
 func supplierOfficialURLs(platform string) []string {
-	switch platform {
-	case PlatformAnthropic:
-		return []string{"https://api.anthropic.com"}
-	case PlatformOpenAI:
-		return []string{"https://api.openai.com/v1"}
-	case PlatformGemini:
-		return []string{"https://generativelanguage.googleapis.com"}
-	case PlatformGrok:
-		return []string{"https://api.x.ai/v1"}
-	case PlatformKimi:
-		return []string{DefaultKimiPayGBaseURL, DefaultKimiCodingBaseURL, DefaultKimiPayGAnthropicBaseURL, DefaultKimiCodingAnthropicBaseURL}
-	case PlatformZhipu:
-		return []string{DefaultZhipuPayGBaseURL, DefaultZhipuCodingBaseURL, DefaultZhipuAnthropicBaseURL}
-	case PlatformDeepseek:
-		return []string{DefaultDeepseekBaseURL, DefaultDeepseekAnthropicBaseURL}
-	case PlatformMiniMax:
-		return []string{DefaultMiniMaxBaseURL, DefaultMiniMaxAnthropicBaseURL}
-	case PlatformOpenCodeGo:
-		return []string{DefaultOpenCodeGoBaseURL, DefaultOpenCodeZenBaseURL, DefaultOpenCodeGoAnthropicBaseURL, DefaultOpenCodeZenAnthropicBaseURL}
-	case PlatformCommandCode:
-		return []string{DefaultCommandCodeBaseURL, DefaultCommandCodeAnthropicBaseURL}
-	case PlatformCline:
-		return []string{DefaultClineBaseURL}
-	case PlatformTypeSafe:
-		return []string{"https://api.typesafe.ai"}
-	}
-	return nil
+	return platformOfficialURLs(platform)
 }
 
 func validateSupplierCredentials(platform, typ string, creds map[string]any, required bool) error {
@@ -681,6 +680,9 @@ func validateSupplierCredentials(platform, typ string, creds map[string]any, req
 	if !required {
 		return nil
 	}
+	if err := validateSupplierEndpointCombination(platform, typ, creds); err != nil {
+		return err
+	}
 	return validateSupplierAuthentication(platform, typ, creds)
 }
 func validateSupplierAuthentication(platform, typ string, creds map[string]any) error {
@@ -798,4 +800,51 @@ func (p SupplierProxy) MarshalJSON() ([]byte, error) {
 	}
 	type plain SupplierProxy
 	return json.Marshal(plain(p))
+}
+
+// Validate effective routing, after merging patches; unrelated secret edits retain legacy URLs.
+func validateSupplierEndpointCombination(platform, typ string, creds map[string]any) error {
+	profile := LookupProviderProfile(platform)
+	if typ != AccountTypeAPIKey || profile == nil {
+		return nil
+	}
+	mode, _ := creds["account_mode"].(string)
+	if mode == "" {
+		mode = profile.DefaultMode
+	}
+	endpoints, ok := profile.Modes[mode]
+	if !ok {
+		return ErrSupplierInvalid
+	}
+	protocol, _ := creds["api_protocol"].(string)
+	if protocol == "" {
+		protocol = APIProtocolChatCompletions
+		if profile.Routing == ProviderRoutingByModel {
+			protocol = APIProtocolAdaptive
+		}
+	}
+	urls := endpoints.OfficialBaseURLs()
+	baseProtocol := protocol
+	if protocol == APIProtocolAdaptive {
+		baseProtocol = APIProtocolChatCompletions
+	}
+	if len(urls[baseProtocol]) == 0 {
+		return ErrSupplierInvalid
+	}
+	if base, exists := creds["base_url"]; exists && !slices.Contains(urls[baseProtocol], stringValue(base)) {
+		return ErrSupplierInvalid
+	}
+	if raw, exists := creds["api_base_urls"]; exists {
+		overrides, ok := raw.(map[string]any)
+		if !ok {
+			return ErrSupplierInvalid
+		}
+		for key, value := range overrides {
+			url, ok := value.(string)
+			if !ok || !slices.Contains(urls[key], url) {
+				return ErrSupplierInvalid
+			}
+		}
+	}
+	return nil
 }

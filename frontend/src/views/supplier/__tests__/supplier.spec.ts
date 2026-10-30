@@ -94,6 +94,51 @@ describe('supplier account editor', () => {
     await flushPromises()
   }
 
+  it('retains untouched multiprotocol credentials and replaces explicitly selected endpoints', async () => {
+    api.accounts.list.mockResolvedValue(page([{ ...account, platform: 'minimax' }]))
+    const wrapper = render(AccountsView)
+    await flushPromises()
+    await click(wrapper, 'Edit')
+    expect(select(wrapper, 'credential-base_url').props('options')).toContainEqual({
+      value: 'https://api.minimax.io/anthropic', label: 'https://api.minimax.io/anthropic'
+    })
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+    expect(api.accounts.update).toHaveBeenLastCalledWith(3, {})
+    await click(wrapper, 'Edit')
+    await choose(wrapper, 'credential-account_mode', 'coding')
+    await choose(wrapper, 'credential-api_protocol', 'anthropic')
+    await choose(wrapper, 'credential-base_url', 'https://api.minimax.io/anthropic')
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+    expect(api.accounts.update).toHaveBeenLastCalledWith(3, {credentials: {
+      account_mode: 'coding', api_protocol: 'anthropic', base_url: 'https://api.minimax.io/anthropic'
+    }})
+    await click(wrapper, 'Edit')
+    await choose(wrapper, 'credential-api_protocol', 'adaptive')
+    for (const protocol of ['chat_completions', 'anthropic', 'responses']) {
+      await choose(wrapper, 'credential-api_base_urls-' + protocol, 'https://api.minimax.io/' + (protocol === 'anthropic' ? 'anthropic' : 'v1'))
+    }
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+    expect(api.accounts.update).toHaveBeenLastCalledWith(3, {credentials: {
+      api_protocol: 'adaptive', base_url: 'https://api.minimax.io/v1', api_base_urls: {chat_completions: 'https://api.minimax.io/v1', anthropic: 'https://api.minimax.io/anthropic', responses: 'https://api.minimax.io/v1'}
+    }})
+    wrapper.unmount()
+  })
+
+  it.each(['true', 'false'])('edits Bedrock force global as %s', async value => {
+    api.accounts.list.mockResolvedValue(page([{ ...account, platform: 'anthropic', type: 'bedrock' }]))
+    const wrapper = render(AccountsView)
+    await flushPromises()
+    await click(wrapper, 'Edit')
+    await choose(wrapper, 'credential-aws_force_global', value)
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+    expect(api.accounts.update).toHaveBeenLastCalledWith(3, {credentials: {aws_force_global: value}})
+    wrapper.unmount()
+  })
+
   it.each([
     ['legacy-platform', 'legacy-type'], ['openai', 'legacy-type']
   ])('retains locked legacy selection %s / %s without rewriting it', async (platform, type) => {
