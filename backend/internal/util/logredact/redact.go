@@ -40,8 +40,9 @@ type textRedactPatterns struct {
 }
 
 var (
-	reGOCSPX = regexp.MustCompile(`GOCSPX-[0-9A-Za-z_-]{24,}`)
-	reAIza   = regexp.MustCompile(`AIza[0-9A-Za-z_-]{35}`)
+	reURLUserinfo = regexp.MustCompile(`(?i)\b((?:https?|socks5h?)://)[^/\s?#"<>]*@`)
+	reGOCSPX      = regexp.MustCompile(`GOCSPX-[0-9A-Za-z_-]{24,}`)
+	reAIza        = regexp.MustCompile(`AIza[0-9A-Za-z_-]{35}`)
 	// Gemini auth key：AQ.Ab 前缀 + 48 位，长度放宽以覆盖格式变体。
 	reGeminiAuthKey = regexp.MustCompile(`AQ\.Ab[0-9A-Za-z_-]{40,}`)
 
@@ -81,6 +82,7 @@ func RedactJSON(raw []byte, extraKeys ...string) string {
 // RedactText 对非结构化文本做轻量脱敏。
 //
 // 规则：
+// - 先去除 HTTP(S)/SOCKS URL 的整个 userinfo（包括用户名）。
 // - 如果文本本身是 JSON，则按 RedactJSON 处理。
 // - 否则尝试对常见 key=value / key:"value" 片段做脱敏。
 //
@@ -90,6 +92,7 @@ func RedactText(input string, extraKeys ...string) string {
 	if input == "" {
 		return ""
 	}
+	input = reURLUserinfo.ReplaceAllString(input, `${1}***@`)
 
 	raw := []byte(input)
 	if json.Valid(raw) {
@@ -220,6 +223,8 @@ func redactValueWithDepth(value any, keys map[string]struct{}, depth int) any {
 			out[i] = redactValueWithDepth(item, keys, depth+1)
 		}
 		return out
+	case string:
+		return reURLUserinfo.ReplaceAllString(v, `${1}***@`)
 	default:
 		return value
 	}

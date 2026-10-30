@@ -463,7 +463,6 @@ func (s *GeminiOAuthService) ExchangeCode(ctx context.Context, input *GeminiExch
 			proxyURL = proxy.URL()
 		}
 	}
-	logger.LegacyPrintf("service.gemini_oauth", "[GeminiOAuth] ProxyURL: %s", proxyURL)
 
 	redirectURI := session.RedirectURI
 
