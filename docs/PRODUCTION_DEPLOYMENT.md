@@ -222,3 +222,4 @@ Historical .23-to-.22 rollback relied on zero migration differences. That premis
 The 2026-09-24 deployment completed migrations 238b (moderation provenance), 239 (reasoning-effort pricing maps) and 240 (affiliate withdrawal idempotency). Verified all three migration records, four new columns and the valid operation-ID unique index. Application startup logged no ERROR/FATAL/PANIC entries; container healthy with zero restarts, public health/login returned 200 and unauthenticated models returned 401.
 
 Migration 239 removes legacy group pricing keys after converting them to maps. A binary-only rollback to v0.2.7 cannot restore the old pricing behavior, and later map edits are not mirrored into the legacy channel column. Review/reverse pricing data explicitly or restore an appropriate backup after assessing intervening writes. See docs/upstream/v0.2.8-aox-review.md.
+
