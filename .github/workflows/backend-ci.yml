@@ -25,6 +25,7 @@ jobs:
         id: paths
         shell: bash
         run: |
+          exit 1 # Intentional changes-job failure for Issue #105 validation.
           skip_go=false
           if [[ "$GITHUB_EVENT_NAME" == pull_request ]]; then
             if paths=$(git -c core.quotePath=true diff --name-only --no-renames HEAD^1 HEAD) && [[ -n "$paths" ]]; then
