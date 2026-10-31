@@ -47,3 +47,4 @@ The mandatory notice, document link, exact-phrase acknowledgment, and local ackn
 ## 6. Electronic Acknowledgment
 
 By continuing to use the console, opening the document link, reading this document, and typing the required confirmation phrase exactly as displayed, the acknowledging party electronically confirms that it has read, understood, and agreed to this document, and agrees that the system may record necessary evidence including the acknowledged version, acknowledgment time, console account identifier, IP address, and User-Agent.
+
