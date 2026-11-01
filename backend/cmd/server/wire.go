@@ -103,6 +103,7 @@ func provideCleanup(
 	proxyExpiry *service.ProxyExpiryService,
 	subscriptionExpiry *service.SubscriptionExpiryService,
 	usageCleanup *service.UsageCleanupService,
+	supplierUsageSnapshot *service.SupplierUsageSnapshotService,
 	idempotencyCleanup *service.IdempotencyCleanupService,
 	geminiCachedContent *service.GeminiCachedContentService,
 	batchImageCleanup *service.BatchImageCleanupService,
@@ -143,6 +144,7 @@ func provideCleanup(
 
 		// 应用层清理步骤可并行执行，基础设施资源（Redis/Ent）最后按顺序关闭。
 		parallelSteps := []cleanupStep{
+			{name: "SupplierUsageSnapshotService", fn: func() error { supplierUsageSnapshot.Stop(); return nil }},
 			{"PluginManager", func() error {
 				if pluginManager != nil {
 					pluginManager.Stop()

@@ -73,6 +73,7 @@ func TestProvideCleanup_WithMinimalDependencies_NoPanic(t *testing.T) {
 		proxyExpirySvc,
 		subscriptionExpirySvc,
 		&service.UsageCleanupService{},
+		nil, // supplierUsageSnapshot
 		idempotencyCleanupSvc,
 		service.NewGeminiCachedContentService(nil, nil, cfg),
 		&service.BatchImageCleanupService{},
