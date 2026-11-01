@@ -99,21 +99,45 @@ type SupplierProxy struct {
 	UpdatedAt   time.Time  `json:"updated_at"`
 }
 
-type SupplierTokens struct {
-	Requests            int64 `json:"requests"`
-	InputTokens         int64 `json:"input_tokens"`
-	OutputTokens        int64 `json:"output_tokens"`
-	CacheCreationTokens int64 `json:"cache_creation_tokens"`
-	CacheReadTokens     int64 `json:"cache_read_tokens"`
+type SupplierUsageMoney struct {
+	Total string `json:"total"`
+	Today string `json:"today"`
 }
-type SupplierDailyUsage struct {
-	Date string `json:"date"`
-	SupplierTokens
+type SupplierUsageCount struct {
+	Total int64 `json:"total"`
+	Today int64 `json:"today"`
 }
-type SupplierUsage struct {
-	Timezone string               `json:"timezone"`
-	Summary  SupplierTokens       `json:"summary"`
-	Daily    []SupplierDailyUsage `json:"daily"`
+type SupplierAccountCount struct {
+	Total   int64 `json:"total"`
+	Enabled int64 `json:"enabled"`
+	Pending int64 `json:"pending"`
+	Error   int64 `json:"error"`
+}
+type SupplierUsageDay struct {
+	Date            string `json:"date"`
+	Cost            string `json:"cost"`
+	Tokens          int64  `json:"tokens"`
+	EnabledAccounts *int64 `json:"enabled_accounts"`
+}
+type SupplierUsageAccount struct {
+	ID         int64  `json:"id"`
+	Name       string `json:"name"`
+	Status     string `json:"status"`
+	Deleted    bool   `json:"deleted"`
+	TodayCost  string `json:"today_cost"`
+	Last31Cost string `json:"last31_cost"`
+	TotalCost  string `json:"total_cost"`
+}
+type SupplierUsageOverview struct {
+	Timezone   string                 `json:"timezone"`
+	Ready      bool                   `json:"ready"`
+	UpdatedAt  *time.Time             `json:"updated_at"`
+	Cost       SupplierUsageMoney     `json:"cost"`
+	Tokens     SupplierUsageCount     `json:"tokens"`
+	Requests   SupplierUsageCount     `json:"requests"`
+	Accounts   SupplierAccountCount   `json:"accounts"`
+	Daily      []SupplierUsageDay     `json:"daily"`
+	PerAccount []SupplierUsageAccount `json:"per_account"`
 }
 type SupplierProxyTest struct {
 	Reachable bool  `json:"reachable"`
@@ -130,7 +154,7 @@ type SupplierRepository interface {
 	CreateProxy(context.Context, int64, *Proxy) error
 	UpdateProxy(context.Context, int64, int64, SupplierProxyInput) (*Proxy, error)
 	DeleteProxy(context.Context, int64, int64) error
-	Usage(context.Context, int64, time.Time, time.Time, *int64) (*SupplierUsage, error)
+	Usage(context.Context, int64) (*SupplierUsageOverview, error)
 }
 
 // SupplierPrivacyService reuses the administrator privacy implementation.
@@ -434,11 +458,8 @@ func (s *SupplierService) TestProxy(ctx context.Context, owner, id int64) (*Supp
 	}
 	return out, nil
 }
-func (s *SupplierService) Usage(ctx context.Context, owner int64, start, end time.Time, id *int64) (*SupplierUsage, error) {
-	if !end.After(start) || end.Sub(start) > 366*24*time.Hour || id != nil && *id <= 0 {
-		return nil, ErrSupplierInvalid
-	}
-	return s.repo.Usage(ctx, owner, start, end, id)
+func (s *SupplierService) Usage(ctx context.Context, owner int64) (*SupplierUsageOverview, error) {
+	return s.repo.Usage(ctx, owner)
 }
 func validSupplierName(s string) bool   { return strings.TrimSpace(s) != "" && len(s) <= 100 }
 func validSupplierNotes(s *string) bool { return s == nil || len(*s) <= 2000 }

@@ -14,7 +14,6 @@ import (
 	dbent "github.com/Wei-Shaw/sub2api/ent"
 	"github.com/Wei-Shaw/sub2api/ent/account"
 	"github.com/Wei-Shaw/sub2api/ent/proxy"
-	"github.com/Wei-Shaw/sub2api/ent/schema/mixins"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/lib/pq"
@@ -442,40 +441,72 @@ func (r *supplierRepository) DeleteProxy(ctx context.Context, owner, id int64) e
 		return err
 	})
 }
-func (r *supplierRepository) Usage(ctx context.Context, owner int64, start, end time.Time, id *int64) (*service.SupplierUsage, error) {
-	if id != nil {
-		exists, err := r.client.Account.Query().Where(account.IDEQ(*id), account.SupplierUserIDEQ(owner)).Exist(mixins.SkipSoftDelete(ctx))
-		if err != nil {
-			return nil, err
-		}
-		if !exists {
-			return nil, service.ErrSupplierUnavailable
-		}
-	}
-	args := []any{owner, start, end}
-	filter := ""
-	if id != nil {
-		args = append(args, *id)
-		filter = " AND a.id=$4"
-	}
-	// No deleted_at predicate: immutable ownership retains historical usage after administrator deletion.
-	rows, err := r.sql.QueryContext(ctx, `SELECT to_char(u.created_at AT TIME ZONE 'UTC','YYYY-MM-DD'),count(*),COALESCE(sum(u.input_tokens),0),COALESCE(sum(u.output_tokens),0),COALESCE(sum(u.cache_creation_tokens),0),COALESCE(sum(u.cache_read_tokens),0) FROM usage_logs u JOIN accounts a ON a.id=u.account_id WHERE a.supplier_user_id=$1 AND u.created_at >= $2 AND u.created_at < $3`+filter+` GROUP BY 1 ORDER BY 1`, args...)
+func (r *supplierRepository) Usage(ctx context.Context, owner int64) (*service.SupplierUsageOverview, error) {
+	return r.usageOverview(ctx, owner, time.Now())
+}
+
+func (r *supplierRepository) usageOverview(ctx context.Context, owner int64, now time.Time) (*service.SupplierUsageOverview, error) {
+	today := supplierUsageUTCDay(now)
+	// One statement keeps every displayed total consistent with the account rows during refreshes.
+	rows, err := r.sql.QueryContext(ctx, `WITH snapshots AS MATERIALIZED (
+ SELECT day,account_id,account_name,total_cost,requests,input_tokens,output_tokens,cache_creation_tokens,cache_read_tokens,enabled,sampled_at,updated_at
+ FROM supplier_usage_daily WHERE supplier_user_id=$1
+ ), owned AS (
+ SELECT a.id,a.name,a.deleted_at IS NOT NULL AS deleted,`+SupplierAccountClassificationSQL+` AS status
+ FROM accounts a WHERE a.supplier_user_id=$1
+ ), account_totals AS (
+ SELECT account_id,(array_agg(account_name ORDER BY day DESC))[1] AS name,
+ sum(total_cost) AS total_cost,
+ sum(total_cost) FILTER (WHERE day=$2::date) AS today_cost,
+ sum(total_cost) FILTER (WHERE day BETWEEN $2::date-30 AND $2::date) AS last31_cost
+ FROM snapshots GROUP BY account_id
+ ), per_account AS (
+ SELECT COALESCE(a.id,s.account_id) AS id,COALESCE(a.name,s.name) AS name,
+ COALESCE(a.status,'deleted') AS status,COALESCE(a.deleted,true) AS deleted,
+ COALESCE(s.today_cost,0)::text AS today_cost,COALESCE(s.last31_cost,0)::text AS last31_cost,
+ COALESCE(s.total_cost,0)::text AS total_cost
+ FROM owned a FULL JOIN account_totals s ON a.id=s.account_id
+ ), by_day AS (
+ SELECT day,sum(total_cost)::text AS cost,
+ sum(input_tokens::numeric+output_tokens+cache_creation_tokens+cache_read_tokens)::bigint AS tokens,
+ CASE WHEN count(sampled_at)>0 THEN count(*) FILTER (WHERE enabled AND sampled_at IS NOT NULL) END AS enabled_accounts
+ FROM snapshots WHERE day BETWEEN $2::date-30 AND $2::date GROUP BY day
+ ), daily AS (
+ SELECT ($2::date-30+n)::text AS date,COALESCE(d.cost,'0') AS cost,COALESCE(d.tokens,0) AS tokens,d.enabled_accounts
+ FROM generate_series(0,30) n LEFT JOIN by_day d ON d.day=$2::date-30+n
+ ) SELECT jsonb_build_object(
+ 'timezone','UTC',
+ 'ready',COALESCE((SELECT max(day)+1 >= $2::date-1 FROM supplier_usage_day_closes),
+ NOT EXISTS(SELECT 1 FROM usage_logs WHERE created_at<$3)),
+ 'updated_at',(SELECT max(updated_at) FROM snapshots WHERE day=$2::date),
+ 'cost',(SELECT jsonb_build_object('total',COALESCE(sum(total_cost),0)::text,
+ 'today',COALESCE(sum(total_cost) FILTER (WHERE day=$2::date),0)::text) FROM snapshots),
+ 'tokens',(SELECT jsonb_build_object('total',COALESCE(sum(input_tokens::numeric+output_tokens+cache_creation_tokens+cache_read_tokens),0)::bigint,
+ 'today',COALESCE(sum(input_tokens::numeric+output_tokens+cache_creation_tokens+cache_read_tokens) FILTER (WHERE day=$2::date),0)::bigint) FROM snapshots),
+ 'requests',(SELECT jsonb_build_object('total',COALESCE(sum(requests),0)::bigint,
+ 'today',COALESCE(sum(requests) FILTER (WHERE day=$2::date),0)::bigint) FROM snapshots),
+ 'accounts',(SELECT jsonb_build_object('total',count(*),'enabled',count(*) FILTER (WHERE status='enabled'),
+ 'pending',count(*) FILTER (WHERE status='pending'),'error',count(*) FILTER (WHERE status='error')) FROM owned WHERE NOT deleted),
+ 'daily',(SELECT jsonb_agg(to_jsonb(d) ORDER BY date) FROM daily d),
+ 'per_account',COALESCE((SELECT jsonb_agg(to_jsonb(a) ORDER BY id) FROM per_account a),'[]'::jsonb)
+ )`, owner, today.Format("2006-01-02"), today.AddDate(0, 0, -1))
 	if err != nil {
 		return nil, err
 	}
 	defer func() { _ = rows.Close() }()
-	out := &service.SupplierUsage{Timezone: "UTC", Daily: []service.SupplierDailyUsage{}}
-	for rows.Next() {
-		var d service.SupplierDailyUsage
-		if err = rows.Scan(&d.Date, &d.Requests, &d.InputTokens, &d.OutputTokens, &d.CacheCreationTokens, &d.CacheReadTokens); err != nil {
+	if !rows.Next() {
+		if err = rows.Err(); err != nil {
 			return nil, err
 		}
-		out.Daily = append(out.Daily, d)
-		out.Summary.Requests += d.Requests
-		out.Summary.InputTokens += d.InputTokens
-		out.Summary.OutputTokens += d.OutputTokens
-		out.Summary.CacheCreationTokens += d.CacheCreationTokens
-		out.Summary.CacheReadTokens += d.CacheReadTokens
+		return nil, sql.ErrNoRows
 	}
-	return out, rows.Err()
+	var data []byte
+	if err = rows.Scan(&data); err != nil {
+		return nil, err
+	}
+	var out service.SupplierUsageOverview
+	if err = json.Unmarshal(data, &out); err != nil {
+		return nil, err
+	}
+	return &out, rows.Err()
 }

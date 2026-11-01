@@ -462,35 +462,7 @@ func (h *SupplierHandler) Usage(c *gin.Context) {
 	if !ok {
 		return
 	}
-	today := time.Now().UTC()
-	end := time.Date(today.Year(), today.Month(), today.Day()+1, 0, 0, 0, 0, time.UTC)
-	start := end.AddDate(0, 0, -30)
-	if raw := c.Query("start_date"); raw != "" {
-		v, err := time.Parse("2006-01-02", raw)
-		if err != nil {
-			supplierError(c, service.ErrSupplierInvalid)
-			return
-		}
-		start = v
-	}
-	if raw := c.Query("end_date"); raw != "" {
-		v, err := time.Parse("2006-01-02", raw)
-		if err != nil {
-			supplierError(c, service.ErrSupplierInvalid)
-			return
-		}
-		end = v.AddDate(0, 0, 1)
-	}
-	var id *int64
-	if raw := c.Query("account_id"); raw != "" {
-		v, err := strconv.ParseInt(raw, 10, 64)
-		if err != nil || v <= 0 {
-			supplierError(c, service.ErrSupplierInvalid)
-			return
-		}
-		id = &v
-	}
-	out, err := h.service.Usage(c.Request.Context(), owner, start, end, id)
+	out, err := h.service.Usage(c.Request.Context(), owner)
 	if err != nil {
 		supplierError(c, err)
 		return

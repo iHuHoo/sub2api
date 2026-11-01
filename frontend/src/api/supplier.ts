@@ -62,22 +62,24 @@ export interface SupplierProxyInput {
   password?: string | null
   status?: 'active' | 'inactive' | null
 }
-export interface SupplierUsageTotals {
-  requests: number
-  input_tokens: number
-  output_tokens: number
-  cache_creation_tokens: number
-  cache_read_tokens: number
-}
 export interface SupplierUsage {
   timezone: 'UTC'
-  summary: SupplierUsageTotals
-  daily: (SupplierUsageTotals & { date: string })[]
-}
-export interface SupplierUsageQuery {
-  start_date?: string
-  end_date?: string
-  account_id?: number
+  ready: boolean
+  updated_at: string | null
+  cost: { total: string; today: string }
+  tokens: { total: number; today: number }
+  requests: { total: number; today: number }
+  accounts: { total: number; enabled: number; pending: number; error: number }
+  daily: { date: string; cost: string; tokens: number; enabled_accounts: number | null }[]
+  per_account: {
+    id: number
+    name: string
+    status: 'enabled' | 'pending' | 'error' | 'deleted'
+    deleted: boolean
+    today_cost: string
+    last31_cost: string
+    total_cost: string
+  }[]
 }
 
 export const supplierAPI = {
@@ -101,8 +103,8 @@ export const supplierAPI = {
     async delete(id: number) { return (await apiClient.delete<{ deleted: boolean }>(`/supplier/proxies/${id}`)).data },
     async test(id: number) { return (await apiClient.post<{ reachable: boolean; latency_ms: number }>(`/supplier/proxies/${id}/test`)).data }
   },
-  async usage(params: SupplierUsageQuery = {}) {
-    return (await apiClient.get<SupplierUsage>('/supplier/usage', { params })).data
+  async usage() {
+    return (await apiClient.get<SupplierUsage>('/supplier/usage')).data
   }
 }
 
