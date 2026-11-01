@@ -235,7 +235,7 @@ func (s *cleanupRepoStub) DeleteUsageLogsBatch(ctx context.Context, filters Usag
 func TestUsageCleanupServiceCreateTaskSanitizeFilters(t *testing.T) {
 	repo := &cleanupRepoStub{}
 	cfg := &config.Config{UsageCleanup: config.UsageCleanupConfig{Enabled: true, MaxRangeDays: 31}}
-	svc := NewUsageCleanupService(repo, nil, nil, cfg)
+	svc := NewUsageCleanupService(repo, nil, nil, cfg, &cleanupWatermarkStub{day: time.Date(2100, 1, 1, 0, 0, 0, 0, time.UTC), ok: true})
 
 	start := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
 	end := start.Add(24 * time.Hour)
@@ -314,7 +314,7 @@ func TestDescribeUsageCleanupFiltersIncludesRequestType(t *testing.T) {
 func TestUsageCleanupServiceCreateTaskInvalidCreator(t *testing.T) {
 	repo := &cleanupRepoStub{}
 	cfg := &config.Config{UsageCleanup: config.UsageCleanupConfig{Enabled: true}}
-	svc := NewUsageCleanupService(repo, nil, nil, cfg)
+	svc := NewUsageCleanupService(repo, nil, nil, cfg, &cleanupWatermarkStub{day: time.Date(2100, 1, 1, 0, 0, 0, 0, time.UTC), ok: true})
 
 	filters := UsageCleanupFilters{
 		StartTime: time.Now(),
@@ -328,7 +328,7 @@ func TestUsageCleanupServiceCreateTaskInvalidCreator(t *testing.T) {
 func TestUsageCleanupServiceCreateTaskDisabled(t *testing.T) {
 	repo := &cleanupRepoStub{}
 	cfg := &config.Config{UsageCleanup: config.UsageCleanupConfig{Enabled: false}}
-	svc := NewUsageCleanupService(repo, nil, nil, cfg)
+	svc := NewUsageCleanupService(repo, nil, nil, cfg, &cleanupWatermarkStub{day: time.Date(2100, 1, 1, 0, 0, 0, 0, time.UTC), ok: true})
 
 	filters := UsageCleanupFilters{
 		StartTime: time.Now(),
@@ -343,7 +343,7 @@ func TestUsageCleanupServiceCreateTaskDisabled(t *testing.T) {
 func TestUsageCleanupServiceCreateTaskRangeTooLarge(t *testing.T) {
 	repo := &cleanupRepoStub{}
 	cfg := &config.Config{UsageCleanup: config.UsageCleanupConfig{Enabled: true, MaxRangeDays: 1}}
-	svc := NewUsageCleanupService(repo, nil, nil, cfg)
+	svc := NewUsageCleanupService(repo, nil, nil, cfg, &cleanupWatermarkStub{day: time.Date(2100, 1, 1, 0, 0, 0, 0, time.UTC), ok: true})
 
 	start := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
 	end := start.Add(48 * time.Hour)
@@ -357,7 +357,7 @@ func TestUsageCleanupServiceCreateTaskRangeTooLarge(t *testing.T) {
 func TestUsageCleanupServiceCreateTaskMissingRange(t *testing.T) {
 	repo := &cleanupRepoStub{}
 	cfg := &config.Config{UsageCleanup: config.UsageCleanupConfig{Enabled: true}}
-	svc := NewUsageCleanupService(repo, nil, nil, cfg)
+	svc := NewUsageCleanupService(repo, nil, nil, cfg, &cleanupWatermarkStub{day: time.Date(2100, 1, 1, 0, 0, 0, 0, time.UTC), ok: true})
 
 	_, err := svc.CreateTask(context.Background(), UsageCleanupFilters{}, 1)
 	require.Error(t, err)
@@ -367,7 +367,7 @@ func TestUsageCleanupServiceCreateTaskMissingRange(t *testing.T) {
 func TestUsageCleanupServiceCreateTaskRepoError(t *testing.T) {
 	repo := &cleanupRepoStub{createErr: errors.New("db down")}
 	cfg := &config.Config{UsageCleanup: config.UsageCleanupConfig{Enabled: true}}
-	svc := NewUsageCleanupService(repo, nil, nil, cfg)
+	svc := NewUsageCleanupService(repo, nil, nil, cfg, &cleanupWatermarkStub{day: time.Date(2100, 1, 1, 0, 0, 0, 0, time.UTC), ok: true})
 
 	filters := UsageCleanupFilters{
 		StartTime: time.Now(),
@@ -392,7 +392,7 @@ func TestUsageCleanupServiceRunOnceSuccess(t *testing.T) {
 		},
 	}
 	cfg := &config.Config{UsageCleanup: config.UsageCleanupConfig{Enabled: true, BatchSize: 2, TaskTimeoutSeconds: 30}}
-	svc := NewUsageCleanupService(repo, nil, nil, cfg)
+	svc := NewUsageCleanupService(repo, nil, nil, cfg, &cleanupWatermarkStub{day: time.Date(2100, 1, 1, 0, 0, 0, 0, time.UTC), ok: true})
 
 	svc.runOnce()
 
@@ -414,7 +414,7 @@ func TestUsageCleanupServiceRunOnceSuccess(t *testing.T) {
 func TestUsageCleanupServiceRunOnceClaimError(t *testing.T) {
 	repo := &cleanupRepoStub{claimErr: errors.New("claim failed")}
 	cfg := &config.Config{UsageCleanup: config.UsageCleanupConfig{Enabled: true}}
-	svc := NewUsageCleanupService(repo, nil, nil, cfg)
+	svc := NewUsageCleanupService(repo, nil, nil, cfg, &cleanupWatermarkStub{day: time.Date(2100, 1, 1, 0, 0, 0, 0, time.UTC), ok: true})
 	svc.runOnce()
 
 	repo.mu.Lock()
@@ -426,7 +426,7 @@ func TestUsageCleanupServiceRunOnceClaimError(t *testing.T) {
 func TestUsageCleanupServiceRunOnceAlreadyRunning(t *testing.T) {
 	repo := &cleanupRepoStub{}
 	cfg := &config.Config{UsageCleanup: config.UsageCleanupConfig{Enabled: true}}
-	svc := NewUsageCleanupService(repo, nil, nil, cfg)
+	svc := NewUsageCleanupService(repo, nil, nil, cfg, &cleanupWatermarkStub{day: time.Date(2100, 1, 1, 0, 0, 0, 0, time.UTC), ok: true})
 	svc.running = 1
 	svc.runOnce()
 }
@@ -439,7 +439,7 @@ func TestUsageCleanupServiceExecuteTaskFailed(t *testing.T) {
 		},
 	}
 	cfg := &config.Config{UsageCleanup: config.UsageCleanupConfig{Enabled: true, BatchSize: 3}}
-	svc := NewUsageCleanupService(repo, nil, nil, cfg)
+	svc := NewUsageCleanupService(repo, nil, nil, cfg, &cleanupWatermarkStub{day: time.Date(2100, 1, 1, 0, 0, 0, 0, time.UTC), ok: true})
 	task := &UsageCleanupTask{
 		ID: 11,
 		Filters: UsageCleanupFilters{
@@ -466,7 +466,7 @@ func TestUsageCleanupServiceExecuteTaskProgressError(t *testing.T) {
 		updateErr: errors.New("update failed"),
 	}
 	cfg := &config.Config{UsageCleanup: config.UsageCleanupConfig{Enabled: true, BatchSize: 2}}
-	svc := NewUsageCleanupService(repo, nil, nil, cfg)
+	svc := NewUsageCleanupService(repo, nil, nil, cfg, &cleanupWatermarkStub{day: time.Date(2100, 1, 1, 0, 0, 0, 0, time.UTC), ok: true})
 	task := &UsageCleanupTask{
 		ID: 8,
 		Filters: UsageCleanupFilters{
@@ -491,7 +491,7 @@ func TestUsageCleanupServiceExecuteTaskDeleteCanceled(t *testing.T) {
 		},
 	}
 	cfg := &config.Config{UsageCleanup: config.UsageCleanupConfig{Enabled: true, BatchSize: 2}}
-	svc := NewUsageCleanupService(repo, nil, nil, cfg)
+	svc := NewUsageCleanupService(repo, nil, nil, cfg, &cleanupWatermarkStub{day: time.Date(2100, 1, 1, 0, 0, 0, 0, time.UTC), ok: true})
 	task := &UsageCleanupTask{
 		ID: 12,
 		Filters: UsageCleanupFilters{
@@ -511,7 +511,7 @@ func TestUsageCleanupServiceExecuteTaskDeleteCanceled(t *testing.T) {
 func TestUsageCleanupServiceExecuteTaskContextCanceled(t *testing.T) {
 	repo := &cleanupRepoStub{}
 	cfg := &config.Config{UsageCleanup: config.UsageCleanupConfig{Enabled: true, BatchSize: 2}}
-	svc := NewUsageCleanupService(repo, nil, nil, cfg)
+	svc := NewUsageCleanupService(repo, nil, nil, cfg, &cleanupWatermarkStub{day: time.Date(2100, 1, 1, 0, 0, 0, 0, time.UTC), ok: true})
 	task := &UsageCleanupTask{
 		ID: 9,
 		Filters: UsageCleanupFilters{
@@ -539,7 +539,7 @@ func TestUsageCleanupServiceExecuteTaskMarkFailedUpdateError(t *testing.T) {
 		markFailedErr: errors.New("update failed"),
 	}
 	cfg := &config.Config{UsageCleanup: config.UsageCleanupConfig{Enabled: true, BatchSize: 2}}
-	svc := NewUsageCleanupService(repo, nil, nil, cfg)
+	svc := NewUsageCleanupService(repo, nil, nil, cfg, &cleanupWatermarkStub{day: time.Date(2100, 1, 1, 0, 0, 0, 0, time.UTC), ok: true})
 	task := &UsageCleanupTask{
 		ID: 13,
 		Filters: UsageCleanupFilters{
@@ -567,7 +567,7 @@ func TestUsageCleanupServiceExecuteTaskDashboardRecomputeError(t *testing.T) {
 		DashboardAgg: config.DashboardAggregationConfig{Enabled: true},
 	})
 	cfg := &config.Config{UsageCleanup: config.UsageCleanupConfig{Enabled: true, BatchSize: 2}}
-	svc := NewUsageCleanupService(repo, nil, dashboard, cfg)
+	svc := NewUsageCleanupService(repo, nil, dashboard, cfg, &cleanupWatermarkStub{day: time.Date(2100, 1, 1, 0, 0, 0, 0, time.UTC), ok: true})
 	task := &UsageCleanupTask{
 		ID: 14,
 		Filters: UsageCleanupFilters{
@@ -595,7 +595,7 @@ func TestUsageCleanupServiceExecuteTaskDashboardRecomputeSuccess(t *testing.T) {
 		DashboardAgg: config.DashboardAggregationConfig{Enabled: true},
 	})
 	cfg := &config.Config{UsageCleanup: config.UsageCleanupConfig{Enabled: true, BatchSize: 2}}
-	svc := NewUsageCleanupService(repo, nil, dashboard, cfg)
+	svc := NewUsageCleanupService(repo, nil, dashboard, cfg, &cleanupWatermarkStub{day: time.Date(2100, 1, 1, 0, 0, 0, 0, time.UTC), ok: true})
 	task := &UsageCleanupTask{
 		ID: 15,
 		Filters: UsageCleanupFilters{
@@ -619,7 +619,7 @@ func TestUsageCleanupServiceExecuteTaskCanceled(t *testing.T) {
 		},
 	}
 	cfg := &config.Config{UsageCleanup: config.UsageCleanupConfig{Enabled: true, BatchSize: 2}}
-	svc := NewUsageCleanupService(repo, nil, nil, cfg)
+	svc := NewUsageCleanupService(repo, nil, nil, cfg, &cleanupWatermarkStub{day: time.Date(2100, 1, 1, 0, 0, 0, 0, time.UTC), ok: true})
 	task := &UsageCleanupTask{
 		ID: 3,
 		Filters: UsageCleanupFilters{
@@ -644,7 +644,7 @@ func TestUsageCleanupServiceCancelTaskSuccess(t *testing.T) {
 		},
 	}
 	cfg := &config.Config{UsageCleanup: config.UsageCleanupConfig{Enabled: true}}
-	svc := NewUsageCleanupService(repo, nil, nil, cfg)
+	svc := NewUsageCleanupService(repo, nil, nil, cfg, &cleanupWatermarkStub{day: time.Date(2100, 1, 1, 0, 0, 0, 0, time.UTC), ok: true})
 
 	err := svc.CancelTask(context.Background(), 5, 9)
 	require.NoError(t, err)
@@ -658,7 +658,7 @@ func TestUsageCleanupServiceCancelTaskSuccess(t *testing.T) {
 func TestUsageCleanupServiceCancelTaskDisabled(t *testing.T) {
 	repo := &cleanupRepoStub{}
 	cfg := &config.Config{UsageCleanup: config.UsageCleanupConfig{Enabled: false}}
-	svc := NewUsageCleanupService(repo, nil, nil, cfg)
+	svc := NewUsageCleanupService(repo, nil, nil, cfg, &cleanupWatermarkStub{day: time.Date(2100, 1, 1, 0, 0, 0, 0, time.UTC), ok: true})
 
 	err := svc.CancelTask(context.Background(), 1, 2)
 	require.Error(t, err)
@@ -669,7 +669,7 @@ func TestUsageCleanupServiceCancelTaskDisabled(t *testing.T) {
 func TestUsageCleanupServiceCancelTaskNotFound(t *testing.T) {
 	repo := &cleanupRepoStub{}
 	cfg := &config.Config{UsageCleanup: config.UsageCleanupConfig{Enabled: true}}
-	svc := NewUsageCleanupService(repo, nil, nil, cfg)
+	svc := NewUsageCleanupService(repo, nil, nil, cfg, &cleanupWatermarkStub{day: time.Date(2100, 1, 1, 0, 0, 0, 0, time.UTC), ok: true})
 
 	err := svc.CancelTask(context.Background(), 999, 1)
 	require.Error(t, err)
@@ -680,7 +680,7 @@ func TestUsageCleanupServiceCancelTaskNotFound(t *testing.T) {
 func TestUsageCleanupServiceCancelTaskStatusError(t *testing.T) {
 	repo := &cleanupRepoStub{statusErr: errors.New("status broken")}
 	cfg := &config.Config{UsageCleanup: config.UsageCleanupConfig{Enabled: true}}
-	svc := NewUsageCleanupService(repo, nil, nil, cfg)
+	svc := NewUsageCleanupService(repo, nil, nil, cfg, &cleanupWatermarkStub{day: time.Date(2100, 1, 1, 0, 0, 0, 0, time.UTC), ok: true})
 
 	err := svc.CancelTask(context.Background(), 7, 1)
 	require.Error(t, err)
@@ -694,7 +694,7 @@ func TestUsageCleanupServiceCancelTaskConflict(t *testing.T) {
 		},
 	}
 	cfg := &config.Config{UsageCleanup: config.UsageCleanupConfig{Enabled: true}}
-	svc := NewUsageCleanupService(repo, nil, nil, cfg)
+	svc := NewUsageCleanupService(repo, nil, nil, cfg, &cleanupWatermarkStub{day: time.Date(2100, 1, 1, 0, 0, 0, 0, time.UTC), ok: true})
 
 	err := svc.CancelTask(context.Background(), 7, 1)
 	require.Error(t, err)
@@ -709,7 +709,7 @@ func TestUsageCleanupServiceCancelTaskAlreadyCanceledIsIdempotent(t *testing.T) 
 		},
 	}
 	cfg := &config.Config{UsageCleanup: config.UsageCleanupConfig{Enabled: true}}
-	svc := NewUsageCleanupService(repo, nil, nil, cfg)
+	svc := NewUsageCleanupService(repo, nil, nil, cfg, &cleanupWatermarkStub{day: time.Date(2100, 1, 1, 0, 0, 0, 0, time.UTC), ok: true})
 
 	err := svc.CancelTask(context.Background(), 7, 1)
 	require.NoError(t, err)
@@ -728,7 +728,7 @@ func TestUsageCleanupServiceCancelTaskRepoConflict(t *testing.T) {
 		cancelResult: &shouldCancel,
 	}
 	cfg := &config.Config{UsageCleanup: config.UsageCleanupConfig{Enabled: true}}
-	svc := NewUsageCleanupService(repo, nil, nil, cfg)
+	svc := NewUsageCleanupService(repo, nil, nil, cfg, &cleanupWatermarkStub{day: time.Date(2100, 1, 1, 0, 0, 0, 0, time.UTC), ok: true})
 
 	err := svc.CancelTask(context.Background(), 7, 1)
 	require.Error(t, err)
@@ -744,7 +744,7 @@ func TestUsageCleanupServiceCancelTaskRepoError(t *testing.T) {
 		cancelErr: errors.New("cancel failed"),
 	}
 	cfg := &config.Config{UsageCleanup: config.UsageCleanupConfig{Enabled: true}}
-	svc := NewUsageCleanupService(repo, nil, nil, cfg)
+	svc := NewUsageCleanupService(repo, nil, nil, cfg, &cleanupWatermarkStub{day: time.Date(2100, 1, 1, 0, 0, 0, 0, time.UTC), ok: true})
 
 	err := svc.CancelTask(context.Background(), 7, 1)
 	require.Error(t, err)
@@ -758,7 +758,7 @@ func TestUsageCleanupServiceCancelTaskInvalidCanceller(t *testing.T) {
 		},
 	}
 	cfg := &config.Config{UsageCleanup: config.UsageCleanupConfig{Enabled: true}}
-	svc := NewUsageCleanupService(repo, nil, nil, cfg)
+	svc := NewUsageCleanupService(repo, nil, nil, cfg, &cleanupWatermarkStub{day: time.Date(2100, 1, 1, 0, 0, 0, 0, time.UTC), ok: true})
 
 	err := svc.CancelTask(context.Background(), 7, 0)
 	require.Error(t, err)
@@ -775,7 +775,7 @@ func TestUsageCleanupServiceListTasks(t *testing.T) {
 			Pages:    1,
 		},
 	}
-	svc := NewUsageCleanupService(repo, nil, nil, &config.Config{UsageCleanup: config.UsageCleanupConfig{Enabled: true}})
+	svc := NewUsageCleanupService(repo, nil, nil, &config.Config{UsageCleanup: config.UsageCleanupConfig{Enabled: true}}, &cleanupWatermarkStub{day: time.Date(2100, 1, 1, 0, 0, 0, 0, time.UTC), ok: true})
 
 	tasks, result, err := svc.ListTasks(context.Background(), pagination.PaginationParams{Page: 1, PageSize: 20})
 	require.NoError(t, err)
@@ -788,7 +788,7 @@ func TestUsageCleanupServiceListTasksNotReady(t *testing.T) {
 	_, _, err := nilSvc.ListTasks(context.Background(), pagination.PaginationParams{Page: 1, PageSize: 20})
 	require.Error(t, err)
 
-	svc := NewUsageCleanupService(nil, nil, nil, &config.Config{UsageCleanup: config.UsageCleanupConfig{Enabled: true}})
+	svc := NewUsageCleanupService(nil, nil, nil, &config.Config{UsageCleanup: config.UsageCleanupConfig{Enabled: true}}, &cleanupWatermarkStub{day: time.Date(2100, 1, 1, 0, 0, 0, 0, time.UTC), ok: true})
 	_, _, err = svc.ListTasks(context.Background(), pagination.PaginationParams{Page: 1, PageSize: 20})
 	require.Error(t, err)
 }
@@ -804,7 +804,7 @@ func TestUsageCleanupServiceDefaultsAndLifecycle(t *testing.T) {
 
 	repo := &cleanupRepoStub{}
 	cfgDisabled := &config.Config{UsageCleanup: config.UsageCleanupConfig{Enabled: false}}
-	svcDisabled := NewUsageCleanupService(repo, nil, nil, cfgDisabled)
+	svcDisabled := NewUsageCleanupService(repo, nil, nil, cfgDisabled, &cleanupWatermarkStub{day: time.Date(2100, 1, 1, 0, 0, 0, 0, time.UTC), ok: true})
 	svcDisabled.Start()
 	svcDisabled.Stop()
 
@@ -812,18 +812,18 @@ func TestUsageCleanupServiceDefaultsAndLifecycle(t *testing.T) {
 	require.NoError(t, err)
 
 	cfg := &config.Config{UsageCleanup: config.UsageCleanupConfig{Enabled: true, WorkerIntervalSeconds: 5}}
-	svc := NewUsageCleanupService(repo, timingWheel, nil, cfg)
+	svc := NewUsageCleanupService(repo, timingWheel, nil, cfg, &cleanupWatermarkStub{day: time.Date(2100, 1, 1, 0, 0, 0, 0, time.UTC), ok: true})
 	require.Equal(t, 5*time.Second, svc.workerInterval())
 	svc.Start()
 	svc.Stop()
 
 	cfgFallback := &config.Config{UsageCleanup: config.UsageCleanupConfig{Enabled: true}}
-	svcFallback := NewUsageCleanupService(repo, timingWheel, nil, cfgFallback)
+	svcFallback := NewUsageCleanupService(repo, timingWheel, nil, cfgFallback, &cleanupWatermarkStub{day: time.Date(2100, 1, 1, 0, 0, 0, 0, time.UTC), ok: true})
 	require.Equal(t, 31, svcFallback.maxRangeDays())
 	require.Equal(t, 5000, svcFallback.batchSize())
 	require.Equal(t, 10*time.Second, svcFallback.workerInterval())
 
-	svcMissingDeps := NewUsageCleanupService(nil, nil, nil, cfgFallback)
+	svcMissingDeps := NewUsageCleanupService(nil, nil, nil, cfgFallback, &cleanupWatermarkStub{day: time.Date(2100, 1, 1, 0, 0, 0, 0, time.UTC), ok: true})
 	svcMissingDeps.Start()
 }
 
@@ -876,7 +876,7 @@ func TestDescribeUsageCleanupFiltersAllFields(t *testing.T) {
 
 func TestUsageCleanupServiceIsTaskCanceledNotFound(t *testing.T) {
 	repo := &cleanupRepoStub{}
-	svc := NewUsageCleanupService(repo, nil, nil, &config.Config{UsageCleanup: config.UsageCleanupConfig{Enabled: true}})
+	svc := NewUsageCleanupService(repo, nil, nil, &config.Config{UsageCleanup: config.UsageCleanupConfig{Enabled: true}}, &cleanupWatermarkStub{day: time.Date(2100, 1, 1, 0, 0, 0, 0, time.UTC), ok: true})
 
 	canceled, err := svc.isTaskCanceled(context.Background(), 9)
 	require.NoError(t, err)
@@ -885,9 +885,89 @@ func TestUsageCleanupServiceIsTaskCanceledNotFound(t *testing.T) {
 
 func TestUsageCleanupServiceIsTaskCanceledError(t *testing.T) {
 	repo := &cleanupRepoStub{statusErr: errors.New("status err")}
-	svc := NewUsageCleanupService(repo, nil, nil, &config.Config{UsageCleanup: config.UsageCleanupConfig{Enabled: true}})
+	svc := NewUsageCleanupService(repo, nil, nil, &config.Config{UsageCleanup: config.UsageCleanupConfig{Enabled: true}}, &cleanupWatermarkStub{day: time.Date(2100, 1, 1, 0, 0, 0, 0, time.UTC), ok: true})
 
 	_, err := svc.isTaskCanceled(context.Background(), 9)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "status err")
+}
+
+type cleanupWatermarkStub struct {
+	day time.Time
+	ok  bool
+	err error
+}
+
+func (s *cleanupWatermarkStub) FirstOpenDay(context.Context) (time.Time, bool, error) {
+	return s.day, s.ok, s.err
+}
+
+func TestCreateTask_RejectsRangeWithOpenDays(t *testing.T) {
+	day := time.Date(2026, 1, 2, 0, 0, 0, 0, time.UTC)
+	for _, tc := range []struct {
+		name string
+		end  time.Time
+		ok   bool
+		err  error
+	}{
+		{"equal", day, true, nil}, {"after", day.Add(time.Second), true, nil},
+		{"no_closed_days", day.Add(-time.Second), false, nil},
+		{"read_failure", day.Add(-time.Second), true, errors.New("watermark unavailable")},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			repo := &cleanupRepoStub{}
+			svc := NewUsageCleanupService(repo, nil, nil, &config.Config{UsageCleanup: config.UsageCleanupConfig{Enabled: true}}, &cleanupWatermarkStub{day: time.Date(2100, 1, 1, 0, 0, 0, 0, time.UTC), ok: true})
+			svc.closedDays = &cleanupWatermarkStub{day: day, ok: tc.ok, err: tc.err}
+			_, err := svc.CreateTask(context.Background(), UsageCleanupFilters{StartTime: day.Add(-time.Hour), EndTime: tc.end}, 1)
+			require.Error(t, err)
+			if tc.err == nil {
+				require.ErrorIs(t, err, ErrUsageCleanupRangeNotClosed)
+			}
+			require.Empty(t, repo.created)
+		})
+	}
+}
+func TestCreateTask_AllowsClosedRange(t *testing.T) {
+	day := time.Date(2026, 1, 2, 0, 0, 0, 0, time.UTC)
+	repo := &cleanupRepoStub{}
+	svc := NewUsageCleanupService(repo, nil, nil, &config.Config{UsageCleanup: config.UsageCleanupConfig{Enabled: true}}, &cleanupWatermarkStub{day: time.Date(2100, 1, 1, 0, 0, 0, 0, time.UTC), ok: true})
+	svc.closedDays = &cleanupWatermarkStub{day: day, ok: true}
+	_, err := svc.CreateTask(context.Background(), UsageCleanupFilters{StartTime: day.Add(-time.Hour), EndTime: day.Add(-time.Second)}, 1)
+	require.NoError(t, err)
+	require.Len(t, repo.created, 1)
+}
+func TestCreateTask_NoEndTime_Rejected(t *testing.T) {
+	repo := &cleanupRepoStub{}
+	svc := NewUsageCleanupService(repo, nil, nil, &config.Config{UsageCleanup: config.UsageCleanupConfig{Enabled: true}}, &cleanupWatermarkStub{day: time.Date(2100, 1, 1, 0, 0, 0, 0, time.UTC), ok: true})
+	_, err := svc.CreateTask(context.Background(), UsageCleanupFilters{StartTime: time.Now()}, 1)
+	require.Error(t, err)
+	require.Empty(t, repo.created)
+}
+func TestExecuteTask_RevalidatesBeforeDeleting(t *testing.T) {
+	day := time.Date(2026, 1, 2, 0, 0, 0, 0, time.UTC)
+	repo := &cleanupRepoStub{statusByID: map[int64]string{1: UsageCleanupStatusRunning}}
+	svc := NewUsageCleanupService(repo, nil, nil, &config.Config{UsageCleanup: config.UsageCleanupConfig{Enabled: true}}, &cleanupWatermarkStub{day: time.Date(2100, 1, 1, 0, 0, 0, 0, time.UTC), ok: true})
+	watermark := &cleanupWatermarkStub{day: day, ok: true}
+	svc.closedDays = watermark
+	task, err := svc.CreateTask(context.Background(), UsageCleanupFilters{StartTime: day.Add(-time.Hour), EndTime: day.Add(-time.Second)}, 1)
+	require.NoError(t, err)
+	watermark.ok = false
+	svc.executeTask(context.Background(), task)
+	require.Empty(t, repo.deleteCalls)
+	require.Len(t, repo.markFailed, 1)
+	require.Zero(t, repo.markFailed[0].deletedRows)
+	require.Contains(t, repo.markFailed[0].errMsg, "USAGE_CLEANUP_RANGE_NOT_CLOSED")
+}
+
+func TestExecuteTask_WatermarkCancellationRemainsRetryable(t *testing.T) {
+	for _, interruption := range []error{context.Canceled, context.DeadlineExceeded} {
+		t.Run(interruption.Error(), func(t *testing.T) {
+			repo := &cleanupRepoStub{statusByID: map[int64]string{1: UsageCleanupStatusRunning}}
+			svc := NewUsageCleanupService(repo, nil, nil, nil, &cleanupWatermarkStub{err: interruption})
+			svc.executeTask(context.Background(), &UsageCleanupTask{ID: 1, Filters: UsageCleanupFilters{StartTime: time.Now().Add(-time.Hour), EndTime: time.Now()}})
+			require.Empty(t, repo.markFailed)
+			require.Empty(t, repo.deleteCalls)
+			require.Equal(t, UsageCleanupStatusRunning, repo.statusByID[1])
+		})
+	}
 }

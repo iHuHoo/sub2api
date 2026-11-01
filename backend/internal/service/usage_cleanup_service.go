@@ -22,8 +22,15 @@ const (
 	usageCleanupWorkerName = "usage_cleanup_worker"
 )
 
+var ErrUsageCleanupRangeNotClosed = infraerrors.BadRequest("USAGE_CLEANUP_RANGE_NOT_CLOSED", "no usage days are closed; usage cleanup is not allowed")
+
+type UsageCleanupClosedDays interface {
+	FirstOpenDay(context.Context) (time.Time, bool, error)
+}
+
 // UsageCleanupService 负责创建与执行使用记录清理任务
 type UsageCleanupService struct {
+	closedDays  UsageCleanupClosedDays
 	repo        UsageCleanupRepository
 	timingWheel *TimingWheelService
 	dashboard   *DashboardAggregationService
@@ -37,10 +44,11 @@ type UsageCleanupService struct {
 	workerCancel context.CancelFunc
 }
 
-func NewUsageCleanupService(repo UsageCleanupRepository, timingWheel *TimingWheelService, dashboard *DashboardAggregationService, cfg *config.Config) *UsageCleanupService {
+func NewUsageCleanupService(repo UsageCleanupRepository, timingWheel *TimingWheelService, dashboard *DashboardAggregationService, cfg *config.Config, closedDays UsageCleanupClosedDays) *UsageCleanupService {
 	workerCtx, workerCancel := context.WithCancel(context.Background())
 	return &UsageCleanupService{
 		repo:         repo,
+		closedDays:   closedDays,
 		timingWheel:  timingWheel,
 		dashboard:    dashboard,
 		cfg:          cfg,
@@ -135,8 +143,14 @@ func (s *UsageCleanupService) CreateTask(ctx context.Context, filters UsageClean
 
 	logger.LegacyPrintf("service.usage_cleanup", "[UsageCleanup] create_task requested: operator=%d %s", createdBy, describeUsageCleanupFilters(filters))
 	sanitizeUsageCleanupFilters(&filters)
+	// PostgreSQL timestamps have microsecond precision; never round into an open day.
+	filters.EndTime = filters.EndTime.Truncate(time.Microsecond)
 	if err := s.validateFilters(filters); err != nil {
 		logger.LegacyPrintf("service.usage_cleanup", "[UsageCleanup] create_task rejected: operator=%d err=%v %s", createdBy, err, describeUsageCleanupFilters(filters))
+		return nil, err
+	}
+
+	if err := s.validateClosedRange(ctx, filters); err != nil {
 		return nil, err
 	}
 
@@ -191,6 +205,19 @@ func (s *UsageCleanupService) executeTask(ctx context.Context, task *UsageCleanu
 		return
 	}
 
+	// Old queued tasks may still contain nanosecond end times.
+	task.Filters.EndTime = task.Filters.EndTime.Truncate(time.Microsecond)
+	if err := s.validateFilters(task.Filters); err != nil {
+		s.markTaskFailed(task.ID, task.DeletedRows, err)
+		return
+	}
+	if err := s.validateClosedRange(ctx, task.Filters); err != nil {
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			return
+		}
+		s.markTaskFailed(task.ID, task.DeletedRows, err)
+		return
+	}
 	batchSize := s.batchSize()
 	deletedTotal := task.DeletedRows
 	start := time.Now()
@@ -424,4 +451,22 @@ func (s *UsageCleanupService) taskTimeout() time.Duration {
 		return time.Duration(s.cfg.UsageCleanup.TaskTimeoutSeconds) * time.Second
 	}
 	return 30 * time.Minute
+}
+
+func (s *UsageCleanupService) validateClosedRange(ctx context.Context, filters UsageCleanupFilters) error {
+	if s.closedDays == nil {
+		return fmt.Errorf("usage cleanup watermark repository is unavailable")
+	}
+	day, ok, err := s.closedDays.FirstOpenDay(ctx)
+	if err != nil {
+		return fmt.Errorf("read usage cleanup watermark: %w", err)
+	}
+	if !ok {
+		return ErrUsageCleanupRangeNotClosed
+	}
+	// EndTime is inclusive, while FirstOpenDay itself must be retained.
+	if !filters.EndTime.Before(day) {
+		return infraerrors.BadRequest("USAGE_CLEANUP_RANGE_NOT_CLOSED", fmt.Sprintf("usage cleanup end_time must be strictly before %s (UTC); later days are not closed", day.UTC().Format(time.RFC3339)))
+	}
+	return nil
 }

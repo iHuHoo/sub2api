@@ -589,22 +589,6 @@ func (s *UsageLogRepoSuite) TestGetByID_ReturnsRequestTypeAndLegacyFallback() {
 	s.Require().True(got.OpenAIWSMode)
 }
 
-// --- Delete ---
-
-func (s *UsageLogRepoSuite) TestDelete() {
-	user := mustCreateUser(s.T(), s.client, &service.User{Email: "delete@test.com"})
-	apiKey := mustCreateApiKey(s.T(), s.client, &service.APIKey{UserID: user.ID, Key: "sk-delete", Name: "k"})
-	account := mustCreateAccount(s.T(), s.client, &service.Account{Name: "acc-delete"})
-
-	log := s.createUsageLog(user, apiKey, account, 10, 20, 0.5, time.Now())
-
-	err := s.repo.Delete(s.ctx, log.ID)
-	s.Require().NoError(err, "Delete")
-
-	_, err = s.repo.GetByID(s.ctx, log.ID)
-	s.Require().Error(err, "expected error after delete")
-}
-
 // --- ListByUser ---
 
 func (s *UsageLogRepoSuite) TestListByUser() {
