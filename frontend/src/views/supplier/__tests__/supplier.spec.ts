@@ -6,6 +6,7 @@ import zh from '@/i18n/locales/zh'
 import AccountsView from '../AccountsView.vue'
 import ProxiesView from '../ProxiesView.vue'
 import UsageView from '../UsageView.vue'
+import type { SupplierUsage } from '@/api/supplier'
 
 const api = vi.hoisted(() => ({
   accounts: { list: vi.fn(), create: vi.fn(), update: vi.fn(), getUsage: vi.fn(), getModels: vi.fn() },
@@ -19,6 +20,9 @@ const admin = vi.hoisted(() => ({
   queryQuota: vi.fn(),
   queryBalance: vi.fn(),
   getAvailableModels: vi.fn()
+}))
+vi.mock('vue-chartjs', () => ({
+  Line: { name: 'Line', props: ['data', 'options'], template: '<canvas />' }
 }))
 vi.mock('@/api/supplier', () => ({ supplierAPI: api, supplierErrorKey: () => 'supplier.failed' }))
 vi.mock('@/stores/app', () => ({ useAppStore: () => api }))
@@ -524,34 +528,124 @@ describe('supplier proxy editor', () => {
 })
 
 describe('supplier usage', () => {
-  it('rejects reversed/overlong ranges and nonpositive IDs before requesting statistics', async () => {
-    api.usage.mockResolvedValue({ timezone: 'UTC', summary: { requests: 0, input_tokens: 0, output_tokens: 0, cache_creation_tokens: 0, cache_read_tokens: 0 }, daily: [] })
-    const wrapper = render(UsageView)
-    await flushPromises()
-    api.usage.mockClear()
-    for (const [start, end, id] of [['2026-10-02', '2026-10-01', ''], ['2025-01-01', '2026-01-02', ''], ['2026-10-01', '2026-10-02', '0']]) {
-      await wrapper.get('[name="start_date"]').setValue(start)
-      await wrapper.get('[name="end_date"]').setValue(end)
-      await wrapper.get('[name="account_id"]').setValue(id)
-      await wrapper.get('form').trigger('submit')
-      await flushPromises()
-      expect(api.usage).not.toHaveBeenCalled()
-    }
+  function usageFixture(overrides: Partial<SupplierUsage> = {}) {
+    return {
+      timezone: 'UTC', ready: true, updated_at: '2026-10-31T12:30:00Z',
+      cost: { total: '9007199254740993.1234567890123000', today: '0.00000000000000012300' },
+      tokens: { total: 1234567, today: 123 }, requests: { total: 1200, today: 12 },
+      accounts: { total: 3, enabled: 2, pending: 1, error: 0 },
+      daily: Array.from({ length: 31 }, (_, i) => ({
+        date: `2026-10-${String(i + 1).padStart(2, '0')}`, cost: '0.00000000000000012300', tokens: 123,
+        enabled_accounts: i === 0 ? null : 2
+      })),
+      per_account: [
+        { id: 9, name: 'Deleted account', status: 'deleted', deleted: true, today_cost: '0', last31_cost: '0.0000012300', total_cost: '9007199254740993.1234567890123000' },
+        { id: 2, name: 'Pending account', status: 'pending', deleted: false, today_cost: '0.00000000000000012300', last31_cost: '1.2000', total_cost: '0' }
+      ],
+      ...overrides
+    } satisfies SupplierUsage
+  }
+  beforeEach(() => {
+    vi.clearAllMocks()
+    api.usage.mockResolvedValue(usageFixture())
   })
-  it('requests inclusive UTC dates and exact account filter; renders token-only totals', async () => {
-    api.usage.mockResolvedValue({ timezone: 'UTC', summary: { requests: 2, input_tokens: 20, output_tokens: 40, cache_creation_tokens: 60, cache_read_tokens: 80 }, daily: [{ date: '2026-10-01', requests: 2, input_tokens: 20, output_tokens: 40, cache_creation_tokens: 60, cache_read_tokens: 80 }] })
+  it('shows spend total and today from the API without float arithmetic', async () => {
     const wrapper = render(UsageView)
     await flushPromises()
-    await wrapper.get('[name="start_date"]').setValue('2026-10-01')
-    await wrapper.get('[name="end_date"]').setValue('2026-10-31')
-    await wrapper.get('[name="account_id"]').setValue('3')
-    await wrapper.get('form').trigger('submit')
+    const spend = wrapper.get('[data-testid="spend-card"]')
+    expect(spend.text()).toContain('$9,007,199,254,740,993.1234567890123')
+    expect(spend.text()).toContain('Today: $0.000000000000000123')
+    expect(wrapper.get('tbody').text()).toContain('$0.00000123')
+    expect(wrapper.get('tbody').text()).toContain('$1.2')
+    expect(api.usage).toHaveBeenCalledWith()
+  })
+  it('shows enabled, pending and error counts including zero', async () => {
+    const wrapper = render(UsageView)
     await flushPromises()
-    expect(api.usage).toHaveBeenLastCalledWith({ start_date: '2026-10-01', end_date: '2026-10-31', account_id: 3 })
-    expect(wrapper.text()).toContain('UTC')
-    expect(wrapper.text()).toContain('2026-10-01')
-    expect(wrapper.text()).toContain('Calls recorded in usage records')
-    expect(wrapper.text()).not.toContain('$')
+    const accounts = wrapper.get('[data-testid="accounts-card"]')
+    expect(accounts.text()).toContain('3')
+    expect(accounts.text()).toContain('2 Enabled')
+    expect(accounts.text()).toContain('1 Pending onboarding')
+    expect(accounts.text()).toContain('0 Error')
+  })
+  it('renders per-account rows in id order with no rank or share column', async () => {
+    const wrapper = render(UsageView)
+    await flushPromises()
+    expect(wrapper.findAll('thead th').map(node => node.text())).toEqual(['Accounts', 'Status', 'Today', 'Last 31 days', 'Total'])
+    expect(wrapper.findAll('tbody tr').map(row => row.find('td').text())).toEqual(['#2 Pending account', '#9 Deleted account'])
+    expect(wrapper.get('tbody').text()).toContain('$9,007,199,254,740,993.1234567890123')
+  })
+  it('labels deleted accounts and pending accounts', async () => {
+    const wrapper = render(UsageView)
+    await flushPromises()
+    const rows = wrapper.findAll('tbody tr')
+    expect(rows.find(row => row.text().includes('#9'))?.text()).toContain('Deleted')
+    expect(rows.find(row => row.text().includes('#2'))?.text()).toContain('Pending onboarding')
+  })
+  it('passes null for enabled_accounts so the chart shows a gap', async () => {
+    const wrapper = render(UsageView)
+    await flushPromises()
+    const chart = wrapper.findComponent({ name: 'Line' })
+    expect(chart.exists()).toBe(true)
+    const data = chart.props('data')
+    expect(data.labels).toHaveLength(31)
+    expect(data.datasets[2].data).toEqual([null, ...Array(30).fill(2)])
+    expect(data.datasets[2].spanGaps).toBe(false)
+  })
+  it('uses monotone interpolation on all three datasets', async () => {
+    const wrapper = render(UsageView)
+    await flushPromises()
+    const chart = wrapper.findComponent({ name: 'Line' })
+    expect(chart.exists()).toBe(true)
+    const datasets = chart.props('data').datasets
+    expect(datasets).toHaveLength(3)
+    expect(datasets.map((dataset: any) => dataset.cubicInterpolationMode)).toEqual(['monotone', 'monotone', 'monotone'])
+    expect(datasets.map((dataset: any) => dataset.yAxisID)).toEqual(['cost', 'tokens', 'accounts'])
+    const options = chart.props('options')
+    expect(options.scales.cost.position).toBe('left')
+    expect(options.scales.tokens.position).toBe('right')
+    expect(options.scales.accounts.display).toBe(false)
+    expect(options.scales.x.ticks.autoSkip).toBe(true)
+    const label = options.plugins.tooltip.callbacks.label
+    expect(label({ datasetIndex: 0, dataIndex: 1, dataset: datasets[0] })).toBe('Spend: $0.00000000000000012300')
+    expect(label({ datasetIndex: 2, dataIndex: 1, dataset: datasets[2] })).toBe('Enabled: 2')
+    expect(wrapper.text()).toContain('2026-10-31 12:30:00 UTC')
+  })
+  it('shows the in-progress message when ready is false', async () => {
+    api.usage.mockResolvedValue(usageFixture({ ready: false }))
+    const wrapper = render(UsageView)
+    await flushPromises()
+    expect(wrapper.text()).toContain('Statistics in progress. Please come back later.')
+    expect(zh.supplier.usageStats.inProgress).toBe('统计中，请稍后再来')
+    expect(wrapper.find('[data-testid="spend-card"]').exists()).toBe(false)
+    expect(wrapper.find('table').exists()).toBe(false)
+    expect(wrapper.findComponent({ name: 'Line' }).exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('9,007,199')
+  })
+  it('renders zeroes for a new supplier', async () => {
+    api.usage.mockResolvedValue(usageFixture({
+      cost: { total: '0.00000000', today: '0.00000000' },
+      tokens: { total: 0, today: 0 }, requests: { total: 0, today: 0 },
+      accounts: { total: 0, enabled: 0, pending: 0, error: 0 }, per_account: [], updated_at: null
+    }))
+    const wrapper = render(UsageView)
+    await flushPromises()
+    expect(wrapper.get('[data-testid="spend-card"]').text()).toContain('Total: $0')
+    expect(wrapper.get('[data-testid="spend-card"]').text()).toContain('Today: $0')
+    for (const name of ['tokens', 'requests']) {
+      expect(wrapper.get(`[data-testid="${name}-card"]`).text()).toContain('Total: 0')
+      expect(wrapper.get(`[data-testid="${name}-card"]`).text()).toContain('Today: 0')
+    }
+    expect(wrapper.get('[data-testid="accounts-card"]').text()).toContain('0 Error')
+    expect(wrapper.text()).not.toContain('Invalid Date')
+    expect(wrapper.text()).toContain('No data found')
+  })
+  it('has no date picker or account filter', async () => {
+    const wrapper = render(UsageView)
+    await flushPromises()
+    expect(wrapper.find('input[type="date"]').exists()).toBe(false)
+    expect(wrapper.find('[name="account_id"]').exists()).toBe(false)
+    expect(wrapper.find('form').exists()).toBe(false)
   })
 })
 
