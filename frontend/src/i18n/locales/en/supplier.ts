@@ -77,6 +77,7 @@ export default {
     "tokens": "Tokens",
     "requests": "Requests",
     "total": "Total",
+    "totalValue": "Total: {value}",
     "today": "Today",
     "enabled": "Enabled",
     "pending": "Pending onboarding",

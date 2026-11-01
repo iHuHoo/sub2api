@@ -5,6 +5,7 @@ import { useI18n } from 'vue-i18n'
 import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend, type ChartData, type ChartOptions } from 'chart.js'
 import { Line } from 'vue-chartjs'
 import type { SupplierUsage } from '@/api/supplier'
+import { formatDecimalCurrency } from '@/utils/format'
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend)
 const props = defineProps<{ daily: SupplierUsage['daily']; updatedAt: string | null }>()
@@ -29,14 +30,20 @@ const options = computed<ChartOptions<'line'>>(() => ({
   interaction: { intersect: false, mode: 'index' },
   plugins: {
     legend: { labels: { color: colors.value.text, usePointStyle: true, boxWidth: 8, boxHeight: 8 } },
-    tooltip: { callbacks: {
-      label: context => {
-        const day = props.daily[context.dataIndex]
-        const value = context.datasetIndex === 0 ? '$' + day.cost
-          : context.datasetIndex === 1 ? day.tokens.toLocaleString() : day.enabled_accounts?.toLocaleString() ?? '—'
-        return context.dataset.label + ': ' + value
+    tooltip: {
+      external: ({ chart, tooltip }) => {
+        const point = tooltip.getActiveElements()[0]
+        chart.canvas.title = point ? props.daily[point.index].cost : ''
+      },
+      callbacks: {
+        label: context => {
+          const day = props.daily[context.dataIndex]
+          const value = context.datasetIndex === 0 ? formatDecimalCurrency(day.cost)
+            : context.datasetIndex === 1 ? day.tokens.toLocaleString() : day.enabled_accounts?.toLocaleString() ?? '—'
+          return context.dataset.label + ': ' + value
+        }
       }
-    } }
+    }
   },
   scales: {
     x: { grid: { display: false }, ticks: { color: colors.value.text, autoSkip: true, maxTicksLimit: 8, maxRotation: 0, callback: (_, index) => props.daily[index]?.date.slice(5) } },

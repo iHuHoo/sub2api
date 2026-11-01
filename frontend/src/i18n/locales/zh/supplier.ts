@@ -77,6 +77,7 @@ export default {
     "tokens": "Token",
     "requests": "请求",
     "total": "总计",
+    "totalValue": "总计：{value}",
     "today": "今日",
     "enabled": "启用",
     "pending": "待接入",

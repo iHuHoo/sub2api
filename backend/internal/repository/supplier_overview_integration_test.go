@@ -98,6 +98,30 @@ func TestOverview_TotalEqualsSumOfPerAccount(t *testing.T) {
 	require.Equal(t, "0.2000000000", got.Daily[0].Cost)
 	require.Equal(t, "0.1000000001", got.Daily[30].Cost)
 }
+func TestOverview_OnlyEverEnabledAccountsAreListed(t *testing.T) {
+	f := overviewSetup(t)
+	f.exec(`UPDATE accounts SET supplier_paused=true WHERE id IN (1,3);
+ INSERT INTO accounts(id,name,platform,type,credentials,supplier_user_id,deleted_at) VALUES
+ (4,'deleted never enabled','openai','oauth','{}',1,now()),
+ (5,'deleted historic usage','openai','oauth','{}',1,now()),
+ (6,'live historic usage','openai','oauth','{}',1,NULL),
+ (7,'deleted enabled once','openai','oauth','{}',1,now())`)
+	f.exec(`INSERT INTO supplier_usage_daily(day,account_id,supplier_user_id,account_name,enabled) VALUES
+ ($1,1,1,'one',false),($1,3,1,'zero',true),($1,4,1,'deleted never enabled',false),
+ ($1,7,1,'deleted enabled once',true),($2,3,1,'zero',false)`, f.today.AddDate(0, 0, -40), f.today)
+	f.snapshot(5, 1, f.today, "0.005")
+	f.snapshot(6, 1, f.today, "1.25")
+	got := f.get(1, f.today)
+	require.Equal(t, int64(3), got.Accounts.Total)
+	require.Len(t, got.PerAccount, 4)
+	require.Equal(t, []int64{3, 5, 6, 7}, []int64{got.PerAccount[0].ID, got.PerAccount[1].ID, got.PerAccount[2].ID, got.PerAccount[3].ID})
+	require.Equal(t, "pending", got.PerAccount[0].Status)
+	require.Equal(t, "0.0000000000", got.PerAccount[0].Total)
+	require.True(t, got.PerAccount[1].Deleted)
+	require.False(t, got.PerAccount[2].Deleted)
+	require.True(t, got.PerAccount[3].Deleted)
+	require.Equal(t, "1.2550000000", got.Cost.Total)
+}
 func TestOverview_AccountCountsSumToTotal(t *testing.T) {
 	f := overviewSetup(t)
 	f.exec(`INSERT INTO accounts(id,name,platform,type,credentials,supplier_user_id,status,supplier_paused,parent_account_id,quota_dimension,temp_unschedulable_until) VALUES
@@ -108,6 +132,7 @@ func TestOverview_AccountCountsSumToTotal(t *testing.T) {
  (8,'cooling','openai','oauth','{}',1,'active',false,NULL,'global',now()+interval '1 hour'),
  (9,'both','openai','oauth','{}',1,'active',true,NULL,'global',now()+interval '1 hour');
  INSERT INTO account_groups(account_id,group_id) VALUES(4,987),(5,987),(6,987),(7,987),(8,987),(9,987)`)
+	f.exec(`INSERT INTO supplier_usage_daily(day,account_id,supplier_user_id,account_name,enabled) SELECT $1,id,1,name,true FROM accounts WHERE supplier_user_id=1`, f.today)
 	got := f.get(1, f.today)
 	require.Equal(t, int64(8), got.Accounts.Total)
 	require.Equal(t, int64(2), got.Accounts.Enabled)
@@ -126,13 +151,13 @@ func TestOverview_DeletedAccountKeptInPerAccountNotInCount(t *testing.T) {
 	f.snapshot(99, 1, f.today.AddDate(0, 0, -2), "3")
 	got := f.get(1, f.today)
 	require.Equal(t, int64(1), got.Accounts.Total)
-	require.Len(t, got.PerAccount, 3)
+	require.Len(t, got.PerAccount, 2)
 	require.True(t, got.PerAccount[0].Deleted)
 	require.Equal(t, "one", got.PerAccount[0].Name)
 	require.Equal(t, "12.0000000000", got.PerAccount[0].Total)
-	require.Equal(t, int64(99), got.PerAccount[2].ID)
-	require.True(t, got.PerAccount[2].Deleted)
-	require.Equal(t, "saved name", got.PerAccount[2].Name)
+	require.Equal(t, int64(99), got.PerAccount[1].ID)
+	require.True(t, got.PerAccount[1].Deleted)
+	require.Equal(t, "saved name", got.PerAccount[1].Name)
 	require.Equal(t, "15.0000000000", got.Cost.Total)
 }
 func TestOverview_IsolatesSuppliers(t *testing.T) {
@@ -142,9 +167,8 @@ func TestOverview_IsolatesSuppliers(t *testing.T) {
 	got := f.get(1, f.today)
 	require.Equal(t, "1.0000000000", got.Cost.Total)
 	require.Equal(t, int64(2), got.Requests.Total)
-	require.Len(t, got.PerAccount, 2)
-	require.Equal(t, int64(3), got.PerAccount[1].ID)
-	require.Equal(t, "0", got.PerAccount[1].Total)
+	require.Len(t, got.PerAccount, 1)
+	require.Equal(t, int64(1), got.PerAccount[0].ID)
 	foreign := f.get(2, f.today)
 	require.Equal(t, "999.0000000000", foreign.Cost.Total)
 	require.Len(t, foreign.PerAccount, 1)

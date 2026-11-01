@@ -7,6 +7,7 @@ import AccountsView from '../AccountsView.vue'
 import ProxiesView from '../ProxiesView.vue'
 import UsageView from '../UsageView.vue'
 import type { SupplierUsage } from '@/api/supplier'
+import { formatDecimalCurrency } from '@/utils/format'
 
 const api = vi.hoisted(() => ({
   accounts: { list: vi.fn(), create: vi.fn(), update: vi.fn(), getUsage: vi.fn(), getModels: vi.fn() },
@@ -549,15 +550,43 @@ describe('supplier usage', () => {
     vi.clearAllMocks()
     api.usage.mockResolvedValue(usageFixture())
   })
-  it('shows spend total and today from the API without float arithmetic', async () => {
+  it.each([
+    ['12480.3612345678', '$12,480.36'],
+    ['0.005', '$0.01'],
+    ['999.995', '$1,000.00'],
+    ['0', '$0.00'],
+    ['9007199254740993.1234567890123000', '$9,007,199,254,740,993.12'],
+    ['0.00499999999999999999', '$0.00'],
+    ['-0.005', '$-0.01'],
+    ['-0.00499999999999999999', '$0.00']
+  ])('rounds %s half-up without float arithmetic', (value, expected) => {
+    expect(formatDecimalCurrency(value)).toBe(expected)
+  })
+  it('shows today prominently and totals below, retaining exact money in titles', async () => {
     const wrapper = render(UsageView)
     await flushPromises()
     const spend = wrapper.get('[data-testid="spend-card"]')
-    expect(spend.text()).toContain('$9,007,199,254,740,993.1234567890123')
-    expect(spend.text()).toContain('Today: $0.000000000000000123')
-    expect(wrapper.get('tbody').text()).toContain('$0.00000123')
-    expect(wrapper.get('tbody').text()).toContain('$1.2')
+    expect(spend.get('.text-xl').text()).toBe('$0.00')
+    expect(spend.get('.text-xl').attributes('title')).toBe('0.00000000000000012300')
+    expect(spend.get('p.mt-1.text-xs').text()).toBe('Total: $9,007,199,254,740,993.12')
+    expect(spend.get('p.mt-1.text-xs').attributes('title')).toBe('9007199254740993.1234567890123000')
+    for (const [metric, today, total] of [['tokens', '123', '1,234,567'], ['requests', '12', '1,200']]) {
+      const card = wrapper.get(`[data-testid="${metric}-card"]`)
+      expect(card.get('.text-xl').text()).toBe(today)
+      expect(card.get('p.mt-1.text-xs').text()).toBe('Total: ' + total)
+    }
+    expect(spend.text()).not.toContain('Today:')
+    const cells = wrapper.findAll('tbody tr')[0]!.findAll('td')
+    expect(cells.slice(2).map(cell => cell.text())).toEqual(['$0.00', '$1.20', '$0.00'])
+    expect(cells[2]!.attributes('title')).toBe('0.00000000000000012300')
+    expect(cells[3]!.attributes('title')).toBe('1.2000')
+    expect(cells[4]!.attributes('title')).toBe('0')
     expect(api.usage).toHaveBeenCalledWith()
+  })
+  it('uses locale-specific total punctuation without changing the legend', () => {
+    expect(en.supplier.usageStats.totalValue).toBe('Total: {value}')
+    expect(zh.supplier.usageStats.totalValue).toBe('总计：{value}')
+    expect([zh.supplier.usageStats.spend, zh.supplier.usageStats.tokens, zh.supplier.usageStats.enabled]).toEqual(['消费', 'Token', '启用'])
   })
   it('shows enabled, pending and error counts including zero', async () => {
     const wrapper = render(UsageView)
@@ -573,7 +602,7 @@ describe('supplier usage', () => {
     await flushPromises()
     expect(wrapper.findAll('thead th').map(node => node.text())).toEqual(['Accounts', 'Status', 'Today', 'Last 31 days', 'Total'])
     expect(wrapper.findAll('tbody tr').map(row => row.find('td').text())).toEqual(['#2 Pending account', '#9 Deleted account'])
-    expect(wrapper.get('tbody').text()).toContain('$9,007,199,254,740,993.1234567890123')
+    expect(wrapper.get('tbody').text()).toContain('$9,007,199,254,740,993.12')
   })
   it('labels deleted accounts and pending accounts', async () => {
     const wrapper = render(UsageView)
@@ -607,9 +636,29 @@ describe('supplier usage', () => {
     expect(options.scales.accounts.display).toBe(false)
     expect(options.scales.x.ticks.autoSkip).toBe(true)
     const label = options.plugins.tooltip.callbacks.label
-    expect(label({ datasetIndex: 0, dataIndex: 1, dataset: datasets[0] })).toBe('Spend: $0.00000000000000012300')
+    expect(label({ datasetIndex: 0, dataIndex: 1, dataset: datasets[0] })).toBe('Spend: $0.00')
     expect(label({ datasetIndex: 2, dataIndex: 1, dataset: datasets[2] })).toBe('Enabled: 2')
     expect(wrapper.text()).toContain('2026-10-31 12:30:00 UTC')
+  })
+  it.each([
+    ['12480.3612345678', 'Spend: $12,480.36'],
+    ['0.005', 'Spend: $0.01'],
+    ['999.995', 'Spend: $1,000.00'],
+    ['0', 'Spend: $0.00']
+  ])('rounds chart tooltip %s and preserves its exact native title', async (cost, expected) => {
+    const fixture = usageFixture()
+    fixture.daily[0]!.cost = cost
+    api.usage.mockResolvedValue(fixture)
+    const wrapper = render(UsageView)
+    await flushPromises()
+    const chart = wrapper.findComponent({ name: 'Line' })
+    const tooltip = chart.props('options').plugins.tooltip
+    expect(tooltip.callbacks.label({ datasetIndex: 0, dataIndex: 0, dataset: chart.props('data').datasets[0] })).toBe(expected)
+    const canvas = wrapper.get('canvas').element
+    tooltip.external({ chart: { canvas }, tooltip: { opacity: 0, dataPoints: [{ dataIndex: 0 }], getActiveElements: () => [{ index: 0 }] } })
+    expect(canvas.title).toBe(cost)
+    tooltip.external({ chart: { canvas }, tooltip: { opacity: 1, dataPoints: [{ dataIndex: 0 }], getActiveElements: () => [] } })
+    expect(canvas.title).toBe('')
   })
   it('shows the in-progress message when ready is false', async () => {
     api.usage.mockResolvedValue(usageFixture({ ready: false }))
@@ -630,11 +679,11 @@ describe('supplier usage', () => {
     }))
     const wrapper = render(UsageView)
     await flushPromises()
-    expect(wrapper.get('[data-testid="spend-card"]').text()).toContain('Total: $0')
-    expect(wrapper.get('[data-testid="spend-card"]').text()).toContain('Today: $0')
+    expect(wrapper.get('[data-testid="spend-card"]').text()).toContain('Total: $0.00')
+    expect(wrapper.get('[data-testid="spend-card"]').get('.text-xl').text()).toBe('$0.00')
     for (const name of ['tokens', 'requests']) {
       expect(wrapper.get(`[data-testid="${name}-card"]`).text()).toContain('Total: 0')
-      expect(wrapper.get(`[data-testid="${name}-card"]`).text()).toContain('Today: 0')
+      expect(wrapper.get(`[data-testid="${name}-card"]`).get('.text-xl').text()).toBe('0')
     }
     expect(wrapper.get('[data-testid="accounts-card"]').text()).toContain('0 Error')
     expect(wrapper.text()).not.toContain('Invalid Date')

@@ -456,6 +456,7 @@ func (r *supplierRepository) usageOverview(ctx context.Context, owner int64, now
  FROM accounts a WHERE a.supplier_user_id=$1
  ), account_totals AS (
  SELECT account_id,(array_agg(account_name ORDER BY day DESC))[1] AS name,
+ bool_or(enabled) OR sum(requests)>0 AS ever_enabled,
  sum(total_cost) AS total_cost,
  sum(total_cost) FILTER (WHERE day=$2::date) AS today_cost,
  sum(total_cost) FILTER (WHERE day BETWEEN $2::date-30 AND $2::date) AS last31_cost
@@ -465,7 +466,7 @@ func (r *supplierRepository) usageOverview(ctx context.Context, owner int64, now
  COALESCE(a.status,'deleted') AS status,COALESCE(a.deleted,true) AS deleted,
  COALESCE(s.today_cost,0)::text AS today_cost,COALESCE(s.last31_cost,0)::text AS last31_cost,
  COALESCE(s.total_cost,0)::text AS total_cost
- FROM owned a FULL JOIN account_totals s ON a.id=s.account_id
+ FROM owned a FULL JOIN account_totals s ON a.id=s.account_id WHERE s.ever_enabled
  ), by_day AS (
  SELECT day,sum(total_cost)::text AS cost,
  sum(input_tokens::numeric+output_tokens+cache_creation_tokens+cache_read_tokens)::bigint AS tokens,

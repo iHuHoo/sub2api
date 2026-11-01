@@ -7,6 +7,7 @@ import Icon from '@/components/icons/Icon.vue'
 import SupplierUsageTrend from '@/components/charts/SupplierUsageTrend.vue'
 import { supplierAPI, supplierErrorKey, type SupplierUsage } from '@/api/supplier'
 import { useAppStore } from '@/stores/app'
+import { formatDecimalCurrency } from '@/utils/format'
 
 const { t } = useI18n()
 const appStore = useAppStore()
@@ -18,11 +19,6 @@ const statusClasses = {
   pending: 'text-amber-700 dark:text-amber-400',
   error: 'text-red-600 dark:text-red-400',
   deleted: 'text-gray-500 dark:text-gray-400'
-}
-function formatMoney(value: string) {
-  const [whole, fraction = ''] = value.split('.')
-  const decimals = fraction.replace(/0+$/, '')
-  return '$' + whole.replace(/\B(?=(\d{3})+(?!\d))/g, ',') + (decimals ? '.' + decimals : '')
 }
 async function load() {
   try { usage.value = await supplierAPI.usage() }
@@ -50,8 +46,8 @@ onMounted(load)
               <div class="hidden shrink-0 rounded-lg bg-blue-100 p-2 dark:bg-blue-900/30 sm:block"><Icon name="dollar" size="md" class="text-blue-600 dark:text-blue-400" /></div>
               <div class="min-w-0">
                 <p class="text-xs font-medium text-gray-500 dark:text-gray-400">{{ t('supplier.usageStats.spend') }}</p>
-                <p class="mt-1 break-words text-xl font-bold text-gray-900 dark:text-white">{{ t('supplier.usageStats.total') }}: {{ formatMoney(usage.cost.total) }}</p>
-                <p class="mt-1 break-words text-xs text-gray-500 dark:text-gray-400">{{ t('supplier.usageStats.today') }}: {{ formatMoney(usage.cost.today) }}</p>
+                <p :title="usage.cost.today" class="mt-1 break-words text-xl font-bold text-gray-900 dark:text-white">{{ formatDecimalCurrency(usage.cost.today) }}</p>
+                <p :title="usage.cost.total" class="mt-1 break-words text-xs text-gray-500 dark:text-gray-400">{{ t('supplier.usageStats.totalValue', { value: formatDecimalCurrency(usage.cost.total) }) }}</p>
               </div>
             </div>
           </div>
@@ -74,8 +70,8 @@ onMounted(load)
               </div>
               <div class="min-w-0">
                 <p class="text-xs font-medium text-gray-500 dark:text-gray-400">{{ t('supplier.usageStats.' + metric) }}</p>
-                <p class="mt-1 break-words text-xl font-bold text-gray-900 dark:text-white">{{ t('supplier.usageStats.total') }}: {{ usage[metric].total.toLocaleString() }}</p>
-                <p class="mt-1 break-words text-xs text-gray-500 dark:text-gray-400">{{ t('supplier.usageStats.today') }}: {{ usage[metric].today.toLocaleString() }}</p>
+                <p class="mt-1 break-words text-xl font-bold text-gray-900 dark:text-white">{{ usage[metric].today.toLocaleString() }}</p>
+                <p class="mt-1 break-words text-xs text-gray-500 dark:text-gray-400">{{ t('supplier.usageStats.totalValue', { value: usage[metric].total.toLocaleString() }) }}</p>
               </div>
             </div>
           </div>
@@ -96,9 +92,9 @@ onMounted(load)
                 <tr v-for="account in accounts" :key="account.id" class="hover:bg-gray-50 dark:hover:bg-dark-800">
                   <td class="px-4 py-3">#{{ account.id }} {{ account.name }}</td>
                   <td class="px-4 py-3" :class="statusClasses[account.deleted ? 'deleted' : account.status]">{{ t('supplier.usageStats.' + (account.deleted ? 'deleted' : account.status)) }}</td>
-                  <td class="px-4 py-3 text-right tabular-nums">{{ formatMoney(account.today_cost) }}</td>
-                  <td class="px-4 py-3 text-right tabular-nums">{{ formatMoney(account.last31_cost) }}</td>
-                  <td class="px-4 py-3 text-right tabular-nums">{{ formatMoney(account.total_cost) }}</td>
+                  <td :title="account.today_cost" class="px-4 py-3 text-right tabular-nums">{{ formatDecimalCurrency(account.today_cost) }}</td>
+                  <td :title="account.last31_cost" class="px-4 py-3 text-right tabular-nums">{{ formatDecimalCurrency(account.last31_cost) }}</td>
+                  <td :title="account.total_cost" class="px-4 py-3 text-right tabular-nums">{{ formatDecimalCurrency(account.total_cost) }}</td>
                 </tr>
                 <tr v-if="!accounts.length"><td colspan="5" class="px-4 py-8 text-center text-gray-500 dark:text-gray-400">{{ t('empty.noData') }}</td></tr>
               </tbody>
