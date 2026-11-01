@@ -35,6 +35,7 @@ func NewSupplierUsageSnapshotService(repo SupplierUsageSnapshotRepository, timin
 	if cfg != nil && cfg.Gateway.Live.MaxSessionDurationSeconds > 0 {
 		live = time.Duration(cfg.Gateway.Live.MaxSessionDurationSeconds) * time.Second
 	}
+	// shortcut: exceptional late writes only alert; revisit before Live billing changes.
 	grace := live + 5*time.Minute
 	if grace < time.Hour {
 		grace = time.Hour
@@ -143,7 +144,8 @@ func (s *SupplierUsageSnapshotService) tick(parent context.Context, now time.Tim
 		}
 	}
 	// Reserve time for the late-usage audit even when historical backfill exhausts its budget.
-	backfill, cancelBackfill := context.WithTimeout(ctx, s.budget-min(time.Minute, s.budget/10))
+	deadline, _ := ctx.Deadline()
+	backfill, cancelBackfill := context.WithDeadline(ctx, deadline.Add(-min(time.Minute, s.budget/10)))
 	defer cancelBackfill()
 	for !next.AddDate(0, 0, 1).Add(s.grace).After(now) {
 		if backfill.Err() != nil {

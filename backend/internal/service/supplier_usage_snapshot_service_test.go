@@ -190,3 +190,13 @@ func TestSupplierSnapshot_PeerLockSkipsAndReleases(t *testing.T) {
 	require.Len(t, f.refresh, 2)
 	require.Empty(t, cache.heldBy(supplierUsageSnapshotLeaderKey))
 }
+
+func TestTick_InitialQueriesCannotConsumeAuditReserve(t *testing.T) {
+	f := &snapshotFake{first: tickToday.AddDate(0, 0, -3), refreshHook: func(context.Context) { time.Sleep(50 * time.Millisecond) }}
+	s := snapshotTestService(f)
+	s.budget = 200 * time.Millisecond
+	s.pause = func(ctx context.Context) error { <-ctx.Done(); return ctx.Err() }
+	require.NoError(t, s.tick(context.Background(), tickToday.Add(2*time.Hour)))
+	require.Len(t, f.closed, 1)
+	require.Equal(t, f.first, f.lateTo, "late audit must execute with its live context after delayed initial queries")
+}
