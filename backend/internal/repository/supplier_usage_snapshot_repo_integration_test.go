@@ -5,6 +5,7 @@ package repository
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"testing"
 	"time"
@@ -233,4 +234,84 @@ func TestFindLateUsage_ReportsIndividualMetricIncreases(t *testing.T) {
 			require.Zero(t, days[0].RequestDifference)
 		})
 	}
+}
+
+func TestSupplierUsageSnapshot_RealMigratedSchema(t *testing.T) {
+	ctx := context.Background()
+	day := time.Date(1900, 1, 2, 0, 0, 0, 0, time.UTC)
+	user := mustCreateUser(t, integrationEntClient, &service.User{Role: service.RoleSupplier})
+	var accountID int64
+	keyValue := fmt.Sprintf("sk-snapshot-real-%d", user.ID)
+	t.Cleanup(func() {
+		for _, statement := range []struct {
+			query string
+			arg   any
+		}{
+			{"DELETE FROM supplier_usage_daily WHERE day=$1", day},
+			{"DELETE FROM supplier_usage_day_closes WHERE day=$1", day},
+			{"DELETE FROM usage_logs WHERE user_id=$1", user.ID},
+			{"DELETE FROM scheduler_outbox WHERE account_id=$1", accountID},
+			{"DELETE FROM accounts WHERE id=$1", accountID},
+			{"DELETE FROM api_keys WHERE user_id=$1", user.ID},
+			{"DELETE FROM users WHERE id=$1", user.ID},
+			{"DELETE FROM auth_cache_invalidation_outbox WHERE cache_key=encode(sha256(convert_to($1, 'UTF8')), 'hex')", keyValue},
+		} {
+			_, err := integrationDB.ExecContext(ctx, statement.query, statement.arg)
+			require.NoError(t, err)
+		}
+	})
+	key := mustCreateApiKey(t, integrationEntClient, &service.APIKey{UserID: user.ID, Key: keyValue})
+	account, err := integrationEntClient.Account.Create().
+		SetName("snapshot-real-schema").SetPlatform(service.PlatformOpenAI).SetType(service.AccountTypeOAuth).
+		SetCredentials(map[string]any{}).SetSupplierUserID(user.ID).Save(ctx)
+	require.NoError(t, err)
+	accountID = account.ID
+	insert := func(model, cost string, tokens int) {
+		t.Helper()
+		_, err := integrationDB.ExecContext(ctx, `INSERT INTO usage_logs
+			(user_id,api_key_id,account_id,model,total_cost,input_tokens,created_at)
+			VALUES($1,$2,$3,$4,$5,$6,$7)`, user.ID, key.ID, accountID, model, cost, tokens, day.Add(time.Hour))
+		require.NoError(t, err)
+	}
+	insert("model-a", "0.5", 15)
+	insert(`model"b`, "1.25", 25)
+	repo := NewSupplierUsageSnapshotRepository(integrationDB)
+	sample := day.Add(2 * time.Hour)
+	require.NoError(t, repo.RefreshDay(ctx, day, &sample))
+	var owner, requests, tokens int64
+	var total string
+	var enabled bool
+	var raw []byte
+	err = integrationDB.QueryRowContext(ctx, `SELECT supplier_user_id,requests,input_tokens,total_cost::text,enabled,models
+		FROM supplier_usage_daily WHERE day=$1 AND account_id=$2`, day, accountID).
+		Scan(&owner, &requests, &tokens, &total, &enabled, &raw)
+	require.NoError(t, err)
+	require.Equal(t, user.ID, owner)
+	require.EqualValues(t, 2, requests)
+	require.EqualValues(t, 40, tokens)
+	require.Equal(t, "1.7500000000", total)
+	require.False(t, enabled, "an account without a group is pending")
+	var models map[string]struct {
+		Requests    int64  `json:"requests"`
+		InputTokens int64  `json:"input_tokens"`
+		TotalCost   string `json:"total_cost"`
+	}
+	require.NoError(t, json.Unmarshal(raw, &models))
+	require.Len(t, models, 2)
+	require.Equal(t, "0.5000000000", models["model-a"].TotalCost)
+	require.Equal(t, "1.2500000000", models[`model"b`].TotalCost)
+	require.EqualValues(t, 1, models["model-a"].Requests)
+	require.EqualValues(t, 25, models[`model"b`].InputTokens)
+	require.NoError(t, repo.CloseDay(ctx, day))
+	late, err := repo.FindLateUsage(ctx, day, day.AddDate(0, 0, 1))
+	require.NoError(t, err)
+	require.Empty(t, late)
+	insert("model-a", "0.25", 9)
+	late, err = repo.FindLateUsage(ctx, day, day.AddDate(0, 0, 1))
+	require.NoError(t, err)
+	require.Len(t, late, 1)
+	require.Equal(t, day, late[0].Day)
+	require.Equal(t, "0.2500000000", late[0].CostDifference)
+	require.EqualValues(t, 1, late[0].RequestDifference)
+	require.EqualValues(t, 9, late[0].InputTokenDifference)
 }

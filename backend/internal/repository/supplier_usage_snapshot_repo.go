@@ -41,7 +41,7 @@ func (r *supplierUsageSnapshotRepository) writeDay(ctx context.Context, day time
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 	if _, err = tx.ExecContext(ctx, `SET LOCAL statement_timeout='60s'`); err != nil {
 		return err
 	}
@@ -124,7 +124,7 @@ func (r *supplierUsageSnapshotRepository) FindLateUsage(ctx context.Context, fro
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	out := make([]service.SupplierUsageLateDay, 0)
 	for rows.Next() {
 		var d service.SupplierUsageLateDay
