@@ -281,14 +281,6 @@ func (s *UsageService) GetDailyStats(ctx context.Context, userID int64, days int
 	return stats, nil
 }
 
-// Delete 删除使用日志（管理员功能，谨慎使用）
-func (s *UsageService) Delete(ctx context.Context, id int64) error {
-	if err := s.usageRepo.Delete(ctx, id); err != nil {
-		return fmt.Errorf("delete usage log: %w", err)
-	}
-	return nil
-}
-
 // GetUserDashboardStats returns per-user dashboard summary stats.
 func (s *UsageService) GetUserDashboardStats(ctx context.Context, userID int64) (*usagestats.UserDashboardStats, error) {
 	stats, err := s.usageRepo.GetUserDashboardStats(ctx, userID)

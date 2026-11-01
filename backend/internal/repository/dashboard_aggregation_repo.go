@@ -15,15 +15,16 @@ import (
 )
 
 type dashboardAggregationRepository struct {
-	sql   sqlExecutor
-	clock func() time.Time
+	closedDays service.UsageCleanupClosedDays
+	sql        sqlExecutor
+	clock      func() time.Time
 }
 
 const usageLogsCleanupBatchSize = 10000
 const usageBillingDedupCleanupBatchSize = 10000
 
 // NewDashboardAggregationRepository 创建仪表盘预聚合仓储。
-func NewDashboardAggregationRepository(sqlDB *sql.DB) service.DashboardAggregationRepository {
+func NewDashboardAggregationRepository(sqlDB *sql.DB, closedDays service.SupplierUsageSnapshotRepository) service.DashboardAggregationRepository {
 	if sqlDB == nil {
 		return nil
 	}
@@ -31,7 +32,9 @@ func NewDashboardAggregationRepository(sqlDB *sql.DB) service.DashboardAggregati
 		log.Printf("[DashboardAggregation] 检测到非 PostgreSQL 驱动，已自动禁用预聚合")
 		return nil
 	}
-	return newDashboardAggregationRepositoryWithSQL(sqlDB)
+	repo := newDashboardAggregationRepositoryWithSQL(sqlDB)
+	repo.closedDays = closedDays
+	return repo
 }
 
 func newDashboardAggregationRepositoryWithSQL(sqlq sqlExecutor) *dashboardAggregationRepository {
@@ -231,6 +234,22 @@ func (r *dashboardAggregationRepository) CleanupAggregates(ctx context.Context, 
 }
 
 func (r *dashboardAggregationRepository) CleanupUsageLogs(ctx context.Context, cutoff time.Time) error {
+	if r.closedDays == nil {
+		return fmt.Errorf("usage cleanup watermark repository is unavailable")
+	}
+	firstOpen, ok, err := r.closedDays.FirstOpenDay(ctx)
+	if err != nil {
+		return fmt.Errorf("read usage cleanup watermark: %w", err)
+	}
+	if !ok {
+		log.Printf("[DashboardAggregation] skipping usage cleanup: no closed days")
+		return nil
+	}
+	if cutoff.After(firstOpen) {
+		log.Printf("[DashboardAggregation] limiting usage cleanup cutoff from %s to %s", cutoff.UTC().Format(time.RFC3339), firstOpen.UTC().Format(time.RFC3339))
+		cutoff = firstOpen
+	}
+
 	isPartitioned, err := r.isUsageLogsPartitioned(ctx)
 	if err != nil {
 		return err

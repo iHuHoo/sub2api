@@ -182,12 +182,14 @@ func TestDashboardAggregationRepositoryCleanupUsageLogsNonPartitionedInvalidates
 	setGroupUsageRollupTestTimezone(t)
 	db, mock := newSQLMock(t)
 	repo := newDashboardAggregationRepositoryWithSQL(db)
+	repo.closedDays = NewSupplierUsageSnapshotRepository(db)
 	cutoff := time.Date(2026, 7, 1, 0, 0, 0, 0, time.UTC)
 	earliestDeletedAt := time.Date(2026, 5, 3, 2, 0, 0, 0, time.UTC)
 	fixedNow := time.Date(2026, 8, 14, 8, 0, 0, 0, time.UTC)
 	repo.clock = func() time.Time { return fixedNow }
 	todayStart := service.GroupUsageTodayStart(fixedNow)
 
+	mock.ExpectQuery(`SELECT max\(day\)\+1 FROM supplier_usage_day_closes`).WillReturnRows(sqlmock.NewRows([]string{"day"}).AddRow(time.Date(2100, 1, 1, 0, 0, 0, 0, time.UTC)))
 	mock.ExpectQuery(`SELECT EXISTS`).
 		WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(false))
 	mock.ExpectBegin()
@@ -216,6 +218,7 @@ func TestDashboardAggregationRepositoryCleanupUsageLogsPartitionedSortsAndInvali
 	setGroupUsageRollupTestTimezone(t)
 	db, mock := newSQLMock(t)
 	repo := newDashboardAggregationRepositoryWithSQL(db)
+	repo.closedDays = NewSupplierUsageSnapshotRepository(db)
 	cutoff := time.Date(2026, 7, 18, 0, 0, 0, 0, time.UTC)
 	aprilStart := time.Date(2026, 4, 1, 0, 0, 0, 0, time.UTC)
 	juneStart := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
@@ -223,6 +226,7 @@ func TestDashboardAggregationRepositoryCleanupUsageLogsPartitionedSortsAndInvali
 	repo.clock = func() time.Time { return fixedNow }
 	todayStart := service.GroupUsageTodayStart(fixedNow)
 
+	mock.ExpectQuery(`SELECT max\(day\)\+1 FROM supplier_usage_day_closes`).WillReturnRows(sqlmock.NewRows([]string{"day"}).AddRow(time.Date(2100, 1, 1, 0, 0, 0, 0, time.UTC)))
 	mock.ExpectQuery(`SELECT EXISTS`).
 		WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(true))
 	mock.ExpectQuery(`SELECT c.relname`).
@@ -275,9 +279,11 @@ func TestDashboardAggregationRepositoryCleanupUsageLogsNonPartitionedFailureRoll
 	setGroupUsageRollupTestTimezone(t)
 	db, mock := newSQLMock(t)
 	repo := newDashboardAggregationRepositoryWithSQL(db)
+	repo.closedDays = NewSupplierUsageSnapshotRepository(db)
 	cutoff := time.Date(2026, 7, 1, 0, 0, 0, 0, time.UTC)
 	deletedAt := time.Date(2026, 5, 3, 2, 0, 0, 0, time.UTC)
 
+	mock.ExpectQuery(`SELECT max\(day\)\+1 FROM supplier_usage_day_closes`).WillReturnRows(sqlmock.NewRows([]string{"day"}).AddRow(time.Date(2100, 1, 1, 0, 0, 0, 0, time.UTC)))
 	mock.ExpectQuery(`SELECT EXISTS`).
 		WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(false))
 	mock.ExpectBegin()
@@ -300,10 +306,12 @@ func TestDashboardAggregationRepositoryCleanupUsageLogsPartitionFailureRollsBack
 	setGroupUsageRollupTestTimezone(t)
 	db, mock := newSQLMock(t)
 	repo := newDashboardAggregationRepositoryWithSQL(db)
+	repo.closedDays = NewSupplierUsageSnapshotRepository(db)
 	cutoff := time.Date(2026, 7, 18, 0, 0, 0, 0, time.UTC)
 	aprilStart := time.Date(2026, 4, 1, 0, 0, 0, 0, time.UTC)
 	dropErr := errors.New("drop partition failed")
 
+	mock.ExpectQuery(`SELECT max\(day\)\+1 FROM supplier_usage_day_closes`).WillReturnRows(sqlmock.NewRows([]string{"day"}).AddRow(time.Date(2100, 1, 1, 0, 0, 0, 0, time.UTC)))
 	mock.ExpectQuery(`SELECT EXISTS`).
 		WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(true))
 	mock.ExpectQuery(`SELECT c.relname`).

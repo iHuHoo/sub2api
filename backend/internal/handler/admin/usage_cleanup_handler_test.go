@@ -124,7 +124,7 @@ func setupCleanupRouter(cleanupService *service.UsageCleanupService, userID int6
 func TestUsageHandlerCreateCleanupTaskUnauthorized(t *testing.T) {
 	repo := &cleanupRepoStub{}
 	cfg := &config.Config{UsageCleanup: config.UsageCleanupConfig{Enabled: true, MaxRangeDays: 31}}
-	cleanupService := service.NewUsageCleanupService(repo, nil, nil, cfg)
+	cleanupService := service.NewUsageCleanupService(repo, nil, nil, cfg, &cleanupWatermarkStub{day: time.Date(2100, 1, 1, 0, 0, 0, 0, time.UTC), ok: true})
 	router := setupCleanupRouter(cleanupService, 0)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/usage/cleanup-tasks", bytes.NewBufferString(`{}`))
@@ -149,7 +149,7 @@ func TestUsageHandlerCreateCleanupTaskUnavailable(t *testing.T) {
 func TestUsageHandlerCreateCleanupTaskBindError(t *testing.T) {
 	repo := &cleanupRepoStub{}
 	cfg := &config.Config{UsageCleanup: config.UsageCleanupConfig{Enabled: true, MaxRangeDays: 31}}
-	cleanupService := service.NewUsageCleanupService(repo, nil, nil, cfg)
+	cleanupService := service.NewUsageCleanupService(repo, nil, nil, cfg, &cleanupWatermarkStub{day: time.Date(2100, 1, 1, 0, 0, 0, 0, time.UTC), ok: true})
 	router := setupCleanupRouter(cleanupService, 88)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/usage/cleanup-tasks", bytes.NewBufferString("{bad-json"))
@@ -163,7 +163,7 @@ func TestUsageHandlerCreateCleanupTaskBindError(t *testing.T) {
 func TestUsageHandlerCreateCleanupTaskMissingRange(t *testing.T) {
 	repo := &cleanupRepoStub{}
 	cfg := &config.Config{UsageCleanup: config.UsageCleanupConfig{Enabled: true, MaxRangeDays: 31}}
-	cleanupService := service.NewUsageCleanupService(repo, nil, nil, cfg)
+	cleanupService := service.NewUsageCleanupService(repo, nil, nil, cfg, &cleanupWatermarkStub{day: time.Date(2100, 1, 1, 0, 0, 0, 0, time.UTC), ok: true})
 	router := setupCleanupRouter(cleanupService, 88)
 
 	payload := map[string]any{
@@ -184,7 +184,7 @@ func TestUsageHandlerCreateCleanupTaskMissingRange(t *testing.T) {
 func TestUsageHandlerCreateCleanupTaskInvalidDate(t *testing.T) {
 	repo := &cleanupRepoStub{}
 	cfg := &config.Config{UsageCleanup: config.UsageCleanupConfig{Enabled: true, MaxRangeDays: 31}}
-	cleanupService := service.NewUsageCleanupService(repo, nil, nil, cfg)
+	cleanupService := service.NewUsageCleanupService(repo, nil, nil, cfg, &cleanupWatermarkStub{day: time.Date(2100, 1, 1, 0, 0, 0, 0, time.UTC), ok: true})
 	router := setupCleanupRouter(cleanupService, 88)
 
 	payload := map[string]any{
@@ -206,7 +206,7 @@ func TestUsageHandlerCreateCleanupTaskInvalidDate(t *testing.T) {
 func TestUsageHandlerCreateCleanupTaskInvalidEndDate(t *testing.T) {
 	repo := &cleanupRepoStub{}
 	cfg := &config.Config{UsageCleanup: config.UsageCleanupConfig{Enabled: true, MaxRangeDays: 31}}
-	cleanupService := service.NewUsageCleanupService(repo, nil, nil, cfg)
+	cleanupService := service.NewUsageCleanupService(repo, nil, nil, cfg, &cleanupWatermarkStub{day: time.Date(2100, 1, 1, 0, 0, 0, 0, time.UTC), ok: true})
 	router := setupCleanupRouter(cleanupService, 88)
 
 	payload := map[string]any{
@@ -228,7 +228,7 @@ func TestUsageHandlerCreateCleanupTaskInvalidEndDate(t *testing.T) {
 func TestUsageHandlerCreateCleanupTaskInvalidRequestType(t *testing.T) {
 	repo := &cleanupRepoStub{}
 	cfg := &config.Config{UsageCleanup: config.UsageCleanupConfig{Enabled: true, MaxRangeDays: 31}}
-	cleanupService := service.NewUsageCleanupService(repo, nil, nil, cfg)
+	cleanupService := service.NewUsageCleanupService(repo, nil, nil, cfg, &cleanupWatermarkStub{day: time.Date(2100, 1, 1, 0, 0, 0, 0, time.UTC), ok: true})
 	router := setupCleanupRouter(cleanupService, 88)
 
 	payload := map[string]any{
@@ -251,7 +251,7 @@ func TestUsageHandlerCreateCleanupTaskInvalidRequestType(t *testing.T) {
 func TestUsageHandlerCreateCleanupTaskRequestTypePriority(t *testing.T) {
 	repo := &cleanupRepoStub{}
 	cfg := &config.Config{UsageCleanup: config.UsageCleanupConfig{Enabled: true, MaxRangeDays: 31}}
-	cleanupService := service.NewUsageCleanupService(repo, nil, nil, cfg)
+	cleanupService := service.NewUsageCleanupService(repo, nil, nil, cfg, &cleanupWatermarkStub{day: time.Date(2100, 1, 1, 0, 0, 0, 0, time.UTC), ok: true})
 	router := setupCleanupRouter(cleanupService, 99)
 
 	payload := map[string]any{
@@ -283,7 +283,7 @@ func TestUsageHandlerCreateCleanupTaskRequestTypePriority(t *testing.T) {
 func TestUsageHandlerCreateCleanupTaskWithLegacyStream(t *testing.T) {
 	repo := &cleanupRepoStub{}
 	cfg := &config.Config{UsageCleanup: config.UsageCleanupConfig{Enabled: true, MaxRangeDays: 31}}
-	cleanupService := service.NewUsageCleanupService(repo, nil, nil, cfg)
+	cleanupService := service.NewUsageCleanupService(repo, nil, nil, cfg, &cleanupWatermarkStub{day: time.Date(2100, 1, 1, 0, 0, 0, 0, time.UTC), ok: true})
 	router := setupCleanupRouter(cleanupService, 99)
 
 	payload := map[string]any{
@@ -314,7 +314,7 @@ func TestUsageHandlerCreateCleanupTaskWithLegacyStream(t *testing.T) {
 func TestUsageHandlerCreateCleanupTaskSuccess(t *testing.T) {
 	repo := &cleanupRepoStub{}
 	cfg := &config.Config{UsageCleanup: config.UsageCleanupConfig{Enabled: true, MaxRangeDays: 31}}
-	cleanupService := service.NewUsageCleanupService(repo, nil, nil, cfg)
+	cleanupService := service.NewUsageCleanupService(repo, nil, nil, cfg, &cleanupWatermarkStub{day: time.Date(2100, 1, 1, 0, 0, 0, 0, time.UTC), ok: true})
 	router := setupCleanupRouter(cleanupService, 99)
 
 	payload := map[string]any{
@@ -346,7 +346,7 @@ func TestUsageHandlerCreateCleanupTaskSuccess(t *testing.T) {
 	require.Equal(t, "gpt-4", *created.Filters.Model)
 
 	start := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
-	end := time.Date(2024, 1, 2, 0, 0, 0, 0, time.UTC).Add(24*time.Hour - time.Nanosecond)
+	end := time.Date(2024, 1, 2, 0, 0, 0, 0, time.UTC).Add(24*time.Hour - time.Microsecond)
 	require.True(t, created.Filters.StartTime.Equal(start))
 	require.True(t, created.Filters.EndTime.Equal(end))
 }
@@ -372,7 +372,7 @@ func TestUsageHandlerListCleanupTasksSuccess(t *testing.T) {
 	}
 	repo.listResult = &pagination.PaginationResult{Total: 1, Page: 1, PageSize: 20, Pages: 1}
 	cfg := &config.Config{UsageCleanup: config.UsageCleanupConfig{Enabled: true, MaxRangeDays: 31}}
-	cleanupService := service.NewUsageCleanupService(repo, nil, nil, cfg)
+	cleanupService := service.NewUsageCleanupService(repo, nil, nil, cfg, &cleanupWatermarkStub{day: time.Date(2100, 1, 1, 0, 0, 0, 0, time.UTC), ok: true})
 	router := setupCleanupRouter(cleanupService, 1)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/usage/cleanup-tasks", nil)
@@ -400,7 +400,7 @@ func TestUsageHandlerListCleanupTasksSuccess(t *testing.T) {
 func TestUsageHandlerListCleanupTasksError(t *testing.T) {
 	repo := &cleanupRepoStub{listErr: errors.New("boom")}
 	cfg := &config.Config{UsageCleanup: config.UsageCleanupConfig{Enabled: true, MaxRangeDays: 31}}
-	cleanupService := service.NewUsageCleanupService(repo, nil, nil, cfg)
+	cleanupService := service.NewUsageCleanupService(repo, nil, nil, cfg, &cleanupWatermarkStub{day: time.Date(2100, 1, 1, 0, 0, 0, 0, time.UTC), ok: true})
 	router := setupCleanupRouter(cleanupService, 1)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/usage/cleanup-tasks", nil)
@@ -413,7 +413,7 @@ func TestUsageHandlerListCleanupTasksError(t *testing.T) {
 func TestUsageHandlerCancelCleanupTaskUnauthorized(t *testing.T) {
 	repo := &cleanupRepoStub{}
 	cfg := &config.Config{UsageCleanup: config.UsageCleanupConfig{Enabled: true}}
-	cleanupService := service.NewUsageCleanupService(repo, nil, nil, cfg)
+	cleanupService := service.NewUsageCleanupService(repo, nil, nil, cfg, &cleanupWatermarkStub{day: time.Date(2100, 1, 1, 0, 0, 0, 0, time.UTC), ok: true})
 	router := setupCleanupRouter(cleanupService, 0)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/usage/cleanup-tasks/1/cancel", nil)
@@ -426,7 +426,7 @@ func TestUsageHandlerCancelCleanupTaskUnauthorized(t *testing.T) {
 func TestUsageHandlerCancelCleanupTaskNotFound(t *testing.T) {
 	repo := &cleanupRepoStub{}
 	cfg := &config.Config{UsageCleanup: config.UsageCleanupConfig{Enabled: true}}
-	cleanupService := service.NewUsageCleanupService(repo, nil, nil, cfg)
+	cleanupService := service.NewUsageCleanupService(repo, nil, nil, cfg, &cleanupWatermarkStub{day: time.Date(2100, 1, 1, 0, 0, 0, 0, time.UTC), ok: true})
 	router := setupCleanupRouter(cleanupService, 1)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/usage/cleanup-tasks/999/cancel", nil)
@@ -439,7 +439,7 @@ func TestUsageHandlerCancelCleanupTaskNotFound(t *testing.T) {
 func TestUsageHandlerCancelCleanupTaskConflict(t *testing.T) {
 	repo := &cleanupRepoStub{statusByID: map[int64]string{2: service.UsageCleanupStatusSucceeded}}
 	cfg := &config.Config{UsageCleanup: config.UsageCleanupConfig{Enabled: true}}
-	cleanupService := service.NewUsageCleanupService(repo, nil, nil, cfg)
+	cleanupService := service.NewUsageCleanupService(repo, nil, nil, cfg, &cleanupWatermarkStub{day: time.Date(2100, 1, 1, 0, 0, 0, 0, time.UTC), ok: true})
 	router := setupCleanupRouter(cleanupService, 1)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/usage/cleanup-tasks/2/cancel", nil)
@@ -452,7 +452,7 @@ func TestUsageHandlerCancelCleanupTaskConflict(t *testing.T) {
 func TestUsageHandlerCancelCleanupTaskSuccess(t *testing.T) {
 	repo := &cleanupRepoStub{statusByID: map[int64]string{3: service.UsageCleanupStatusPending}}
 	cfg := &config.Config{UsageCleanup: config.UsageCleanupConfig{Enabled: true}}
-	cleanupService := service.NewUsageCleanupService(repo, nil, nil, cfg)
+	cleanupService := service.NewUsageCleanupService(repo, nil, nil, cfg, &cleanupWatermarkStub{day: time.Date(2100, 1, 1, 0, 0, 0, 0, time.UTC), ok: true})
 	router := setupCleanupRouter(cleanupService, 1)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/usage/cleanup-tasks/3/cancel", nil)
@@ -460,4 +460,13 @@ func TestUsageHandlerCancelCleanupTaskSuccess(t *testing.T) {
 	router.ServeHTTP(rec, req)
 
 	require.Equal(t, http.StatusOK, rec.Code)
+}
+
+type cleanupWatermarkStub struct {
+	day time.Time
+	ok  bool
+}
+
+func (s *cleanupWatermarkStub) FirstOpenDay(context.Context) (time.Time, bool, error) {
+	return s.day, s.ok, nil
 }

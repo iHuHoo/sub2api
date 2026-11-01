@@ -7,9 +7,11 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"testing"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/Wei-Shaw/sub2api/migrations"
 	"github.com/stretchr/testify/require"
@@ -314,4 +316,110 @@ func TestSupplierUsageSnapshot_RealMigratedSchema(t *testing.T) {
 	require.Equal(t, "0.2500000000", late[0].CostDifference)
 	require.EqualValues(t, 1, late[0].RequestDifference)
 	require.EqualValues(t, 9, late[0].InputTokenDifference)
+}
+
+// Use an isolated database with all production migrations; partition columns
+// are copied from the migrated table, never redeclared in the fixture.
+func cleanupGuardDB(t *testing.T, partition bool) *sql.DB {
+	t.Helper()
+	ctx := context.Background()
+	name := fmt.Sprintf("cleanup_guard_%d", time.Now().UnixNano())
+	_, err := integrationDB.ExecContext(ctx, "CREATE DATABASE "+name)
+	require.NoError(t, err)
+	u, err := url.Parse(integrationDSN)
+	require.NoError(t, err)
+	u.Path = "/" + name
+	db, err := sql.Open("postgres", u.String())
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = db.Close()
+		_, _ = integrationDB.ExecContext(context.Background(), "DROP DATABASE "+name+" WITH (FORCE)")
+	})
+	require.NoError(t, ApplyMigrations(ctx, db))
+	if partition {
+		_, err = db.ExecContext(ctx, `
+   ALTER TABLE usage_logs RENAME TO usage_logs_source;
+   CREATE TABLE usage_logs (LIKE usage_logs_source INCLUDING DEFAULTS INCLUDING CONSTRAINTS) PARTITION BY RANGE(created_at);
+   CREATE TABLE usage_logs_190001 PARTITION OF usage_logs FOR VALUES FROM ('1900-01-01') TO ('1900-02-01');
+
+  `)
+		require.NoError(t, err)
+	}
+	_, err = db.ExecContext(ctx, `
+  INSERT INTO users(id,email,password_hash) VALUES(1,'guard@test.example','test');
+  INSERT INTO api_keys(id,user_id,key,name) VALUES(1,1,'guard-key','guard');
+  INSERT INTO accounts(id,name,platform,type,credentials) VALUES(1,'guard','openai','oauth','{}');
+  INSERT INTO usage_logs(user_id,api_key_id,account_id,model,created_at) VALUES
+   (1,1,1,'guard','1900-01-01 23:59:59+00'),
+   (1,1,1,'guard','1900-01-02 00:00:00+00'),
+   (1,1,1,'guard','1900-01-03 00:00:00+00');
+ `)
+	require.NoError(t, err)
+	return db
+}
+func TestCleanupUsageLogs_CapsCutoffAtFirstOpenDay(t *testing.T) {
+	db := cleanupGuardDB(t, false)
+	_, err := db.Exec("INSERT INTO supplier_usage_day_closes(day,closed_at) VALUES('1900-01-01',now())")
+	require.NoError(t, err)
+	cutoff := time.Date(1900, 2, 1, 0, 0, 0, 0, time.UTC)
+	require.NoError(t, NewDashboardAggregationRepository(db, NewSupplierUsageSnapshotRepository(db)).CleanupUsageLogs(context.Background(), cutoff))
+	var count int
+	require.NoError(t, db.QueryRow("SELECT count(*) FROM usage_logs").Scan(&count))
+	require.Equal(t, 2, count)
+	require.NoError(t, db.QueryRow("SELECT count(*) FROM usage_logs WHERE created_at < '1900-01-02'").Scan(&count))
+	require.Zero(t, count)
+}
+func TestCleanupUsageLogs_NoClosedDays_DeletesNothing(t *testing.T) {
+	db := cleanupGuardDB(t, false)
+	require.NoError(t, NewDashboardAggregationRepository(db, NewSupplierUsageSnapshotRepository(db)).CleanupUsageLogs(context.Background(), time.Date(1900, 2, 1, 0, 0, 0, 0, time.UTC)))
+	var count int
+	require.NoError(t, db.QueryRow("SELECT count(*) FROM usage_logs").Scan(&count))
+	require.Equal(t, 3, count)
+}
+func TestCleanupUsageLogs_PartitionWithOpenDayNotDropped(t *testing.T) {
+	db := cleanupGuardDB(t, true)
+	_, err := db.Exec("INSERT INTO supplier_usage_day_closes(day,closed_at) VALUES('1900-01-01',now())")
+	require.NoError(t, err)
+	require.NoError(t, NewDashboardAggregationRepository(db, NewSupplierUsageSnapshotRepository(db)).CleanupUsageLogs(context.Background(), time.Date(1900, 2, 1, 0, 0, 0, 0, time.UTC)))
+	var exists bool
+	require.NoError(t, db.QueryRow("SELECT to_regclass('usage_logs_190001') IS NOT NULL").Scan(&exists))
+	require.True(t, exists)
+	var count int
+	require.NoError(t, db.QueryRow("SELECT count(*) FROM usage_logs").Scan(&count))
+	require.Equal(t, 2, count)
+}
+
+func TestUsageCleanup_InclusiveEndKeepsOpenMidnight(t *testing.T) {
+	for _, queued := range []bool{false, true} {
+		t.Run(fmt.Sprintf("previously_queued_%t", queued), func(t *testing.T) {
+			db := cleanupGuardDB(t, false)
+			ctx := context.Background()
+			_, err := db.Exec("INSERT INTO supplier_usage_day_closes(day,closed_at) VALUES('1900-01-01',now())")
+			require.NoError(t, err)
+			day := time.Date(1900, 1, 2, 0, 0, 0, 0, time.UTC)
+			filters := service.UsageCleanupFilters{StartTime: day.Add(-24 * time.Hour), EndTime: day.Add(-time.Nanosecond)}
+			repo := NewUsageCleanupRepository(nil, db)
+			var oldTask *service.UsageCleanupTask
+			if queued {
+				oldTask = &service.UsageCleanupTask{Status: service.UsageCleanupStatusPending, Filters: filters, CreatedBy: 1}
+				require.NoError(t, repo.CreateTask(ctx, oldTask))
+			}
+			svc := service.NewUsageCleanupService(repo, nil, nil, &config.Config{UsageCleanup: config.UsageCleanupConfig{Enabled: true}}, NewSupplierUsageSnapshotRepository(db))
+			defer svc.Stop()
+			task, err := svc.CreateTask(ctx, filters, 1)
+			require.NoError(t, err)
+			if queued {
+				task = oldTask
+			}
+			require.Eventually(t, func() bool {
+				status, e := repo.GetTaskStatus(ctx, task.ID)
+				return e == nil && status == service.UsageCleanupStatusSucceeded
+			}, 5*time.Second, 10*time.Millisecond)
+			var count int
+			require.NoError(t, db.QueryRow("SELECT count(*) FROM usage_logs WHERE created_at = $1", day).Scan(&count))
+			require.Equal(t, 1, count, "PostgreSQL must not round an inclusive end into the first open day")
+			require.NoError(t, db.QueryRow("SELECT count(*) FROM usage_logs").Scan(&count))
+			require.Equal(t, 2, count)
+		})
+	}
 }

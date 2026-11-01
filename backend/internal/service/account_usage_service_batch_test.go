@@ -21,7 +21,6 @@ func (r *usageBatchLogRepoStub) Create(context.Context, *UsageLog) (bool, error)
 func (r *usageBatchLogRepoStub) GetByID(context.Context, int64) (*UsageLog, error) {
 	return nil, nil
 }
-func (r *usageBatchLogRepoStub) Delete(context.Context, int64) error { return nil }
 func (r *usageBatchLogRepoStub) ListByUser(context.Context, int64, pagination.PaginationParams) ([]UsageLog, *pagination.PaginationResult, error) {
 	return nil, nil, nil
 }

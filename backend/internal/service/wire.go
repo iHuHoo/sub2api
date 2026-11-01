@@ -397,8 +397,8 @@ func ProvideSupplierUsageSnapshotService(repo SupplierUsageSnapshotRepository, t
 }
 
 // ProvideUsageCleanupService 创建并启动使用记录清理任务服务
-func ProvideUsageCleanupService(repo UsageCleanupRepository, timingWheel *TimingWheelService, dashboardAgg *DashboardAggregationService, cfg *config.Config) *UsageCleanupService {
-	svc := NewUsageCleanupService(repo, timingWheel, dashboardAgg, cfg)
+func ProvideUsageCleanupService(repo UsageCleanupRepository, timingWheel *TimingWheelService, dashboardAgg *DashboardAggregationService, cfg *config.Config, snapshots SupplierUsageSnapshotRepository) *UsageCleanupService {
+	svc := NewUsageCleanupService(repo, timingWheel, dashboardAgg, cfg, snapshots)
 	svc.Start()
 	return svc
 }
