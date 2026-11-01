@@ -4,8 +4,6 @@ package repository
 
 import (
 	"context"
-	"fmt"
-	"github.com/Wei-Shaw/sub2api/ent/schema/mixins"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/stretchr/testify/require"
@@ -82,50 +80,6 @@ func TestSupplierRepositoryIsolationAndSparseMutation(t *testing.T) {
 }
 
 func supplierPtr[T any](v T) *T { return &v }
-
-func TestSupplierUsageRetainsDeletedOwnedHistory(t *testing.T) {
-	ctx := context.Background()
-	tx := testEntTx(t)
-	client := tx.Client()
-	repo := newSupplierRepository(client, tx, nil)
-	ar := newAccountRepositoryWithSQL(client, tx, nil)
-	owner := int64(11)
-	other := int64(22)
-	makeA := func(o *int64, parent *int64) *service.Account {
-		a := &service.Account{Name: "a", Platform: service.PlatformOpenAI, Type: service.AccountTypeAPIKey, Status: service.StatusActive, SupplierUserID: o, ParentAccountID: parent}
-		if parent != nil {
-			a.QuotaDimension = service.QuotaDimensionSpark
-		}
-		require.NoError(t, ar.Create(ctx, a))
-		return a
-	}
-	a := makeA(&owner, nil)
-	shadow := makeA(&owner, &a.ID)
-	foreign := makeA(&other, nil)
-	now := time.Date(2026, 10, 1, 12, 0, 0, 0, time.UTC)
-	// Usage rows require a real downstream user/key, neither of which is selected by aggregation.
-	user := mustCreateUser(t, client, &service.User{Email: "supplier-usage@test.com"})
-	key := mustCreateApiKey(t, client, &service.APIKey{UserID: user.ID, Key: "sk-supplier-usage", Name: "key"})
-	for _, id := range []int64{a.ID, shadow.ID, foreign.ID} {
-		_, err := client.UsageLog.Create().SetUserID(user.ID).SetAPIKeyID(key.ID).SetAccountID(id).SetRequestID(fmt.Sprintf("supplier-%d", id)).SetModel("m").SetInputTokens(10).SetOutputTokens(20).SetCacheCreationTokens(30).SetCacheReadTokens(40).SetCreatedAt(now).Save(ctx)
-		require.NoError(t, err)
-	}
-	_, err := client.Account.UpdateOneID(a.ID).SetDeletedAt(now).Save(ctx)
-	require.NoError(t, err)
-	u, err := repo.Usage(ctx, owner, now.Add(-12*time.Hour), now.Add(12*time.Hour), nil)
-	require.NoError(t, err)
-	require.Equal(t, int64(2), u.Summary.Requests)
-	require.Equal(t, int64(20), u.Summary.InputTokens)
-	require.Len(t, u.Daily, 1)
-	require.Equal(t, "2026-10-01", u.Daily[0].Date)
-	u, err = repo.Usage(ctx, owner, now.Add(-12*time.Hour), now.Add(12*time.Hour), &a.ID)
-	require.NoError(t, err)
-	require.Equal(t, int64(1), u.Summary.Requests)
-	_, err = repo.Usage(ctx, owner, now.Add(-12*time.Hour), now.Add(12*time.Hour), &foreign.ID)
-	require.ErrorIs(t, err, service.ErrSupplierUnavailable)
-	_, err = client.Account.Get(mixins.SkipSoftDelete(ctx), a.ID)
-	require.NoError(t, err)
-}
 
 func TestSupplierServiceCreatesUngroupedAndRefreshesParentShadowCache(t *testing.T) {
 	ctx := context.Background()

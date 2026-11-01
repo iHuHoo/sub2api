@@ -140,3 +140,25 @@ func TestSupplierAccountUsageDegradesLookupFailureWithoutLeakingError(t *testing
 	require.Contains(t, w.Body.String(), `"error_code":"unavailable"`)
 	require.NotContains(t, w.Body.String(), "upstream response")
 }
+
+type supplierOverviewRepo struct {
+	service.SupplierRepository
+	owner int64
+}
+
+func (r *supplierOverviewRepo) Usage(_ context.Context, owner int64) (*service.SupplierUsageOverview, error) {
+	r.owner = owner
+	return &service.SupplierUsageOverview{Timezone: "UTC"}, nil
+}
+func TestSupplierOverviewIgnoresRemovedFilters(t *testing.T) {
+	repo := &supplierOverviewRepo{}
+	h := NewSupplierHandler(service.NewSupplierService(repo, nil, nil))
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Set(string(middleware.ContextKeyUser), middleware.AuthSubject{UserID: 11})
+	c.Request = httptest.NewRequest("GET", "/supplier/usage?start_date=invalid&end_date=invalid&account_id=999999", nil)
+	h.Usage(c)
+	require.Equal(t, 200, w.Code, w.Body.String())
+	require.Equal(t, int64(11), repo.owner)
+	require.Contains(t, w.Body.String(), `"timezone":"UTC"`)
+}

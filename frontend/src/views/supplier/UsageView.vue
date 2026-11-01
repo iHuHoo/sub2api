@@ -1,35 +1,27 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import AppLayout from '@/components/layout/AppLayout.vue'
-import DataTable from '@/components/common/DataTable.vue'
-import { supplierAPI, supplierErrorKey, type SupplierUsage, type SupplierUsageQuery } from '@/api/supplier'
+import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
+import Icon from '@/components/icons/Icon.vue'
+import SupplierUsageTrend from '@/components/charts/SupplierUsageTrend.vue'
+import { supplierAPI, supplierErrorKey, type SupplierUsage } from '@/api/supplier'
 import { useAppStore } from '@/stores/app'
+import { formatDecimalCurrency } from '@/utils/format'
 
 const { t } = useI18n()
 const appStore = useAppStore()
-const today = new Date()
-const endDate = today.toISOString().slice(0, 10)
-const startDate = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate() - 29)).toISOString().slice(0, 10)
-const form = reactive({ start_date: startDate, end_date: endDate, account_id: '' })
 const usage = ref<SupplierUsage | null>(null)
-const loading = ref(false)
-const metrics = ['requests', 'input_tokens', 'output_tokens', 'cache_creation_tokens', 'cache_read_tokens'] as const
-const columns = computed(() => [{ key: 'date', label: t('supplier.dateUTC') }, ...metrics.map(key => ({ key, label: t('supplier.metrics.' + key) }))])
+const loading = ref(true)
+const accounts = computed(() => [...(usage.value?.per_account ?? [])].sort((a, b) => a.id - b.id))
+const statusClasses = {
+  enabled: 'text-green-700 dark:text-green-400',
+  pending: 'text-amber-700 dark:text-amber-400',
+  error: 'text-red-600 dark:text-red-400',
+  deleted: 'text-gray-500 dark:text-gray-400'
+}
 async function load() {
-  if (loading.value) return
-  const start = Date.parse(form.start_date + 'T00:00:00Z')
-  const end = Date.parse(form.end_date + 'T00:00:00Z')
-  const accountID = form.account_id === '' ? undefined : Number(form.account_id)
-  if (!Number.isFinite(start) || !Number.isFinite(end) || end < start || (end - start) / 86400000 >= 366 || (accountID !== undefined && (!Number.isSafeInteger(accountID) || accountID <= 0))) {
-    appStore.showError(t('supplier.invalidRange'))
-    return
-  }
-  const query: SupplierUsageQuery = { start_date: form.start_date, end_date: form.end_date }
-  if (accountID !== undefined) query.account_id = accountID
-  loading.value = true
-  usage.value = null
-  try { usage.value = await supplierAPI.usage(query) }
+  try { usage.value = await supplierAPI.usage() }
   catch (error) { appStore.showError(t(supplierErrorKey(error))) }
   finally { loading.value = false }
 }
@@ -38,20 +30,78 @@ onMounted(load)
 
 <template>
   <AppLayout>
-    <div class="space-y-5">
-      <h2 class="text-xl font-semibold text-gray-900 dark:text-white">{{ t('supplier.usage') }}</h2>
-      <p class="text-sm text-gray-600 dark:text-gray-300">{{ t('supplier.usageNotice') }}</p>
-      <form class="card flex flex-wrap items-end gap-4 p-4" @submit.prevent="load">
-        <label class="block"><span class="input-label">{{ t('supplier.startDate') }}</span><input v-model="form.start_date" name="start_date" type="date" class="input" required /></label>
-        <label class="block"><span class="input-label">{{ t('supplier.endDate') }}</span><input v-model="form.end_date" name="end_date" type="date" class="input" required /></label>
-        <label class="block"><span class="input-label">{{ t('supplier.accountID') }}</span><input v-model="form.account_id" name="account_id" type="number" min="1" step="1" class="input" :placeholder="t('supplier.allAccounts')" /></label>
-        <button class="btn btn-primary" type="submit" :disabled="loading">{{ t('supplier.loadUsage') }}</button>
-        <p class="input-hint w-full">{{ t('supplier.accountFilterNotice') }}</p>
-      </form>
-      <div v-if="usage" class="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-        <div v-for="key in metrics" :key="key" class="card p-4"><p class="text-sm text-gray-500 dark:text-gray-400">{{ t('supplier.metrics.' + key) }}</p><p class="mt-2 text-xl font-semibold">{{ usage.summary[key].toLocaleString() }}</p></div>
+    <div class="min-w-0 space-y-6">
+      <div>
+        <h2 class="text-xl font-semibold text-gray-900 dark:text-white">{{ t('supplier.usage') }}</h2>
+        <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ t('supplier.usageStats.utc') }} · {{ t('supplier.usageStats.refresh') }}</p>
       </div>
-      <div class="card overflow-hidden"><DataTable :data="usage?.daily ?? []" :columns="columns" :loading="loading" /></div>
+      <div v-if="loading" class="flex justify-center py-12"><LoadingSpinner /></div>
+      <div v-else-if="usage && !usage.ready" role="status" class="card p-4 text-gray-600 dark:text-gray-300">
+        {{ t('supplier.usageStats.inProgress') }}
+      </div>
+      <template v-else-if="usage">
+        <div class="grid grid-cols-2 gap-4 lg:grid-cols-4">
+          <div class="card min-w-0 p-4" data-testid="spend-card">
+            <div class="flex items-start gap-3">
+              <div class="hidden shrink-0 rounded-lg bg-blue-100 p-2 dark:bg-blue-900/30 sm:block"><Icon name="dollar" size="md" class="text-blue-600 dark:text-blue-400" /></div>
+              <div class="min-w-0">
+                <p class="text-xs font-medium text-gray-500 dark:text-gray-400">{{ t('supplier.usageStats.spend') }}</p>
+                <p :title="usage.cost.today" class="mt-1 break-words text-xl font-bold text-gray-900 dark:text-white">{{ formatDecimalCurrency(usage.cost.today) }}</p>
+                <p :title="usage.cost.total" class="mt-1 break-words text-xs text-gray-500 dark:text-gray-400">{{ t('supplier.usageStats.totalValue', { value: formatDecimalCurrency(usage.cost.total) }) }}</p>
+              </div>
+            </div>
+          </div>
+          <div class="card min-w-0 p-4" data-testid="accounts-card">
+            <div class="flex items-start gap-3">
+              <div class="hidden shrink-0 rounded-lg bg-purple-100 p-2 dark:bg-purple-900/30 sm:block"><Icon name="server" size="md" class="text-purple-600 dark:text-purple-400" /></div>
+              <div class="min-w-0">
+                <p class="text-xs font-medium text-gray-500 dark:text-gray-400">{{ t('supplier.usageStats.accounts') }}</p>
+                <p class="mt-1 break-words text-xl font-bold text-gray-900 dark:text-white">{{ usage.accounts.total.toLocaleString() }}</p>
+                <div class="mt-1 flex flex-wrap gap-x-2 gap-y-1 text-xs">
+                  <span v-for="status in (['enabled', 'pending', 'error'] as const)" :key="status" :class="statusClasses[status]">{{ usage.accounts[status].toLocaleString() }} {{ t('supplier.usageStats.' + status) }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div v-for="metric in (['tokens', 'requests'] as const)" :key="metric" class="card min-w-0 p-4" :data-testid="metric + '-card'">
+            <div class="flex items-start gap-3">
+              <div class="hidden shrink-0 rounded-lg p-2 sm:block" :class="metric === 'tokens' ? 'bg-amber-100 dark:bg-amber-900/30' : 'bg-green-100 dark:bg-green-900/30'">
+                <Icon :name="metric === 'tokens' ? 'cube' : 'chart'" size="md" :class="metric === 'tokens' ? 'text-amber-600 dark:text-amber-400' : 'text-green-600 dark:text-green-400'" />
+              </div>
+              <div class="min-w-0">
+                <p class="text-xs font-medium text-gray-500 dark:text-gray-400">{{ t('supplier.usageStats.' + metric) }}</p>
+                <p class="mt-1 break-words text-xl font-bold text-gray-900 dark:text-white">{{ usage[metric].today.toLocaleString() }}</p>
+                <p class="mt-1 break-words text-xs text-gray-500 dark:text-gray-400">{{ t('supplier.usageStats.totalValue', { value: usage[metric].total.toLocaleString() }) }}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+        <SupplierUsageTrend :daily="usage.daily" :updated-at="usage.updated_at" />
+        <section class="card min-w-0 p-4">
+          <h3 id="supplier-account-spend" class="mb-4 text-sm font-semibold text-gray-900 dark:text-white">{{ t('supplier.usageStats.perAccount') }}</h3>
+          <div class="overflow-x-auto" role="region" aria-labelledby="supplier-account-spend" tabindex="0">
+            <table class="w-full min-w-max divide-y divide-gray-200 text-sm dark:divide-dark-700">
+              <thead class="bg-gray-50 text-xs text-gray-500 dark:bg-dark-800 dark:text-gray-400">
+                <tr>
+                  <th scope="col" class="px-4 py-3 text-left">{{ t('supplier.usageStats.accounts') }}</th>
+                  <th scope="col" class="px-4 py-3 text-left">{{ t('supplier.lifecycle') }}</th>
+                  <th v-for="key in ['today', 'last31', 'total']" :key="key" scope="col" class="px-4 py-3 text-right">{{ t('supplier.usageStats.' + key) }}</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-gray-200 text-gray-900 dark:divide-dark-700 dark:text-gray-100">
+                <tr v-for="account in accounts" :key="account.id" class="hover:bg-gray-50 dark:hover:bg-dark-800">
+                  <td class="px-4 py-3">#{{ account.id }} {{ account.name }}</td>
+                  <td class="px-4 py-3" :class="statusClasses[account.deleted ? 'deleted' : account.status]">{{ t('supplier.usageStats.' + (account.deleted ? 'deleted' : account.status)) }}</td>
+                  <td :title="account.today_cost" class="px-4 py-3 text-right tabular-nums">{{ formatDecimalCurrency(account.today_cost) }}</td>
+                  <td :title="account.last31_cost" class="px-4 py-3 text-right tabular-nums">{{ formatDecimalCurrency(account.last31_cost) }}</td>
+                  <td :title="account.total_cost" class="px-4 py-3 text-right tabular-nums">{{ formatDecimalCurrency(account.total_cost) }}</td>
+                </tr>
+                <tr v-if="!accounts.length"><td colspan="5" class="px-4 py-8 text-center text-gray-500 dark:text-gray-400">{{ t('empty.noData') }}</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </template>
     </div>
   </AppLayout>
 </template>

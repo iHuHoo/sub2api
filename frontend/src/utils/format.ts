@@ -74,6 +74,15 @@ export function formatCurrency(amount: number | null | undefined, currency: stri
   }).format(amount)
 }
 
+/** Format exact decimal amounts without converting them to floating point. */
+export function formatDecimalCurrency(value: string): string {
+  const negative = value.startsWith('-')
+  const [whole, fraction = ''] = (negative ? value.slice(1) : value).split('.')
+  const cents = BigInt(whole + fraction.padEnd(2, '0').slice(0, 2)) + (fraction[2] >= '5' ? 1n : 0n)
+  const digits = cents.toString().padStart(3, '0')
+  return '$' + (negative && cents !== 0n ? '-' : '') + digits.slice(0, -2).replace(/\B(?=(\d{3})+(?!\d))/g, ',') + '.' + digits.slice(-2)
+}
+
 /**
  * 格式化字节大小
  * @param bytes 字节数
