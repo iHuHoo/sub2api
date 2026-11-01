@@ -390,6 +390,12 @@ func ProvideDashboardAggregationService(repo DashboardAggregationRepository, tim
 	return svc
 }
 
+func ProvideSupplierUsageSnapshotService(repo SupplierUsageSnapshotRepository, timingWheel *TimingWheelService, lockCache LeaderLockCache, db *sql.DB, cfg *config.Config) *SupplierUsageSnapshotService {
+	svc := NewSupplierUsageSnapshotService(repo, timingWheel, lockCache, db, cfg)
+	svc.Start()
+	return svc
+}
+
 // ProvideUsageCleanupService 创建并启动使用记录清理任务服务
 func ProvideUsageCleanupService(repo UsageCleanupRepository, timingWheel *TimingWheelService, dashboardAgg *DashboardAggregationService, cfg *config.Config) *UsageCleanupService {
 	svc := NewUsageCleanupService(repo, timingWheel, dashboardAgg, cfg)
@@ -961,6 +967,7 @@ var ProviderSet = wire.NewSet(
 	ProvideSubscriptionExpiryService,
 	ProvideTimingWheelService,
 	ProvideDashboardAggregationService,
+	ProvideSupplierUsageSnapshotService,
 	ProvideUsageCleanupService,
 	ProvideDeferredService,
 	NewAntigravityQuotaFetcher,
