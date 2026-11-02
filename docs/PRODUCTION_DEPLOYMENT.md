@@ -60,6 +60,12 @@ When using a deployment script, upload it with scp and execute the remote file. 
 - Subproxy's private registry pull was unavailable on the new machine. The exact old image was transferred with Docker save/load and verified as `sha256:a62d87142145c8534094a29a6a9be70bb004ef6625cc206d3a5782f8394debe6`. The new host's subproxy `.env` pins that local image ID; `.env.pre-migration` preserves the original registry reference. Future registry pulls require authentication.
 - Migration evidence and online/final backups: `/home/aoxtoken/azure-v6-migration-20261102/` on the new host. Local receipts: `/Users/dalu/aiworkspace/codex/runtime/sub2api-azure-v6-migration-20261102/`. Older release backup and rehearsal paths in this document, including those from the .36 deployment, were on the old disk and no longer exist unless explicitly copied. Do not assume they exist on the new host.
 
+## Nginx logout header buffer, 2026-11-02
+
+- `POST /api/v1/auth/logout` returned 502 over HTTPS: its 23 `Set-Cookie` headers plus security headers total 4154 bytes in the application response, above the 4096-byte Nginx default.
+- Fix: `proxy_buffer_size 8k;` in the existing `location /` of `/etc/nginx/sites-available/aoxtoken.com` and `api.aoxtoken.com`, applied with `nginx -t` and a reload. No other Nginx directive changed. Keep this directive when rebuilding the host: it exists only in the host's Nginx files, and the fresh backup above predates it, so restoring that backup's configuration brings the 502 back.
+- Verified with an empty, unauthenticated logout request to each domain: 200, complete body, all 23 cookie headers present. A real account logout and streaming inference were not tested.
+
 ## .36 deployment, 2026-11-02
 
 - Source `a24f0d961c274d532d9a6348a8a7c8ed439d617d`; immutable image digests are recorded above. Relative to .35, only `249_supplier_usage_daily.sql` was added to the migration directory.
