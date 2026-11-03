@@ -16,9 +16,16 @@ permissions:
   contents: read
   packages: write
 
+concurrency:
+  group: build-aox-${{ github.ref }}-${{ inputs.version }}
+  cancel-in-progress: false
+
 jobs:
   build:
     runs-on: ubuntu-latest
+    outputs:
+      image: ${{ steps.metadata.outputs.image }}
+      digest: ${{ steps.build.outputs.digest }}
     steps:
       - name: Checkout source
         uses: actions/checkout@v6
@@ -76,3 +83,22 @@ jobs:
             echo
             echo "Production deployment is manual."
           } >> "${GITHUB_STEP_SUMMARY}"
+
+  release:
+    # Only a tag ref has a tag to release; a branch dispatch builds an image without one.
+    if: github.ref_type == 'tag'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout release tools
+        uses: actions/checkout@v6
+        with:
+          sparse-checkout: .github/release-tools
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: .github/release-tools/aox-release.sh "${GITHUB_REF_NAME}" "${{ needs.build.outputs.image }}" "${{ needs.build.outputs.digest }}"

@@ -2,6 +2,8 @@
 
 Verified 2026-11-02 Asia/Singapore. Production is now .36 (upstream v0.2.19), source a24f0d961c274d532d9a6348a8a7c8ed439d617d. Online backup, isolated restore, migration rehearsal and .35 startup on the migrated database passed before drain. Application interruption was 25.084 seconds; the thirty-minute observation, final checks and stopped-dump full isolated restore passed without rollback. Clash subscriptions and diagnostics remain enabled, payment successUrl unchanged. No privacy backfill, paid inference or payment was performed.
 
+A GitHub Release for an Aox tag is created automatically once its image is built and published. It records the image digest only; it does not mean the version is deployed. The current production version is the one in the deployment records below.
+
 See [the integration rollout plan](SUBPROXY_RELEASE_PLAN.md) and [the .24 migration/cache rollback plan](AOX24_DEPLOYMENT_PLAN.md). Gemini explicit-cache management remains blocked at Nginx. Opening it, changing model mappings, and deleting recovery data are separate operations.
 
 The .24 follow-up and .25 isolated migration rehearsal passed independent review on 2026-10-17. The user subsequently authorized immediate .25 deployment and a US$5 inference budget. See [the .25 deployment and assignment-aware rollback plan](AOX25_DEPLOYMENT_PLAN.md) and the execution record below. Recovery backups, the local G1 dump and stopped rehearsal volumes remain retained pending explicit cleanup authorization.

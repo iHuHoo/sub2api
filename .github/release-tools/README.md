@@ -27,4 +27,9 @@ Helper checks:
 python -m pip install -r .github/release-tools/requirements-release.txt
 python -m unittest discover -s .github/release-tools -p 'test_release_matrix.py'
 bash -n .github/release-tools/release-images.sh
+bash .github/release-tools/test_aox_release.sh
 ```
+
+## Aox releases
+
+`build-aox.yml` builds Aox tags (`v*-aox.*`). After the image is pushed, `aox-release.sh` creates the tag's GitHub Release with the image reference, digest and generated PR list. An existing Release is left unchanged, so rerunning a tag build is safe. A dispatch from a branch builds an image without creating a Release.
