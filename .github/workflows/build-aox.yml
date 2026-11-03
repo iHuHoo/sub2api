@@ -16,8 +16,9 @@ permissions:
   contents: read
   packages: write
 
+# One group per ref: a tag push and a manual dispatch of that tag publish the same image and Release.
 concurrency:
-  group: build-aox-${{ github.ref }}-${{ inputs.version }}
+  group: build-aox-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:

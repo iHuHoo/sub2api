@@ -33,4 +33,8 @@ rm "$work/exists"; : >"$work/calls"
 ! "$script" v1.2.3 ghcr.io/o/r "$digest" 2>/dev/null || fail "non-Aox tag accepted"
 [[ ! -s "$work/calls" ]] || fail "gh called for invalid input"
 
+# Push and dispatch of one tag must share a group regardless of the unused version input.
+workflow="$(dirname "$script")/../workflows/build-aox.yml"
+grep -qx '  group: build-aox-${{ github.ref }}' "$workflow" || fail "tag builds do not share one concurrency group"
+
 echo "aox-release tests passed"
