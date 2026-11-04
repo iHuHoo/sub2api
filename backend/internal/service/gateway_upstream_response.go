@@ -428,6 +428,9 @@ func (s *GatewayService) handleErrorResponse(ctx context.Context, resp *http.Res
 	if shouldDisable {
 		return nil, &UpstreamFailoverError{StatusCode: resp.StatusCode, ResponseBody: body}
 	}
+	if account.Platform == PlatformAnthropic && isAnthropicLongContextCreditsRequired(resp.StatusCode, body) {
+		return nil, newLongContextCreditsStop(resp.StatusCode, body)
+	}
 
 	MarkResponseCommitted(c)
 

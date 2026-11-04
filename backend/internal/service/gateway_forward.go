@@ -616,7 +616,7 @@ func (s *GatewayService) Forward(ctx context.Context, c *gin.Context, account *A
 		}
 
 		// 检查是否需要通用重试（排除400，因为400已经在上面特殊处理过了）
-		if resp.StatusCode >= 400 && resp.StatusCode != 400 && s.shouldRetryUpstreamError(account, resp.StatusCode) {
+		if resp.StatusCode >= 400 && resp.StatusCode != 400 && s.shouldRetryUpstreamError(account, resp.StatusCode) && !s.isLongContextCreditsResponse(account, resp) {
 			if attempt < maxRetryAttempts {
 				elapsed := time.Since(retryStart)
 				if elapsed >= maxRetryElapsed {
@@ -679,7 +679,9 @@ func (s *GatewayService) Forward(ctx context.Context, c *gin.Context, account *A
 	defer func() { _ = resp.Body.Close() }()
 
 	// 处理重试耗尽的情况
-	if resp.StatusCode >= 400 && s.shouldRetryUpstreamError(account, resp.StatusCode) {
+	// Long context credits errors skip retry and failover and reach handleErrorResponse.
+	longContextCredits := s.isLongContextCreditsResponse(account, resp)
+	if resp.StatusCode >= 400 && !longContextCredits && s.shouldRetryUpstreamError(account, resp.StatusCode) {
 		if s.shouldFailoverUpstreamError(resp.StatusCode) {
 			respBody, _ := s.readUpstreamErrorBody(resp)
 			_ = resp.Body.Close()
@@ -717,7 +719,7 @@ func (s *GatewayService) Forward(ctx context.Context, c *gin.Context, account *A
 	}
 
 	// 处理可切换账号的错误
-	if resp.StatusCode >= 400 && s.shouldFailoverUpstreamError(resp.StatusCode) {
+	if resp.StatusCode >= 400 && !longContextCredits && s.shouldFailoverUpstreamError(resp.StatusCode) {
 		respBody, _ := s.readUpstreamErrorBody(resp)
 		_ = resp.Body.Close()
 		resp.Body = io.NopCloser(bytes.NewReader(respBody))
@@ -1022,6 +1024,22 @@ func (s *GatewayService) isStickyAccountUpstreamRestricted(ctx context.Context, 
 // 处理并触发账号侧副作用，其余按 403；同时登记 stream_error 运维记录。
 func (s *GatewayService) sseStreamErrorEventFailover(ctx context.Context, c *gin.Context, account *Account, resp *http.Response, rawData, model string, outputStarted bool) *UpstreamFailoverError {
 	body := []byte(rawData)
+	if account != nil && account.Platform == PlatformAnthropic && isAnthropicLongContextCreditsMessage(body) {
+		// Same capability failure as the HTTP 429 form: stop, write no account state, and
+		// keep the real HTTP status (200) because no 429 was observed.
+		appendOpsUpstreamError(c, OpsUpstreamErrorEvent{
+			ProxyID:            opsUpstreamProxyID(account),
+			ProxyName:          opsUpstreamProxyName(account),
+			Platform:           account.Platform,
+			AccountID:          account.ID,
+			AccountName:        account.Name,
+			UpstreamStatusCode: resp.StatusCode,
+			UpstreamRequestID:  resp.Header.Get("x-request-id"),
+			Kind:               "stream_error",
+			Message:            anthropicLongContextCreditsCode,
+		})
+		return newLongContextCreditsStop(resp.StatusCode, body)
+	}
 	semanticStatus := http.StatusForbidden
 	if !outputStarted && gjson.GetBytes(body, "error.type").String() == "overloaded_error" {
 		semanticStatus = 529

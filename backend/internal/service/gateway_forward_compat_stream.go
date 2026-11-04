@@ -43,6 +43,7 @@ type anthropicCompatStream struct {
 	sawTerminal bool
 	// upstreamErr* 记录上游流内的 error 事件；收到后调用方结束读取。
 	upstreamErrType    string
+	upstreamErrCode    string
 	upstreamErrMessage string
 	upstreamErrPayload string
 	// readErr 是上游流结束的原因（io.EOF、读错误或 errAnthropicNativeStreamIdle）。
@@ -54,6 +55,7 @@ type anthropicCompatStream struct {
 type anthropicCompatStreamFailure struct {
 	err     error
 	errType string
+	code    string // stable client code for a known failure; empty otherwise
 	message string
 }
 
@@ -157,6 +159,12 @@ func (st *anthropicCompatStream) observe(event *apicompat.AnthropicStreamEvent, 
 		st.upstreamErrPayload = payload
 		st.upstreamErrType = firstNonEmpty(gjson.Get(payload, "error.type").String(), "upstream_error")
 		st.upstreamErrMessage = firstNonEmpty(sanitizeUpstreamErrorMessage(gjson.Get(payload, "error.message").String()), "upstream stream error")
+		if isAnthropicLongContextCreditsMessage([]byte(payload)) {
+			// Known capability failure: the first terminal frame must already carry the stable code.
+			st.upstreamErrType = "invalid_request_error"
+			st.upstreamErrCode = anthropicLongContextCreditsCode
+			st.upstreamErrMessage = anthropicLongContextCreditsClientText
+		}
 		_ = st.body.Close()
 		logger.L().Warn(st.logPrefix+" stream: upstream error event",
 			zap.String("request_id", st.requestID),
@@ -181,6 +189,7 @@ func (st *anthropicCompatStream) failure() *anthropicCompatStreamFailure {
 		return &anthropicCompatStreamFailure{
 			err:     &sseStreamErrorEventError{RawData: st.upstreamErrPayload},
 			errType: st.upstreamErrType,
+			code:    st.upstreamErrCode,
 			message: st.upstreamErrMessage,
 		}
 	case errors.Is(st.readErr, errAnthropicNativeStreamIdle):
@@ -235,12 +244,11 @@ func finishAnthropicCompatStreamFailure(c *gin.Context, writerSizeBeforeStream i
 // writeAnthropicCompatCCStreamFailure 向 Chat Completions 流写出终止错误帧，
 // 并标记响应已提交，handler 不再追加兜底错误。
 func writeAnthropicCompatCCStreamFailure(c *gin.Context, failure *anthropicCompatStreamFailure) {
-	payload, _ := json.Marshal(map[string]any{
-		"error": map[string]string{
-			"type":    failure.errType,
-			"message": failure.message,
-		},
-	})
+	errObj := map[string]string{"type": failure.errType, "message": failure.message}
+	if failure.code != "" {
+		errObj["code"] = failure.code
+	}
+	payload, _ := json.Marshal(map[string]any{"error": errObj})
 	commitAnthropicCompatStreamFailure(c, failure, "data: "+string(payload)+"\n\n")
 }
 
@@ -262,7 +270,7 @@ func writeAnthropicCompatResponsesStreamFailure(c *gin.Context, state *apicompat
 			Model:     state.Model,
 			Status:    "failed",
 			Output:    []apicompat.ResponsesOutput{},
-			Error:     &apicompat.ResponsesError{Code: failure.errType, Message: failure.message},
+			Error:     &apicompat.ResponsesError{Code: firstNonEmpty(failure.code, failure.errType), Message: failure.message},
 		},
 	}
 	state.SequenceNumber++
@@ -282,7 +290,11 @@ func writeAnthropicCompatResponsesStreamFailure(c *gin.Context, state *apicompat
 }
 
 func commitAnthropicCompatStreamFailure(c *gin.Context, failure *anthropicCompatStreamFailure, frame string) {
-	MarkOpsStreamError(c, failure.errType, failure.message, http.StatusBadGateway)
+	status := http.StatusBadGateway
+	if failure.code == anthropicLongContextCreditsCode {
+		status = http.StatusBadRequest
+	}
+	MarkOpsStreamError(c, failure.errType, failure.message, status)
 	MarkResponseCommitted(c)
 	if _, err := io.WriteString(c.Writer, frame); err != nil {
 		return
