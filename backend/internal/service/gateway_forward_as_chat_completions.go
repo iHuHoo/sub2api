@@ -217,6 +217,10 @@ func (s *GatewayService) ForwardAsChatCompletions(
 		}
 	} else {
 		result, handleErr = s.handleCCBufferedFromAnthropic(resp, c, originalModel, mappedModel, reasoningEffort, startTime)
+		var sseErr *sseStreamErrorEventError
+		if errors.As(handleErr, &sseErr) {
+			return nil, s.sseStreamErrorEventFailover(ctx, c, account, resp, sseErr.RawData, mappedModel, false)
+		}
 	}
 
 	return result, handleErr
@@ -285,6 +289,11 @@ func (s *GatewayService) handleCCBufferedFromAnthropic(
 		var event apicompat.AnthropicStreamEvent
 		if err := json.Unmarshal([]byte(payload), &event); err != nil {
 			continue
+		}
+
+		// shortcut: only this known capability error is surfaced; other in-stream errors keep the existing buffered behavior until B/C.
+		if event.Type == "error" && isAnthropicLongContextCreditsMessage([]byte(payload)) {
+			return nil, &sseStreamErrorEventError{RawData: payload}
 		}
 
 		// message_start carries the initial response structure and cache usage

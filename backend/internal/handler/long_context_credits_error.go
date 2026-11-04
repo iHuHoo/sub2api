@@ -39,6 +39,10 @@ func writeLongContextCreditsError(c *gin.Context, e *service.UpstreamFailoverErr
 		return true
 	}
 
+	if service.IsResponseCommitted(c) {
+		// The compat stream writer already sent the terminal frame with this code; never send a second one.
+		return true
+	}
 	service.MarkOpsStreamError(c, errType, message, status)
 	var frame []byte
 	switch protocol {

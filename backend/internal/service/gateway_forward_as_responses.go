@@ -228,6 +228,10 @@ func (s *GatewayService) ForwardAsResponses(
 		}
 	} else {
 		result, handleErr = s.handleResponsesBufferedStreamingResponse(resp, c, originalModel, mappedModel, reasoningEffort, startTime, clientToolMapping)
+		var sseErr *sseStreamErrorEventError
+		if errors.As(handleErr, &sseErr) {
+			return nil, s.sseStreamErrorEventFailover(ctx, c, account, resp, sseErr.RawData, mappedModel, false)
+		}
 	}
 
 	return result, handleErr
@@ -441,6 +445,11 @@ func (s *GatewayService) handleResponsesBufferedStreamingResponse(
 				zap.String("event_type", eventType),
 			)
 			continue
+		}
+
+		// shortcut: only this known capability error is surfaced; other in-stream errors keep the existing buffered behavior until B/C.
+		if event.Type == "error" && isAnthropicLongContextCreditsMessage([]byte(payload)) {
+			return nil, &sseStreamErrorEventError{RawData: payload}
 		}
 
 		// message_start carries the initial response structure

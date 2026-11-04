@@ -85,3 +85,27 @@ func TestLongContextCreditsExhaustedResponses(t *testing.T) {
 		})
 	}
 }
+
+// When the compat stream writer already sent the coded terminal frame, the handler adds nothing.
+func TestLongContextCreditsHandlerKeepsSingleTerminalFrame(t *testing.T) {
+	h := &GatewayHandler{}
+	for name, write := range map[string]func(*gin.Context){
+		"messages":         func(c *gin.Context) { h.handleFailoverExhausted(c, longContextStop(), service.PlatformAnthropic, true) },
+		"chat completions": func(c *gin.Context) { h.handleCCFailoverExhausted(c, longContextStop(), true) },
+		"responses":        func(c *gin.Context) { h.handleResponsesFailoverExhausted(c, longContextStop(), true) },
+	} {
+		t.Run(name, func(t *testing.T) {
+			rec := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(rec)
+			c.Request = httptest.NewRequest(http.MethodPost, "/v1/x", nil)
+			_, err := c.Writer.WriteString("data: {\"error\":{\"code\":\"" + longContextCode + "\"}}\n\n")
+			require.NoError(t, err)
+			service.MarkResponseCommitted(c)
+			before := rec.Body.String()
+
+			write(c)
+
+			require.Equal(t, before, rec.Body.String())
+		})
+	}
+}
