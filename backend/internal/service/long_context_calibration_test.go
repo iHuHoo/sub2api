@@ -62,7 +62,7 @@ func TestFitCalibrationProfile(t *testing.T) {
 	require.Equal(t, longContextAdmit, decideLongContextLocally(100_000, up, res.Profile))
 	require.Equal(t, longContextReject, decideLongContextLocally(100_000, lo-1, res.Profile))
 	fast, rej := calibrationBands(res.Profile, 1024)
-	budget := longContextInputBudget(1024)
+	budget := longContextInputBudget(longContextCalibrationWindow, 1024)
 	require.Equal(t, longContextAdmit, decideLongContextLocally(int(fast), budget, res.Profile))
 	require.NotEqual(t, longContextAdmit, decideLongContextLocally(int(fast+1), budget, res.Profile))
 	require.Equal(t, longContextReject, decideLongContextLocally(int(rej), budget, res.Profile))

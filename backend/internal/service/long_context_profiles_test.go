@@ -92,15 +92,15 @@ func TestLongContextProfileBandsExactEdges(t *testing.T) {
 		for o, b := range bands {
 			fast, rej := calibrationBands(p, o)
 			require.Equal(t, b, [2]int64{fast, rej}, "%s %d", model, o)
-			budget := longContextInputBudget(o)
+			budget := longContextInputBudget(longContextCalibrationWindow, o)
 			require.Equal(t, longContextAdmit, decideLongContextLocally(int(fast), budget, p))
 			require.Equal(t, longContextUncertain, decideLongContextLocally(int(fast+1), budget, p))
 			require.Equal(t, longContextReject, decideLongContextLocally(int(rej), budget, p))
 			require.Equal(t, longContextUncertain, decideLongContextLocally(int(rej-1), budget, p))
 		}
 		// A 1.8 MB eligible body is counted at max_tokens 8192 but rejected locally at 32000.
-		require.Equal(t, longContextUncertain, decideLongContextLocally(1_800_000, longContextInputBudget(8192), p))
-		require.Equal(t, longContextReject, decideLongContextLocally(1_800_000, longContextInputBudget(32000), p))
+		require.Equal(t, longContextUncertain, decideLongContextLocally(1_800_000, longContextInputBudget(longContextCalibrationWindow, 8192), p))
+		require.Equal(t, longContextReject, decideLongContextLocally(1_800_000, longContextInputBudget(longContextCalibrationWindow, 32000), p))
 	}
 }
 
@@ -116,7 +116,7 @@ func TestLongContextProfileLowerEnvelopeLimitation(t *testing.T) {
 		lo, _ := calibrationInterval(p, c.b)
 		require.Equal(t, c.lower, lo, model)
 		require.Greater(t, lo, c.count, "L > C: the lower bound is not universal")
-		require.Equal(t, longContextUncertain, decideLongContextLocally(int(c.b), longContextInputBudget(1024), p), "counted, not rejected")
+		require.Equal(t, longContextUncertain, decideLongContextLocally(int(c.b), longContextInputBudget(longContextCalibrationWindow, 1024), p), "counted, not rejected")
 	}
 }
 
@@ -159,7 +159,7 @@ func TestLongContextShippedProfilesInForward(t *testing.T) {
 		upstream := countOK("1")
 		svc := newLongContextService(upstream, "", nil)
 		c, _ := longContextContext("/v1/messages", "")
-		body := `{"model":"claude-opus-4-6","max_tokens":1024,"messages":[{"role":"user","content":"` + strings.Repeat("calibrated ", 200_000) + `"}]}`
+		body := `{"model":"claude-opus-4-6","max_tokens":1024,"messages":[{"role":"user","content":"` + strings.Repeat("calibrated ", 1_100_000) + `"}]}`
 		_, err := forwardMessages(t, svc, c, newAnthropicOAuthAccountForPartialUsageTest(), body)
 		requireLongContextStop(t, err, GatewayFailureReasonLongContextDisabled, 400)
 		require.Equal(t, "profile_reject", observationOf(t, c).Decision)

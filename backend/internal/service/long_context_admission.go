@@ -14,18 +14,15 @@ import (
 )
 
 // Long context admission (#139). The existing beta-policy rule for the 1M marker is the
-// only switch: block and filter also gate the actual input size against a standard window,
-// pass is the administrator's explicit opt-in to long context. The gate runs on the exact
+// only switch: block and filter also gate the actual input size against the model's own
+// context window (max_input_tokens in the pricing data, 1M for 4.6 and later, 200K for 4.5
+// and earlier), pass is the administrator's explicit opt-in to long context. The gate runs on the exact
 // body about to be sent to inference, so it does not depend on the client's beta header.
 const (
 	longContextBetaToken = "context-1m-2025-08-07"
 
-	// Local policy, not a provider limit: input + max_tokens + reserve must fit this window.
-	// Every Anthropic model this gateway routes (Claude 3 and later) has a standard context
-	// window of at least 200k, so no model needs a smaller one; a model with a smaller window
-	// would need its own entry here before it is supported.
-	longContextStandardWindow = 200_000
-	longContextReserve        = 8_192
+	// input + max_tokens + reserve must fit the model's window.
+	longContextReserve = 8_192
 	// Framing/structure allowance added around a profile's byte-based estimate.
 	longContextFramingAllowance = 8_192
 	// Bodies a profile cannot decide are estimated with the highest realistic ratio
@@ -37,8 +34,8 @@ const (
 	GatewayFailureReasonLongContextCountUnavailable  GatewayFailureReason = "long_context_count_unavailable"
 	GatewayFailureReasonLongContextPolicyUnavailable GatewayFailureReason = "long_context_policy_unavailable"
 
-	longContextDisabledText        = "Long context is disabled on this gateway: the request exceeds the standard context window (input plus max_tokens). Shorten or compact the conversation, or lower max_tokens."
-	longContextMarkerDisabledText  = "Long context (1M) is disabled on this gateway. Remove the context-1m beta and keep the request within the standard context window."
+	longContextDisabledText        = "The request exceeds the model's context window (input plus max_tokens). Shorten or compact the conversation, or lower max_tokens."
+	longContextMarkerDisabledText  = "Long context (1M) is disabled on this gateway. Remove the context-1m beta and keep the request within the model's context window."
 	longContextPolicyTransientText = "The gateway could not read its long context policy, so the request was not sent. Try again shortly."
 	longContextMaxTokensText       = "max_tokens must be a positive integer."
 )
@@ -255,8 +252,19 @@ const (
 )
 
 // longContextInputBudget returns T = W - O - R; negative means over budget by output alone.
-func longContextInputBudget(maxTokens int64) int64 {
-	return int64(longContextStandardWindow) - maxTokens - int64(longContextReserve)
+func longContextInputBudget(window, maxTokens int64) int64 {
+	return window - maxTokens - int64(longContextReserve)
+}
+
+// longContextWindow returns the model's context window from the pricing data, or 0 with
+// source "unknown" when the model is not identified there (no numeric gate then).
+func (s *GatewayService) longContextWindow(model string) (int64, string) {
+	if s.billingService != nil {
+		if p := s.billingService.pricingService.GetIdentifiedModelPricing(model); p != nil && p.MaxInputTokens > 0 {
+			return int64(p.MaxInputTokens), "pricing"
+		}
+	}
+	return 0, "unknown"
 }
 
 // decideLongContextLocally applies L=max(0,floor(a_low*B-H)) and U=ceil(a_high*B+H): admit
@@ -408,20 +416,22 @@ type longContextAttempt struct {
 // attempt's outcome, including the provider's actual input usage, so estimates can be
 // checked against real traffic. Sizes and counts only; never content or credentials.
 type longContextObservation struct {
-	Entry       string
-	Model       string
-	Route       string
-	Mimic       bool
-	AccountID   int64
-	Action      string // effective policy action
-	Eligibility string // eligible | unprofiled | ineligible
-	Decision    string
-	BodyBytes   int
-	MaxTokens   int64
-	Budget      int64 // T = window - max_tokens - reserve
-	Lower       int64 // profile L, -1 if not computed
-	Upper       int64 // profile U, -1 if not computed
-	Estimate    int64 // realistic estimate, -1 if not computed
+	Entry        string
+	Model        string
+	Route        string
+	Mimic        bool
+	AccountID    int64
+	Action       string // effective policy action
+	Eligibility  string // eligible | unprofiled | ineligible
+	Decision     string
+	BodyBytes    int
+	MaxTokens    int64
+	Window       int64 // model context window, 0 if unknown
+	WindowSource string
+	Budget       int64 // T = window - max_tokens - reserve
+	Lower        int64 // profile L, -1 if not computed
+	Upper        int64 // profile U, -1 if not computed
+	Estimate     int64 // realistic estimate, -1 if not computed
 }
 
 const longContextObservationKey = "longContextObservation"
@@ -498,7 +508,12 @@ func (s *GatewayService) decideLongContext(c *gin.Context, a longContextAttempt,
 		return s.longContextReject(c, longContextMaxTokensText)
 	}
 	obs.MaxTokens = maxTokens.Int()
-	obs.Budget = longContextInputBudget(obs.MaxTokens)
+	obs.Window, obs.WindowSource = s.longContextWindow(a.Model)
+	if obs.Window == 0 {
+		obs.Decision = "unknown_window_admit"
+		return nil
+	}
+	obs.Budget = longContextInputBudget(obs.Window, obs.MaxTokens)
 	if obs.Budget < 0 {
 		obs.Decision = "output_reject"
 		return s.longContextReject(c, longContextDisabledText)
@@ -587,7 +602,8 @@ func LogLongContextOutcome(c *gin.Context, result *ForwardResult, err error) {
 		zap.String("entry", obs.Entry), zap.String("model", obs.Model), zap.String("route", obs.Route),
 		zap.Bool("mimic", obs.Mimic), zap.Int64("account_id", obs.AccountID), zap.String("action", obs.Action),
 		zap.String("eligibility", obs.Eligibility), zap.String("decision", obs.Decision),
-		zap.Int("body_bytes", obs.BodyBytes), zap.Int64("max_tokens", obs.MaxTokens), zap.Int64("input_budget", obs.Budget),
+		zap.Int("body_bytes", obs.BodyBytes), zap.Int64("max_tokens", obs.MaxTokens),
+		zap.Int64("window", obs.Window), zap.String("window_source", obs.WindowSource), zap.Int64("input_budget", obs.Budget),
 		zap.Int64("profile_lower", obs.Lower), zap.Int64("profile_upper", obs.Upper), zap.Int64("estimate", obs.Estimate),
 	}
 	if result != nil {

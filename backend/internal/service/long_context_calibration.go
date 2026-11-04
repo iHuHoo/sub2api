@@ -276,10 +276,14 @@ func calibrationInterval(p *longContextProfile, b int64) (lo, up int64) {
 	return longContextInterval(p, b)
 }
 
+// The calibration report's bands were computed against a 200K window (the window at
+// calibration time); admission now uses each model's own window.
+const longContextCalibrationWindow = 200_000
+
 // calibrationBands reports, for a max_tokens value, the largest body admitted locally and
 // the smallest body rejected locally (exact comparisons in decideLongContextLocally govern).
 func calibrationBands(p *longContextProfile, maxTokens int64) (fastPassMax, rejectMin int64) {
-	t := longContextInputBudget(maxTokens)
+	t := longContextInputBudget(longContextCalibrationWindow, maxTokens)
 	// U <= T  <=>  ceil(B*hn/hd) <= T-H  <=>  B <= floor((T-H)*hd/hn)
 	fastPassMax = (t - longContextFramingAllowance) * p.HighDen / p.HighNum
 	// L > T  <=>  floor(B*ln/ld) > T+H  <=>  B >= ceil((T+H+1)*ld/ln)
