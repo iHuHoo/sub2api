@@ -80,7 +80,9 @@ func main() {
 	}
 	settings := service.NewSettingService(repository.NewSettingRepository(client), cfg)
 	tls := service.NewTLSFingerprintProfileService(repository.NewTLSFingerprintProfileRepository(client), nil)
-	k := service.NewLongContextCalibrator(cfg, repository.NewHTTPUpstream(cfg), settings, tls)
+	// The production fingerprint and masked session are read, never written.
+	idCache := service.NewReadOnlyIdentityCache(repository.NewIdentityCache(repository.InitRedis(cfg)))
+	k := service.NewLongContextCalibrator(cfg, repository.NewHTTPUpstream(cfg), settings, tls, idCache)
 
 	report, err := service.RunLongContextCalibration(ctx, k, account, dir, *live, log.Printf)
 	if report != nil {

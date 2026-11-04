@@ -198,7 +198,7 @@ func TestCalibrationRunnerResumeSafety(t *testing.T) {
 // destination or an API key. Built offline with a synthetic credential; nothing is sent.
 func TestCalibrationCountRequestGuard(t *testing.T) {
 	cfg := &config.Config{Gateway: config.GatewayConfig{MaxLineSize: defaultMaxLineSize}}
-	k := NewLongContextCalibrator(cfg, nil, nil, &TLSFingerprintProfileService{})
+	k := NewLongContextCalibrator(cfg, nil, nil, &TLSFingerprintProfileService{}, nil)
 	account := &Account{ID: 71, Platform: PlatformAnthropic, Type: AccountTypeOAuth, Concurrency: 1, Credentials: map[string]any{"access_token": "synthetic-token"}}
 	wire, err := k.PrepareWireBody(context.Background(), account, []byte(smallMessages))
 	require.NoError(t, err)
@@ -244,7 +244,7 @@ func TestCheckLongContextCalibrationAccount(t *testing.T) {
 func TestRunLongContextCalibrationDry(t *testing.T) {
 	cfg := &config.Config{Gateway: config.GatewayConfig{MaxLineSize: defaultMaxLineSize}}
 	settings := NewSettingService(&longContextSettingRepo{betaPolicySettingRepoStub: betaPolicySettingRepoStub{values: map[string]string{SettingKeyBetaPolicySettings: policyBlockOAuth}}}, cfg)
-	k := NewLongContextCalibrator(cfg, nil, settings, &TLSFingerprintProfileService{})
+	k := NewLongContextCalibrator(cfg, nil, settings, &TLSFingerprintProfileService{}, nil)
 	account := &Account{ID: 71, Platform: PlatformAnthropic, Type: AccountTypeOAuth, Concurrency: 1, Credentials: map[string]any{"access_token": "synthetic-token"}}
 	var lines int
 	report, err := RunLongContextCalibration(context.Background(), k, account, t.TempDir(), false, func(string, ...any) { lines++ })
@@ -252,4 +252,102 @@ func TestRunLongContextCalibrationDry(t *testing.T) {
 	require.Len(t, report.Manifest, 64)
 	require.Equal(t, calibrationMaxAttempts+1, lines, "98 jobs plus the manifest line")
 	t.Logf("dry manifest_sha256=%s", report.Manifest)
+}
+
+// A terminal result is durable on its own: with the separate stop row missing (crash or a
+// failed write), a resumed run still makes no further call. A non-terminal failure does not
+// stop the run and is not retried.
+func TestCalibrationTerminalResultWithoutStopRow(t *testing.T) {
+	jobs := calibrationTestJobs(4, "f")
+	ready := append([]calibrationJob(nil), jobs...)
+	ready[0].Readiness = true
+	for _, tc := range []struct {
+		name    string
+		jobs    []calibrationJob
+		results []calibrationLedgerEntry
+		calls   int
+	}{
+		{"429", jobs, []calibrationLedgerEntry{{Status: 429, ErrClass: "status_429", Terminal: "429"}}, 0},
+		{"401", jobs, []calibrationLedgerEntry{{Status: 401, ErrClass: "status_401", Terminal: "401"}}, 0},
+		{"403", jobs, []calibrationLedgerEntry{{Status: 403, ErrClass: "status_403", Terminal: "403"}}, 0},
+		{"302", jobs, []calibrationLedgerEntry{{Status: 302, ErrClass: "status_302", Terminal: "302"}}, 0},
+		{"preflight refusal", jobs, []calibrationLedgerEntry{{ErrClass: "status_0", Terminal: "refused"}}, 0},
+		{"readiness 500", ready, []calibrationLedgerEntry{{Status: 500, ErrClass: "status_500", Terminal: "readiness"}}, 0},
+		// Older ledgers without the terminal field: two transport failures still stop.
+		{"two transport failures", jobs, []calibrationLedgerEntry{{ErrClass: "transport"}, {ErrClass: "transport"}}, 0},
+		{"non-terminal 400 continues", jobs, []calibrationLedgerEntry{{Status: 400, ErrClass: "status_400"}}, 3},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ledger := t.TempDir() + "/l.jsonl"
+			require.NoError(t, appendCalibrationLedger(ledger, calibrationLedgerEntry{Phase: "manifest", Manifest: calibrationManifest(71, tc.jobs)}))
+			for i, r := range tc.results {
+				j := tc.jobs[i]
+				require.NoError(t, appendCalibrationLedger(ledger, calibrationLedgerEntry{Seq: i + 1, Phase: "dispatch", Job: j.key()}))
+				r.Seq, r.Phase, r.Job = i+1, "result", j.key()
+				require.NoError(t, appendCalibrationLedger(ledger, r))
+			}
+			var called []string
+			err := newCalibrationTestRunner(ledger, func(j calibrationJob) (int64, int, bool, error) {
+				called = append(called, j.Fixture)
+				return 1, 200, false, nil
+			}).run(tc.jobs)
+			require.Len(t, called, tc.calls, "%v", called)
+			if tc.calls == 0 {
+				require.ErrorContains(t, err, "previously stopped")
+			} else {
+				require.NoError(t, err)
+				require.NotContains(t, called, tc.jobs[0].Fixture, "a failed job is never retried")
+			}
+		})
+	}
+	t.Run("the runner writes the terminal reason into the result itself", func(t *testing.T) {
+		ledger := t.TempDir() + "/l.jsonl"
+		_ = newCalibrationTestRunner(ledger, func(calibrationJob) (int64, int, bool, error) { return 0, 429, false, errors.New("x") }).run(jobs)
+		st, err := readCalibrationLedger(ledger)
+		require.NoError(t, err)
+		require.NotEmpty(t, st.results[jobs[0].key()].Terminal)
+	})
+}
+
+type calibrationIdentityStub struct {
+	fp     *Fingerprint
+	writes int
+}
+
+func (c *calibrationIdentityStub) GetFingerprint(context.Context, int64) (*Fingerprint, error) {
+	return c.fp, nil
+}
+func (c *calibrationIdentityStub) SetFingerprint(context.Context, int64, *Fingerprint) error {
+	c.writes++
+	return nil
+}
+func (c *calibrationIdentityStub) GetMaskedSessionID(context.Context, int64) (string, error) {
+	return "", nil
+}
+func (c *calibrationIdentityStub) SetMaskedSessionID(context.Context, int64, string) error {
+	c.writes++
+	return nil
+}
+
+// Calibration uses the production identity read-only, and refuses to invent one.
+func TestCalibrationIdentityIsReadOnly(t *testing.T) {
+	cfg := &config.Config{Gateway: config.GatewayConfig{MaxLineSize: defaultMaxLineSize}}
+	// The command always has settings; identity rewriting reads them.
+	settings := NewSettingService(&longContextSettingRepo{betaPolicySettingRepoStub: betaPolicySettingRepoStub{values: map[string]string{}}}, cfg)
+	account := &Account{ID: 71, Platform: PlatformAnthropic, Type: AccountTypeOAuth, Concurrency: 1, Credentials: map[string]any{"access_token": "synthetic-token"}}
+
+	missing := &calibrationIdentityStub{}
+	k := NewLongContextCalibrator(cfg, nil, settings, &TLSFingerprintProfileService{}, NewReadOnlyIdentityCache(missing))
+	_, err := RunLongContextCalibration(context.Background(), k, account, t.TempDir(), false, func(string, ...any) {})
+	require.ErrorContains(t, err, "fingerprint")
+	require.Zero(t, missing.writes)
+
+	stored := &calibrationIdentityStub{fp: &Fingerprint{ClientID: "client-id-from-production", UserAgent: "claude-cli/2.1.258 (external, cli)"}}
+	k = NewLongContextCalibrator(cfg, nil, settings, &TLSFingerprintProfileService{}, NewReadOnlyIdentityCache(stored))
+	wire, err := k.PrepareWireBody(context.Background(), account, []byte(smallMessages))
+	require.NoError(t, err)
+	req, err := k.buildCountRequest(context.Background(), account, "claude-sonnet-4-6", wire)
+	require.NoError(t, err)
+	require.Equal(t, "claude-cli/2.1.258 (external, cli)", getHeaderRaw(req.Header, "User-Agent"), "the stored fingerprint is applied")
+	require.Zero(t, stored.writes, "nothing is written to the production cache")
 }

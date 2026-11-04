@@ -336,6 +336,9 @@ type calibrationLedgerEntry struct {
 	Tokens    int64     `json:"input_tokens,omitempty"`
 	ErrClass  string    `json:"error_class,omitempty"`
 	Reason    string    `json:"reason,omitempty"`
+	// Terminal is set on the result itself, so a stop is durable even if the separate stop
+	// row is never written (crash, write error).
+	Terminal string `json:"terminal,omitempty"`
 }
 
 type calibrationLedgerState struct {
@@ -389,13 +392,22 @@ func readCalibrationLedger(path string) (*calibrationLedgerState, error) {
 			} else {
 				st.trailingTransport = 0
 			}
+			if e.Terminal != "" && st.stopped == "" {
+				st.stopped = e.Terminal
+			}
 		case "stop":
 			st.stopped = e.Reason
 		default:
 			return nil, fmt.Errorf("corrupt ledger: unknown phase %q", e.Phase)
 		}
 	}
-	return st, sc.Err()
+	if err := sc.Err(); err != nil {
+		return nil, err
+	}
+	if st.stopped == "" && st.trailingTransport >= 2 {
+		st.stopped = "two consecutive transport failures"
+	}
+	return st, nil
 }
 
 func appendCalibrationLedger(path string, e calibrationLedgerEntry) error {
@@ -454,11 +466,22 @@ func (r *calibrationRunner) run(jobs []calibrationJob) error {
 	case st.manifest != manifest:
 		return fmt.Errorf("%w: ledger belongs to a different manifest", errCalibrationStopped)
 	}
-	if st.stopped != "" {
-		return fmt.Errorf("%w: previously stopped: %s", errCalibrationStopped, st.stopped)
-	}
 	if len(st.pending) > 0 {
 		return fmt.Errorf("%w: %d dispatched attempt(s) have no recorded outcome; not retried", errCalibrationStopped, len(st.pending))
+	}
+	// A persisted result is terminal by its own content, whether or not its stop row (or
+	// the terminal field) made it to disk.
+	readiness := map[string]bool{}
+	for _, j := range jobs {
+		readiness[j.key()] = j.Readiness
+	}
+	for job, e := range st.results {
+		if reason := calibrationTerminalReason(e, readiness[job]); reason != "" && st.stopped == "" {
+			st.stopped = reason
+		}
+	}
+	if st.stopped != "" {
+		return fmt.Errorf("%w: previously stopped: %s", errCalibrationStopped, st.stopped)
 	}
 	stop := func(reason string) error {
 		if err := appendCalibrationLedger(r.LedgerPath, calibrationLedgerEntry{Phase: "stop", Reason: reason, At: r.Now()}); err != nil {
@@ -502,21 +525,38 @@ func (r *calibrationRunner) run(jobs []calibrationJob) error {
 			entry.Tokens = 0
 			consecutiveTransport = 0
 		}
+		entry.Terminal = calibrationTerminalReason(entry, j.Readiness)
+		if entry.Terminal == "" && consecutiveTransport >= 2 {
+			entry.Terminal = "two consecutive transport failures"
+		}
+		if entry.Terminal != "" && callErr != nil && entry.ErrClass == "status_0" {
+			entry.Terminal += fmt.Sprintf(": %v", callErr)
+		}
 		if err := appendCalibrationLedger(r.LedgerPath, entry); err != nil {
 			return err
 		}
-		switch {
-		case status == 401 || status == 403 || status == 429 || (status >= 300 && status < 400):
-			return stop(fmt.Sprintf("%s returned %d", j.key(), status))
-		case consecutiveTransport >= 2:
-			return stop("two consecutive transport failures")
-		case callErr != nil && status == 0 && !transport:
-			return stop(fmt.Sprintf("%s refused before sending: %v", j.key(), callErr))
-		case j.Readiness && entry.ErrClass != "":
-			return stop(fmt.Sprintf("readiness call for %s failed (%s)", j.Model, entry.ErrClass))
+		if entry.Terminal != "" {
+			return stop(entry.Terminal)
 		}
 	}
 	return nil
+}
+
+// calibrationTerminalReason says whether a recorded result ends the experiment: an
+// authentication or rate limit answer, a redirect, a refusal before sending (status_0),
+// or any failed readiness call.
+func calibrationTerminalReason(e calibrationLedgerEntry, readiness bool) string {
+	switch {
+	case e.Terminal != "":
+		return e.Terminal
+	case e.Status == 401 || e.Status == 403 || e.Status == 429 || (e.Status >= 300 && e.Status < 400):
+		return fmt.Sprintf("%s returned %d", e.Job, e.Status)
+	case e.ErrClass == "status_0":
+		return fmt.Sprintf("%s refused before sending", e.Job)
+	case readiness && e.ErrClass != "":
+		return fmt.Sprintf("readiness call %s failed (%s)", e.Job, e.ErrClass)
+	}
+	return ""
 }
 
 // checkCalibrationCountRequest is the destination/credential guard applied to every count
@@ -540,15 +580,56 @@ type LongContextCalibrator struct {
 	upstream HTTPUpstream
 	settings *SettingService
 	tls      *TLSFingerprintProfileService
+	identity *IdentityService // nil only in tests
+	idCache  *ReadOnlyIdentityCache
 }
 
-func NewLongContextCalibrator(cfg *config.Config, upstream HTTPUpstream, settings *SettingService, tls *TLSFingerprintProfileService) *LongContextCalibrator {
-	return &LongContextCalibrator{cfg: cfg, upstream: upstream, settings: settings, tls: tls}
+// NewLongContextCalibrator wires the gateway's own dependencies. idCache wraps the
+// production identity cache read-only; nil (tests only) skips identity rewriting.
+func NewLongContextCalibrator(cfg *config.Config, upstream HTTPUpstream, settings *SettingService, tls *TLSFingerprintProfileService, idCache *ReadOnlyIdentityCache) *LongContextCalibrator {
+	k := &LongContextCalibrator{cfg: cfg, upstream: upstream, settings: settings, tls: tls, idCache: idCache}
+	if idCache != nil && settings != nil { // identity rewriting reads gateway settings
+		k.identity = NewIdentityService(idCache)
+	}
+	return k
 }
+
+// ReadOnlyIdentityCache lets calibration use the account's production fingerprint and
+// masked session exactly as the gateway would, without ever writing them. Missing reports
+// whether any lookup found nothing, in which case the identity would be invented.
+type ReadOnlyIdentityCache struct {
+	inner   IdentityCache
+	missing bool
+}
+
+func NewReadOnlyIdentityCache(inner IdentityCache) *ReadOnlyIdentityCache {
+	return &ReadOnlyIdentityCache{inner: inner}
+}
+
+func (c *ReadOnlyIdentityCache) GetFingerprint(ctx context.Context, accountID int64) (*Fingerprint, error) {
+	fp, err := c.inner.GetFingerprint(ctx, accountID)
+	if err != nil || fp == nil {
+		c.missing = true
+	}
+	return fp, err
+}
+
+func (c *ReadOnlyIdentityCache) SetFingerprint(context.Context, int64, *Fingerprint) error {
+	return nil
+}
+
+func (c *ReadOnlyIdentityCache) GetMaskedSessionID(ctx context.Context, accountID int64) (string, error) {
+	return c.inner.GetMaskedSessionID(ctx, accountID)
+}
+
+func (c *ReadOnlyIdentityCache) SetMaskedSessionID(context.Context, int64, string) error { return nil }
+
+func (c *ReadOnlyIdentityCache) Missing() bool { return c.missing }
 
 func (k *LongContextCalibrator) service(upstream HTTPUpstream) *GatewayService {
 	return &GatewayService{cfg: k.cfg, responseHeaderFilter: compileResponseHeaderFilter(k.cfg), httpUpstream: upstream,
-		rateLimitService: &RateLimitService{}, deferredService: &DeferredService{}, tlsFPProfileService: k.tls, settingService: k.settings}
+		rateLimitService: &RateLimitService{}, deferredService: &DeferredService{}, tlsFPProfileService: k.tls, settingService: k.settings,
+		identityService: k.identity}
 }
 
 // calibrationCapture answers locally: count_tokens with 0 (so admission admits) and the
@@ -701,6 +782,9 @@ func RunLongContextCalibration(ctx context.Context, k *LongContextCalibrator, ac
 			return nil, fmt.Errorf("preflight %s: %w", j.key(), err)
 		}
 		logf("%s %s/%s B=%d sha256=%s", j.Model, j.Set, j.Kind, len(j.Body), j.bodySHA()[:16]+" "+j.Fixture)
+	}
+	if k.idCache != nil && k.idCache.Missing() {
+		return nil, errors.New("the account has no stored production fingerprint; calibration would use an invented identity")
 	}
 	manifest := calibrationManifest(account.ID, jobs)
 	logf("manifest_sha256=%s jobs=%d", manifest, len(jobs))
