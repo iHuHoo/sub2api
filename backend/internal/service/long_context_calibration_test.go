@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
+	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/require"
 )
 
@@ -310,12 +311,39 @@ func TestCalibrationTerminalResultWithoutStopRow(t *testing.T) {
 }
 
 type calibrationIdentityStub struct {
-	fp     *Fingerprint
-	writes int
+	fp      *Fingerprint
+	writes  int
+	readErr error
 }
 
 func (c *calibrationIdentityStub) GetFingerprint(context.Context, int64) (*Fingerprint, error) {
-	return c.fp, nil
+	return c.fp, c.readErr
+}
+
+func TestCalibrationIdentityCacheFailureClassification(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		fp   *Fingerprint
+		err  error
+		want string
+	}{
+		{"nil fingerprint", nil, nil, "identity_cache_missing: no stored production fingerprint"},
+		{"redis miss", nil, redis.Nil, "identity_cache_missing: no stored production fingerprint"},
+		{"read failure", nil, errors.New("private connection details"), "identity_cache_read_failed: could not read or decode production fingerprint"},
+		{"stored fingerprint", &Fingerprint{ClientID: "synthetic"}, nil, ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			inner := &calibrationIdentityStub{fp: tc.fp, readErr: tc.err}
+			cache := NewReadOnlyIdentityCache(inner)
+			_, _ = cache.GetFingerprint(context.Background(), 71)
+			if tc.want == "" {
+				require.NoError(t, cache.Check())
+			} else {
+				require.EqualError(t, cache.Check(), tc.want)
+			}
+			require.Zero(t, inner.writes)
+		})
+	}
 }
 func (c *calibrationIdentityStub) SetFingerprint(context.Context, int64, *Fingerprint) error {
 	c.writes++
@@ -341,6 +369,12 @@ func TestCalibrationIdentityIsReadOnly(t *testing.T) {
 	_, err := RunLongContextCalibration(context.Background(), k, account, t.TempDir(), false, func(string, ...any) {})
 	require.ErrorContains(t, err, "fingerprint")
 	require.Zero(t, missing.writes)
+
+	unreadable := &calibrationIdentityStub{readErr: errors.New("private connection details")}
+	k = NewLongContextCalibrator(cfg, nil, settings, &TLSFingerprintProfileService{}, NewReadOnlyIdentityCache(unreadable))
+	_, err = RunLongContextCalibration(context.Background(), k, account, t.TempDir(), false, func(string, ...any) {})
+	require.EqualError(t, err, "identity_cache_read_failed: could not read or decode production fingerprint")
+	require.Zero(t, unreadable.writes)
 
 	stored := &calibrationIdentityStub{fp: &Fingerprint{ClientID: "client-id-from-production", UserAgent: "claude-cli/2.1.258 (external, cli)"}}
 	k = NewLongContextCalibrator(cfg, nil, settings, &TLSFingerprintProfileService{}, NewReadOnlyIdentityCache(stored))

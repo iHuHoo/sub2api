@@ -29,6 +29,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/tlsfingerprint"
 	"github.com/gin-gonic/gin"
+	"github.com/redis/go-redis/v9"
 )
 
 const (
@@ -595,11 +596,11 @@ func NewLongContextCalibrator(cfg *config.Config, upstream HTTPUpstream, setting
 }
 
 // ReadOnlyIdentityCache lets calibration use the account's production fingerprint and
-// masked session exactly as the gateway would, without ever writing them. Missing reports
-// whether any lookup found nothing, in which case the identity would be invented.
+// masked session exactly as the gateway would, without ever writing them.
 type ReadOnlyIdentityCache struct {
-	inner   IdentityCache
-	missing bool
+	inner      IdentityCache
+	missing    bool
+	readFailed bool
 }
 
 func NewReadOnlyIdentityCache(inner IdentityCache) *ReadOnlyIdentityCache {
@@ -608,8 +609,10 @@ func NewReadOnlyIdentityCache(inner IdentityCache) *ReadOnlyIdentityCache {
 
 func (c *ReadOnlyIdentityCache) GetFingerprint(ctx context.Context, accountID int64) (*Fingerprint, error) {
 	fp, err := c.inner.GetFingerprint(ctx, accountID)
-	if err != nil || fp == nil {
+	if errors.Is(err, redis.Nil) || (err == nil && fp == nil) {
 		c.missing = true
+	} else if err != nil {
+		c.readFailed = true
 	}
 	return fp, err
 }
@@ -624,7 +627,16 @@ func (c *ReadOnlyIdentityCache) GetMaskedSessionID(ctx context.Context, accountI
 
 func (c *ReadOnlyIdentityCache) SetMaskedSessionID(context.Context, int64, string) error { return nil }
 
-func (c *ReadOnlyIdentityCache) Missing() bool { return c.missing }
+func (c *ReadOnlyIdentityCache) Check() error {
+	// Do not expose connection strings or cached identity data in diagnostic errors.
+	if c.readFailed {
+		return errors.New("identity_cache_read_failed: could not read or decode production fingerprint")
+	}
+	if c.missing {
+		return errors.New("identity_cache_missing: no stored production fingerprint")
+	}
+	return nil
+}
 
 func (k *LongContextCalibrator) service(upstream HTTPUpstream) *GatewayService {
 	return &GatewayService{cfg: k.cfg, responseHeaderFilter: compileResponseHeaderFilter(k.cfg), httpUpstream: upstream,
@@ -783,8 +795,10 @@ func RunLongContextCalibration(ctx context.Context, k *LongContextCalibrator, ac
 		}
 		logf("%s %s/%s B=%d sha256=%s", j.Model, j.Set, j.Kind, len(j.Body), j.bodySHA()[:16]+" "+j.Fixture)
 	}
-	if k.idCache != nil && k.idCache.Missing() {
-		return nil, errors.New("the account has no stored production fingerprint; calibration would use an invented identity")
+	if k.idCache != nil {
+		if err := k.idCache.Check(); err != nil {
+			return nil, err
+		}
 	}
 	manifest := calibrationManifest(account.ID, jobs)
 	logf("manifest_sha256=%s jobs=%d", manifest, len(jobs))
