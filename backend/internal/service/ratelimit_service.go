@@ -337,6 +337,16 @@ func (s *RateLimitService) HandleUpstreamError(ctx context.Context, account *Acc
 	s.maybeHandleOpenAITeamLinkedError(ctx, account, statusCode, responseBody)
 	customErrorCodesEnabled := account.IsCustomErrorCodesEnabled()
 
+	// Long context credits are a request capability, not account health: only a
+	// genuinely exhausted shared window may be recorded, and custom rules must not fire.
+	if account.Platform == PlatformAnthropic && isAnthropicLongContextCreditsRequired(statusCode, responseBody) {
+		if !account.IsPoolMode() && account.ShouldHandleErrorCode(statusCode) {
+			s.persistAnthropicExhaustedWindowLimit(ctx, account, headers)
+		}
+		slog.Info("anthropic_long_context_credits_required", "account_id", account.ID)
+		return false
+	}
+
 	// 池模式默认不标记本地账号状态；但管理员显式配置的临时不可调度规则优先。
 	// 401 只在非凭据级且命中显式模型级规则时由规则处理，其余保留池模式现有的认证处理。
 	if account.IsPoolMode() && !customErrorCodesEnabled {

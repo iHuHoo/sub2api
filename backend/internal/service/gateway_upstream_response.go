@@ -443,6 +443,11 @@ func (s *GatewayService) handleErrorResponse(ctx context.Context, resp *http.Res
 		)
 	}
 
+	if account.Platform == PlatformAnthropic && isAnthropicLongContextCreditsRequired(resp.StatusCode, body) {
+		writeAnthropicLongContextCreditsError(c)
+		return nil, fmt.Errorf("upstream error: %d %s", resp.StatusCode, anthropicLongContextCreditsCode)
+	}
+
 	// 非 failover 错误也支持错误透传规则匹配。
 	if status, errType, errMsg, matched := applyErrorPassthroughRule(
 		c,
