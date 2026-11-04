@@ -1024,6 +1024,22 @@ func (s *GatewayService) isStickyAccountUpstreamRestricted(ctx context.Context, 
 // 处理并触发账号侧副作用，其余按 403；同时登记 stream_error 运维记录。
 func (s *GatewayService) sseStreamErrorEventFailover(ctx context.Context, c *gin.Context, account *Account, resp *http.Response, rawData, model string, outputStarted bool) *UpstreamFailoverError {
 	body := []byte(rawData)
+	if account != nil && account.Platform == PlatformAnthropic && isAnthropicLongContextCreditsMessage(body) {
+		// Same capability failure as the HTTP 429 form: stop, write no account state, and
+		// keep the real HTTP status (200) because no 429 was observed.
+		appendOpsUpstreamError(c, OpsUpstreamErrorEvent{
+			ProxyID:            opsUpstreamProxyID(account),
+			ProxyName:          opsUpstreamProxyName(account),
+			Platform:           account.Platform,
+			AccountID:          account.ID,
+			AccountName:        account.Name,
+			UpstreamStatusCode: resp.StatusCode,
+			UpstreamRequestID:  resp.Header.Get("x-request-id"),
+			Kind:               "stream_error",
+			Message:            anthropicLongContextCreditsCode,
+		})
+		return newLongContextCreditsStop(resp.StatusCode, body)
+	}
 	semanticStatus := http.StatusForbidden
 	if !outputStarted && gjson.GetBytes(body, "error.type").String() == "overloaded_error" {
 		semanticStatus = 529

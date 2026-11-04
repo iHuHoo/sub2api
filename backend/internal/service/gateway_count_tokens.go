@@ -250,6 +250,10 @@ func (s *GatewayService) ForwardCountTokens(ctx context.Context, c *gin.Context,
 		}
 
 		// 返回简化的错误响应
+		if account.Platform == PlatformAnthropic && isAnthropicLongContextCreditsRequired(resp.StatusCode, respBody) {
+			writeAnthropicLongContextCreditsError(c)
+			return fmt.Errorf("upstream error: %d %s", resp.StatusCode, anthropicLongContextCreditsCode)
+		}
 		errMsg := "Upstream request failed"
 		switch resp.StatusCode {
 		case 429:
@@ -367,6 +371,10 @@ func (s *GatewayService) forwardCountTokensAnthropicAPIKeyPassthrough(ctx contex
 			Detail:             upstreamDetail,
 		})
 
+		if account.Platform == PlatformAnthropic && isAnthropicLongContextCreditsRequired(resp.StatusCode, respBody) {
+			writeAnthropicLongContextCreditsError(c)
+			return fmt.Errorf("upstream error: %d %s", resp.StatusCode, anthropicLongContextCreditsCode)
+		}
 		errMsg := "Upstream request failed"
 		switch resp.StatusCode {
 		case 429:

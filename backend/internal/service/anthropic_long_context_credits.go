@@ -2,6 +2,7 @@ package service
 
 import (
 	"bytes"
+	"encoding/json"
 	"io"
 	"net/http"
 	"strings"
@@ -14,45 +15,65 @@ import (
 // usage credits for it. That is a property of this request, not account health:
 // other accounts usually lack the same credits, and normal requests still work.
 const (
-	anthropicLongContextCreditsMessage    = "usage credits are required for long context requests"
-	anthropicLongContextCreditsCode       = "long_context_usage_credits_required"
-	anthropicLongContextCreditsClientText = "Long context requests require usage credits on the upstream account. Disable long context (1M) or ask the account owner to enable usage credits."
+	anthropicLongContextCreditsMessage = "usage credits are required for long context requests"
+	// GatewayFailureReasonLongContextCredits doubles as the stable client error code.
+	GatewayFailureReasonLongContextCredits GatewayFailureReason = "long_context_usage_credits_required"
+	anthropicLongContextCreditsCode                             = string(GatewayFailureReasonLongContextCredits)
+	anthropicLongContextCreditsClientText                       = "Long context requests require usage credits on the upstream account. Disable long context (1M) or ask the account owner to enable usage credits."
 )
 
-// isAnthropicLongContextCreditsRequired matches only the whole upstream error.message,
+// isAnthropicLongContextCreditsMessage matches only the whole upstream error.message,
 // so echoed user content or a longer, different message never matches.
-func isAnthropicLongContextCreditsRequired(statusCode int, body []byte) bool {
-	if statusCode != http.StatusTooManyRequests {
-		return false
-	}
+func isAnthropicLongContextCreditsMessage(body []byte) bool {
 	msg := strings.TrimSuffix(strings.TrimSpace(gjson.GetBytes(body, "error.message").String()), ".")
 	return strings.EqualFold(strings.TrimSpace(msg), anthropicLongContextCreditsMessage)
 }
 
-// writeAnthropicLongContextCreditsError answers with a non-retryable 400 and no
-// Retry-After, so SDKs do not resend the same request.
+// isAnthropicLongContextCreditsRequired is the HTTP form: Anthropic sends it as 429.
+func isAnthropicLongContextCreditsRequired(statusCode int, body []byte) bool {
+	return statusCode == http.StatusTooManyRequests && isAnthropicLongContextCreditsMessage(body)
+}
+
+// newLongContextCreditsStop tells the handler to stop account switching and to answer
+// 400 in the client's protocol (JSON, or a terminal SSE event once the stream started).
+// statusCode is what upstream actually sent; ResponseHeaders stay empty so no
+// Retry-After is copied to the client.
+func newLongContextCreditsStop(statusCode int, body []byte) *UpstreamFailoverError {
+	return &UpstreamFailoverError{
+		StatusCode:        statusCode,
+		ResponseBody:      body,
+		Stage:             GatewayFailureStageInference,
+		Scope:             GatewayFailureScopeRequest,
+		Reason:            GatewayFailureReasonLongContextCredits,
+		NextAccountAction: NextAccountStop,
+		ClientStatusCode:  http.StatusBadRequest,
+		ClientMessage:     anthropicLongContextCreditsClientText,
+	}
+}
+
+func (e *UpstreamFailoverError) IsLongContextCreditsRequired() bool {
+	return e != nil && e.Reason == GatewayFailureReasonLongContextCredits
+}
+
+// writeAnthropicLongContextCreditsError is for count_tokens, which does not stream; if
+// something was already written it still ends with an SSE error event, never bare JSON.
 func writeAnthropicLongContextCreditsError(c *gin.Context) {
 	MarkResponseCommitted(c)
-	c.JSON(http.StatusBadRequest, gin.H{
+	payload := gin.H{
 		"type": "error",
 		"error": gin.H{
 			"type":    "invalid_request_error",
 			"code":    anthropicLongContextCreditsCode,
 			"message": anthropicLongContextCreditsClientText,
 		},
-	})
-}
-
-// writeGatewayCCLongContextCreditsError is the Chat Completions form of the same answer.
-func writeGatewayCCLongContextCreditsError(c *gin.Context) {
-	MarkResponseCommitted(c)
-	c.JSON(http.StatusBadRequest, gin.H{
-		"error": gin.H{
-			"type":    "invalid_request_error",
-			"code":    anthropicLongContextCreditsCode,
-			"message": anthropicLongContextCreditsClientText,
-		},
-	})
+	}
+	if !c.Writer.Written() {
+		c.JSON(http.StatusBadRequest, payload)
+		return
+	}
+	data, _ := json.Marshal(payload)
+	_, _ = io.WriteString(c.Writer, "event: error\ndata: "+string(data)+"\n\n")
+	c.Writer.Flush()
 }
 
 // isLongContextCreditsResponse peeks the error body of an Anthropic 429 and restores it.

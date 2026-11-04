@@ -428,6 +428,9 @@ func (s *GatewayService) handleErrorResponse(ctx context.Context, resp *http.Res
 	if shouldDisable {
 		return nil, &UpstreamFailoverError{StatusCode: resp.StatusCode, ResponseBody: body}
 	}
+	if account.Platform == PlatformAnthropic && isAnthropicLongContextCreditsRequired(resp.StatusCode, body) {
+		return nil, newLongContextCreditsStop(resp.StatusCode, body)
+	}
 
 	MarkResponseCommitted(c)
 
@@ -441,11 +444,6 @@ func (s *GatewayService) handleErrorResponse(ctx context.Context, resp *http.Res
 			account.Type,
 			truncateForLog(body, s.cfg.Gateway.LogUpstreamErrorBodyMaxBytes),
 		)
-	}
-
-	if account.Platform == PlatformAnthropic && isAnthropicLongContextCreditsRequired(resp.StatusCode, body) {
-		writeAnthropicLongContextCreditsError(c)
-		return nil, fmt.Errorf("upstream error: %d %s", resp.StatusCode, anthropicLongContextCreditsCode)
 	}
 
 	// 非 failover 错误也支持错误透传规则匹配。

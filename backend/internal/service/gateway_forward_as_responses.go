@@ -182,8 +182,7 @@ func (s *GatewayService) ForwardAsResponses(
 				// Records only a genuinely exhausted shared window; see HandleUpstreamError.
 				s.rateLimitService.HandleUpstreamError(ctx, account, resp.StatusCode, resp.Header, respBody, mappedModel)
 			}
-			writeResponsesError(c, http.StatusBadRequest, anthropicLongContextCreditsCode, anthropicLongContextCreditsClientText)
-			return nil, fmt.Errorf("upstream error: %d %s", resp.StatusCode, anthropicLongContextCreditsCode)
+			return nil, newLongContextCreditsStop(resp.StatusCode, respBody)
 		}
 
 		if s.shouldFailoverUpstreamError(resp.StatusCode) {
