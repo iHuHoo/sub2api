@@ -10,6 +10,7 @@ package service
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -24,6 +25,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -269,17 +271,9 @@ func fitCalibrationProfile(name string, route longContextRoute, model string, sa
 	return res, nil
 }
 
-// calibrationInterval returns L and U exactly as decideLongContextLocally computes them.
+// calibrationInterval returns L and U exactly as admission computes them.
 func calibrationInterval(p *longContextProfile, b int64) (lo, up int64) {
-	u := new(big.Int).Mul(big.NewInt(b), big.NewInt(p.HighNum))
-	den := big.NewInt(p.HighDen)
-	u.Add(u, new(big.Int).Sub(den, big.NewInt(1))).Quo(u, den).Add(u, big.NewInt(longContextFramingAllowance))
-	l := new(big.Int).Mul(big.NewInt(b), big.NewInt(p.LowNum))
-	l.Quo(l, big.NewInt(p.LowDen)).Sub(l, big.NewInt(longContextFramingAllowance))
-	if l.Sign() < 0 {
-		l.SetInt64(0)
-	}
-	return l.Int64(), u.Int64()
+	return longContextInterval(p, b)
 }
 
 // calibrationBands reports, for a max_tokens value, the largest body admitted locally and
@@ -587,6 +581,43 @@ func calibrationTerminalReason(e calibrationLedgerEntry, readiness bool) string 
 	return ""
 }
 
+// Counter responses are tiny; never buffer an unbounded body.
+const longContextCountMaxResponseBytes = 64 << 10
+
+// readLongContextCountBody reads the whole counter response; an oversized one is an error,
+// never a silently truncated document.
+func readLongContextCountBody(r io.Reader) ([]byte, error) {
+	body, err := io.ReadAll(io.LimitReader(r, longContextCountMaxResponseBytes+1))
+	if err != nil {
+		return nil, err
+	}
+	if len(body) > longContextCountMaxResponseBytes {
+		return nil, errors.New("count response too large")
+	}
+	return body, nil
+}
+
+// parseLongContextCount requires one complete JSON object whose input_tokens is a
+// non-negative integer. Anything else fails closed.
+func parseLongContextCount(body []byte) (int64, error) {
+	dec := json.NewDecoder(bytes.NewReader(body))
+	var doc struct {
+		InputTokens json.RawMessage `json:"input_tokens"`
+	}
+	if err := dec.Decode(&doc); err != nil {
+		return 0, fmt.Errorf("invalid count response: %w", err)
+	}
+	if _, err := dec.Token(); err != io.EOF {
+		return 0, errors.New("invalid count response: trailing data")
+	}
+	// Only a bare JSON integer: not a string, null, fraction or exponent.
+	n, err := strconv.ParseInt(string(doc.InputTokens), 10, 64)
+	if err != nil || n < 0 {
+		return 0, errors.New("invalid count response: input_tokens is not a non-negative integer")
+	}
+	return n, nil
+}
+
 // checkCalibrationCountRequest is the destination/credential guard applied to every count
 // request before it is sent. Headers are stored in wire casing, so lookups are raw.
 func checkCalibrationCountRequest(req *http.Request) error {
@@ -704,6 +735,8 @@ func (k *LongContextCalibrator) PrepareWireBody(ctx context.Context, account *Ac
 	if err != nil {
 		return nil, err
 	}
+	// The capture never reaches upstream, so admission is not applied to the preparation.
+	ctx = context.WithValue(ctx, longContextPreparationOnlyKey{}, true)
 	if _, err := k.service(capture).Forward(ctx, calibrationGinContext(), account, parsed); err != nil {
 		return nil, err
 	}

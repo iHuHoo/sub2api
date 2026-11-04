@@ -316,6 +316,7 @@ func (h *GatewayHandler) ChatCompletions(c *gin.Context) {
 		} else {
 			result, err = h.gatewayService.ForwardAsChatCompletions(c.Request.Context(), c, account, forwardBody, parsedReq)
 		}
+		service.LogLongContextOutcome(c, result, err)
 
 		if accountReleaseFunc != nil {
 			accountReleaseFunc()

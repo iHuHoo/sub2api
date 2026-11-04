@@ -121,24 +121,24 @@ func TestLongContextProfileLowerEnvelopeLimitation(t *testing.T) {
 }
 
 // Through Forward with the shipped registry: the two exact models decide locally for plain
-// text; any other model, route or content type still goes to the counter.
+// text; other models, routes and content are admitted without a bound, and nothing is counted.
 func TestLongContextShippedProfilesInForward(t *testing.T) {
 	apiKey := &Account{ID: 202, Name: "anthropic-apikey", Platform: PlatformAnthropic, Type: AccountTypeAPIKey, Concurrency: 1,
 		Credentials: map[string]any{"api_key": "k", "base_url": "https://api.anthropic.com"}, Status: StatusActive, Schedulable: true}
 	small := func(model string) string { return strings.Replace(smallMessages, "claude-sonnet-4-6", model, 1) }
 	for _, tc := range []struct {
-		name    string
-		account *Account
-		body    string
-		counted bool
+		name     string
+		account  *Account
+		body     string
+		decision string
 	}{
-		{"sonnet 4.6 small text: local admit", nil, small("claude-sonnet-4-6"), false},
-		{"opus 4.6 small text: local admit", nil, small("claude-opus-4-6"), false},
-		{"other model: counted", nil, small("claude-sonnet-4-5"), true},
-		{"dated alias: counted", nil, small("claude-sonnet-4-6-20260301"), true},
-		{"api key route: counted", apiKey, small("claude-sonnet-4-6"), true},
-		{"image: counted", nil, `{"model":"claude-sonnet-4-6","max_tokens":1024,"messages":[{"role":"user","content":[{"type":"image","source":{"type":"base64","media_type":"image/png","data":"iVBORw0KGgo="}}]}]}`, true},
-		{"unknown field: counted", nil, `{"model":"claude-sonnet-4-6","max_tokens":1024,"mcp_servers":[],"messages":[{"role":"user","content":"hi"}]}`, true},
+		{"sonnet 4.6 small text", nil, small("claude-sonnet-4-6"), "profile_admit"},
+		{"opus 4.6 small text", nil, small("claude-opus-4-6"), "profile_admit"},
+		{"other model", nil, small("claude-sonnet-4-5"), "unprofiled_admit"},
+		{"dated alias", nil, small("claude-sonnet-4-6-20260301"), "unprofiled_admit"},
+		{"api key route", apiKey, small("claude-sonnet-4-6"), "unprofiled_admit"},
+		{"image", nil, `{"model":"claude-sonnet-4-6","max_tokens":1024,"messages":[{"role":"user","content":[{"type":"image","source":{"type":"base64","media_type":"image/png","data":"iVBORw0KGgo="}}]}]}`, "ineligible_admit"},
+		{"unknown field", nil, `{"model":"claude-sonnet-4-6","max_tokens":1024,"mcp_servers":[],"messages":[{"role":"user","content":"hi"}]}`, "ineligible_admit"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			account := tc.account
@@ -151,11 +151,8 @@ func TestLongContextShippedProfilesInForward(t *testing.T) {
 			_, err := forwardMessages(t, svc, c, account, tc.body)
 			require.NoError(t, err)
 			require.Equal(t, 1, upstream.inferCalls)
-			if tc.counted {
-				require.Equal(t, 1, upstream.countCalls)
-			} else {
-				require.Zero(t, upstream.countCalls)
-			}
+			require.Zero(t, upstream.countCalls)
+			require.Equal(t, tc.decision, observationOf(t, c).Decision)
 		})
 	}
 	t.Run("huge plain text: local reject without any call", func(t *testing.T) {
@@ -165,6 +162,7 @@ func TestLongContextShippedProfilesInForward(t *testing.T) {
 		body := `{"model":"claude-opus-4-6","max_tokens":1024,"messages":[{"role":"user","content":"` + strings.Repeat("calibrated ", 200_000) + `"}]}`
 		_, err := forwardMessages(t, svc, c, newAnthropicOAuthAccountForPartialUsageTest(), body)
 		requireLongContextStop(t, err, GatewayFailureReasonLongContextDisabled, 400)
+		require.Equal(t, "profile_reject", observationOf(t, c).Decision)
 		require.Zero(t, upstream.countCalls+upstream.inferCalls)
 	})
 }

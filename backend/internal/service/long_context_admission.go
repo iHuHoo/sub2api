@@ -1,19 +1,11 @@
 package service
 
 import (
-	"bytes"
 	"context"
-	"crypto/sha256"
-	"encoding/binary"
-	"encoding/json"
 	"errors"
-	"fmt"
-	"io"
 	"math/big"
 	"net/http"
-	"strconv"
 	"strings"
-	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
 	"github.com/gin-gonic/gin"
@@ -36,10 +28,10 @@ const (
 	longContextReserve        = 8_192
 	// Framing/structure allowance added around a profile's byte-based estimate.
 	longContextFramingAllowance = 8_192
-	// Cumulative time a single client request may spend in counter calls.
-	longContextCountBudget = 5 * time.Second
-	// Counter responses are tiny; never buffer an unbounded body.
-	longContextCountMaxResponseBytes = 64 << 10
+	// Bodies a profile cannot decide are estimated with the highest realistic ratio
+	// measured in lc-corpus-v1 (0.367 tokens/byte) plus 10%: 0.4037 (#139, option C).
+	longContextRealisticNum = 4037
+	longContextRealisticDen = 10000
 
 	GatewayFailureReasonLongContextDisabled          GatewayFailureReason = "long_context_disabled"
 	GatewayFailureReasonLongContextCountUnavailable  GatewayFailureReason = "long_context_count_unavailable"
@@ -47,8 +39,6 @@ const (
 
 	longContextDisabledText        = "Long context is disabled on this gateway: the request exceeds the standard context window (input plus max_tokens). Shorten or compact the conversation, or lower max_tokens."
 	longContextMarkerDisabledText  = "Long context (1M) is disabled on this gateway. Remove the context-1m beta and keep the request within the standard context window."
-	longContextCountPermanentText  = "The gateway could not verify this request's context length, so it was not sent: this route or content type cannot be counted. Shorten the request or remove unsupported content."
-	longContextCountTransientText  = "The gateway could not verify this request's context length right now, so it was not sent. Try again shortly."
 	longContextPolicyTransientText = "The gateway could not read its long context policy, so the request was not sent. Try again shortly."
 	longContextMaxTokensText       = "max_tokens must be a positive integer."
 )
@@ -202,9 +192,8 @@ func defaultLongContextRule() BetaPolicyRule {
 type longContextRoute string
 
 const (
-	longContextRouteAnthropicOAuth  longContextRoute = "anthropic_oauth"   // official endpoint, OAuth/setup token
-	longContextRouteAnthropicAPIKey longContextRoute = "anthropic_api_key" // official or relay base URL
-	longContextRouteNoCounter       longContextRoute = "no_counter"        // Bedrock, Vertex, anything else
+	longContextRouteAnthropicOAuth longContextRoute = "anthropic_oauth" // official endpoint, OAuth/setup token
+	longContextRouteOther          longContextRoute = "other"           // API key, relay, Bedrock, Vertex: no calibrated profile
 )
 
 // longContextProfile is an empirically calibrated byte->token interval for one route and an
@@ -329,9 +318,12 @@ func longContextSet(keys ...string) map[string]struct{} {
 }
 
 var (
-	// Generation/config fields do not add input; anything not listed takes the counter path.
+	// Generation/config fields do not add input. context_management (which OAuth mimicry
+	// adds whenever thinking is on) can only remove input server-side, so a bound on the
+	// sent bytes stays an upper bound. Anything not listed has no local bound.
 	longContextRootKeys = longContextSet("model", "max_tokens", "messages", "system", "tools", "tool_choice",
-		"metadata", "stream", "temperature", "top_p", "top_k", "stop_sequences", "thinking", "output_config")
+		"metadata", "stream", "temperature", "top_p", "top_k", "stop_sequences", "thinking", "output_config",
+		"context_management")
 	longContextMessageKeys    = longContextSet("role", "content")
 	longContextTextBlockKeys  = longContextSet("type", "text", "cache_control")
 	longContextToolUseKeys    = longContextSet("type", "id", "name", "input", "cache_control")
@@ -403,67 +395,50 @@ func isLongContextMessageContent(v gjson.Result) bool {
 
 // longContextAttempt is one prepared inference attempt.
 type longContextAttempt struct {
-	Entry   string // messages, passthrough, chat_completions, responses, bedrock, vertex
+	Entry   string // messages, passthrough, chat_completions, responses, bedrock
 	Account *Account
 	Model   string // final effective upstream model
 	Body    []byte // exact inference body
 	Header  http.Header
 	Route   longContextRoute
-	// BuildCountRequest builds the counter request for Body; nil means no counter on this route.
-	BuildCountRequest func(ctx context.Context) (*http.Request, error)
-	ProxyURL          string
+	Mimic   bool // prepared with Claude Code mimicry (non Claude Code client on OAuth)
 }
 
-// longContextRequestState is request-local: the cumulative counter budget and decisions
-// already made for identical attempts (same account, model, body).
-type longContextRequestState struct {
-	spent     time.Duration
-	decisions map[[32]byte]error
+// longContextObservation is what one admission saw and decided. It is logged once with the
+// attempt's outcome, including the provider's actual input usage, so estimates can be
+// checked against real traffic. Sizes and counts only; never content or credentials.
+type longContextObservation struct {
+	Entry       string
+	Model       string
+	Route       string
+	Mimic       bool
+	AccountID   int64
+	Action      string // effective policy action
+	Eligibility string // eligible | unprofiled | ineligible
+	Decision    string
+	BodyBytes   int
+	MaxTokens   int64
+	Budget      int64 // T = window - max_tokens - reserve
+	Lower       int64 // profile L, -1 if not computed
+	Upper       int64 // profile U, -1 if not computed
+	Estimate    int64 // realistic estimate, -1 if not computed
 }
 
-const longContextRequestStateKey = "longContextAdmissionState"
+const longContextObservationKey = "longContextObservation"
 
-func longContextStateFor(c *gin.Context) *longContextRequestState {
-	if c != nil {
-		if v, ok := c.Get(longContextRequestStateKey); ok {
-			if st, ok := v.(*longContextRequestState); ok {
-				return st
-			}
-		}
-	}
-	st := &longContextRequestState{decisions: map[[32]byte]error{}}
-	if c != nil {
-		c.Set(longContextRequestStateKey, st)
-	}
-	return st
-}
-
-func longContextAttemptKey(a longContextAttempt, action string) [32]byte {
-	h := sha256.New()
-	var id [8]byte
-	binary.BigEndian.PutUint64(id[:], uint64(a.Account.ID))
-	_, _ = h.Write(id[:])
-	_, _ = h.Write([]byte(a.Model + "\x00" + action + "\x00" + string(a.Route) + "\x00"))
-	_, _ = h.Write(a.Body)
-	var out [32]byte
-	copy(out[:], h.Sum(nil))
-	return out
-}
+// longContextPreparationOnlyKey marks a context in which Forward only prepares a body and
+// sends it to a local capture, never upstream. Only the calibration harness (test and
+// calibration builds) sets it; nothing in a production build does.
+type longContextPreparationOnlyKey struct{}
 
 func longContextRouteFor(account *Account) longContextRoute {
 	if account == nil || account.Platform != PlatformAnthropic || account.IsBedrock() || account.Type == AccountTypeServiceAccount {
-		return longContextRouteNoCounter
+		return longContextRouteOther
 	}
-	if account.IsOAuth() {
-		if account.IsCustomBaseURLEnabled() {
-			return longContextRouteAnthropicAPIKey // relay: counter exists, official profile does not apply
-		}
+	if account.IsOAuth() && !account.IsCustomBaseURLEnabled() {
 		return longContextRouteAnthropicOAuth
 	}
-	if account.Type == AccountTypeAPIKey {
-		return longContextRouteAnthropicAPIKey
-	}
-	return longContextRouteNoCounter
+	return longContextRouteOther // API key, relays and custom base URLs: no profile
 }
 
 func hasLongContextMarker(header http.Header, body []byte) bool {
@@ -485,223 +460,157 @@ func hasLongContextMarker(header http.Header, body []byte) bool {
 	return found
 }
 
-// admitLongContext decides whether a prepared attempt may reach inference. A nil result
-// admits it; otherwise the result is a request stop that the handler answers directly.
+// admitLongContext decides locally, with no upstream call, whether a prepared attempt may
+// reach inference. A nil result admits it; otherwise the result is a request stop that the
+// handler answers directly.
 func (s *GatewayService) admitLongContext(ctx context.Context, c *gin.Context, a longContextAttempt) error {
-	if a.Account == nil || a.Account.Platform != PlatformAnthropic || s.settingService == nil {
+	if a.Account == nil || a.Account.Platform != PlatformAnthropic || s.settingService == nil || ctx.Value(longContextPreparationOnlyKey{}) != nil {
 		return nil
+	}
+	obs := &longContextObservation{Entry: a.Entry, Model: a.Model, Route: string(a.Route), Mimic: a.Mimic, AccountID: a.Account.ID,
+		BodyBytes: len(a.Body), MaxTokens: -1, Budget: -1, Lower: -1, Upper: -1, Estimate: -1}
+	if c != nil {
+		c.Set(longContextObservationKey, obs)
 	}
 	settings, err := s.settingService.GetBetaPolicySettings(ctx)
 	if err != nil {
-		s.logLongContextDecision(c, a, "policy_unavailable", 0, 0, -1, 0)
+		obs.Decision = "policy_unavailable"
 		return newLongContextLocalStop(GatewayFailureReasonLongContextPolicyUnavailable, http.StatusServiceUnavailable, longContextPolicyTransientText)
 	}
-	action := resolveLongContextAction(settings, a.Account, a.Model)
-	if action == BetaPolicyActionPass {
+	obs.Action = resolveLongContextAction(settings, a.Account, a.Model)
+	if obs.Action == BetaPolicyActionPass {
+		obs.Decision = "policy_pass"
 		return nil
 	}
 	// The client's own marker counts even when the outgoing header drops it.
 	clientAsked := c != nil && c.Request != nil && hasLongContextMarker(c.Request.Header, nil)
-	if action == BetaPolicyActionBlock && (clientAsked || hasLongContextMarker(a.Header, a.Body)) {
-		s.logLongContextDecision(c, a, "marker_blocked", 0, 0, -1, 0)
-		return s.longContextReject(c, GatewayFailureReasonLongContextDisabled, http.StatusBadRequest, longContextMarkerDisabledText)
+	if obs.Action == BetaPolicyActionBlock && (clientAsked || hasLongContextMarker(a.Header, a.Body)) {
+		obs.Decision = "marker_reject"
+		return s.longContextReject(c, longContextMarkerDisabledText)
 	}
-
-	state := longContextStateFor(c)
-	key := longContextAttemptKey(a, action)
-	if decided, ok := state.decisions[key]; ok {
-		return decided
-	}
-	decided := s.decideLongContext(ctx, c, a, state)
-	state.decisions[key] = decided
-	return decided
+	return s.decideLongContext(c, a, obs)
 }
 
-func (s *GatewayService) decideLongContext(ctx context.Context, c *gin.Context, a longContextAttempt, state *longContextRequestState) error {
+func (s *GatewayService) decideLongContext(c *gin.Context, a longContextAttempt, obs *longContextObservation) error {
 	maxTokens := gjson.GetBytes(a.Body, "max_tokens")
 	if maxTokens.Type != gjson.Number || maxTokens.Int() <= 0 || float64(maxTokens.Int()) != maxTokens.Float() {
-		return s.longContextReject(c, GatewayFailureReasonLongContextDisabled, http.StatusBadRequest, longContextMaxTokensText)
+		obs.Decision = "invalid_max_tokens"
+		return s.longContextReject(c, longContextMaxTokensText)
 	}
-	o := maxTokens.Int()
-	budget := longContextInputBudget(o)
-	b := len(a.Body)
+	obs.MaxTokens = maxTokens.Int()
+	obs.Budget = longContextInputBudget(obs.MaxTokens)
+	if obs.Budget < 0 {
+		obs.Decision = "output_reject"
+		return s.longContextReject(c, longContextDisabledText)
+	}
+	b := int64(len(a.Body))
 
 	var profile *longContextProfile
-	if isLongContextLocallyEligible(a.Body) {
-		profile = findLongContextProfile(a.Route, a.Model)
+	switch {
+	case !isLongContextLocallyEligible(a.Body):
+		obs.Eligibility = "ineligible"
+	default:
+		if profile = findLongContextProfile(a.Route, a.Model); profile == nil {
+			obs.Eligibility = "unprofiled"
+		} else {
+			obs.Eligibility = "eligible"
+		}
 	}
-	switch decideLongContextLocally(b, budget, profile) {
+	if profile == nil {
+		// shortcut: content or model without a calibrated bound is admitted (only output
+		// arithmetic and the marker apply); the observe log shows how often and how large.
+		obs.Decision = obs.Eligibility + "_admit"
+		return nil
+	}
+	obs.Lower, obs.Upper = longContextInterval(profile, b)
+	switch decideLongContextLocally(int(b), obs.Budget, profile) {
 	case longContextAdmit:
-		s.logLongContextDecision(c, a, "local_admit", b, o, -1, budget)
+		obs.Decision = "profile_admit"
 		return nil
 	case longContextReject:
-		s.logLongContextDecision(c, a, "local_reject", b, o, -1, budget)
-		return s.longContextReject(c, GatewayFailureReasonLongContextDisabled, http.StatusBadRequest, longContextDisabledText)
+		obs.Decision = "profile_reject"
+		return s.longContextReject(c, longContextDisabledText)
 	}
-
-	if a.BuildCountRequest == nil {
-		s.logLongContextDecision(c, a, "no_counter", b, o, -1, budget)
-		return s.longContextReject(c, GatewayFailureReasonLongContextCountUnavailable, http.StatusBadRequest, longContextCountPermanentText)
+	obs.Estimate = longContextRealisticEstimate(b)
+	if obs.Estimate > obs.Budget {
+		obs.Decision = "estimate_reject"
+		return s.longContextReject(c, longContextDisabledText)
 	}
-	tokens, status, transient, err := s.countLongContextInput(ctx, a, state)
-	if err != nil {
-		if ctx.Err() != nil {
-			return ctx.Err() // client went away: no inference, nothing to answer
-		}
-		logger.L().Info("long_context.count_failed", zap.String("entry", a.Entry), zap.String("model", a.Model),
-			zap.Int64("account_id", a.Account.ID), zap.Int("count_status", status), zap.Bool("transient", transient))
-		if transient {
-			return s.longContextReject(c, GatewayFailureReasonLongContextCountUnavailable, http.StatusServiceUnavailable, longContextCountTransientText)
-		}
-		return s.longContextReject(c, GatewayFailureReasonLongContextCountUnavailable, http.StatusBadRequest, longContextCountPermanentText)
-	}
-	if profile != nil {
-		s.checkLongContextProfile(a, profile, b, tokens)
-	}
-	if tokens > budget {
-		s.logLongContextDecision(c, a, "count_reject", b, o, tokens, budget)
-		return s.longContextReject(c, GatewayFailureReasonLongContextDisabled, http.StatusBadRequest, longContextDisabledText)
-	}
-	s.logLongContextDecision(c, a, "count_admit", b, o, tokens, budget)
+	obs.Decision = "estimate_admit"
 	return nil
 }
 
-func (s *GatewayService) longContextReject(c *gin.Context, reason GatewayFailureReason, status int, message string) error {
-	if status < 500 {
-		MarkOpsClientBusinessLimited(c, OpsClientBusinessLimitedReasonLocalPolicyDenied)
-	}
-	return newLongContextLocalStop(reason, status, message)
-}
-
-// countLongContextInput makes at most one counter call for this attempt, inside the
-// request's cumulative budget. transient tells 503 (try later) from 400 (cannot count).
-func (s *GatewayService) countLongContextInput(ctx context.Context, a longContextAttempt, state *longContextRequestState) (tokens int64, status int, transient bool, err error) {
-	remaining := longContextCountBudget - state.spent
-	if remaining <= 0 {
-		return 0, 0, true, errors.New("long context count budget exhausted")
-	}
-	// One attempt is one request: a redirect is never followed to another host.
-	countCtx, cancel := context.WithTimeout(WithHTTPUpstreamRedirectsDisabled(ctx), remaining)
-	defer cancel()
-	started := time.Now()
-	defer func() { state.spent += time.Since(started) }()
-
-	req, err := a.BuildCountRequest(countCtx)
-	if err != nil {
-		return 0, 0, false, fmt.Errorf("build count request: %w", err)
-	}
-	resp, err := s.httpUpstream.DoWithTLS(req, a.ProxyURL, a.Account.ID, a.Account.Concurrency, s.tlsFPProfileService.ResolveTLSProfile(a.Account))
-	if err != nil {
-		if resp != nil && resp.Body != nil {
-			_ = resp.Body.Close()
-		}
-		return 0, 0, true, err
-	}
-	defer func() { _ = resp.Body.Close() }()
-	body, readErr := readLongContextCountBody(resp.Body)
-	if readErr != nil {
-		return 0, resp.StatusCode, true, readErr
-	}
-	switch {
-	case resp.StatusCode == http.StatusOK:
-		n, err := parseLongContextCount(body)
-		if err != nil {
-			return 0, resp.StatusCode, true, err
-		}
-		return n, resp.StatusCode, false, nil
-	case resp.StatusCode == http.StatusTooManyRequests, resp.StatusCode == http.StatusUnauthorized,
-		resp.StatusCode == http.StatusForbidden, resp.StatusCode >= 500:
-		return 0, resp.StatusCode, true, fmt.Errorf("count status %d", resp.StatusCode)
-	default:
-		return 0, resp.StatusCode, false, fmt.Errorf("count status %d", resp.StatusCode)
-	}
-}
-
-// readLongContextCountBody reads the whole counter response; an oversized one is an error,
-// never a silently truncated document.
-func readLongContextCountBody(r io.Reader) ([]byte, error) {
-	body, err := io.ReadAll(io.LimitReader(r, longContextCountMaxResponseBytes+1))
-	if err != nil {
-		return nil, err
-	}
-	if len(body) > longContextCountMaxResponseBytes {
-		return nil, errors.New("count response too large")
-	}
-	return body, nil
-}
-
-// parseLongContextCount requires one complete JSON object whose input_tokens is a
-// non-negative integer. Anything else fails closed.
-func parseLongContextCount(body []byte) (int64, error) {
-	dec := json.NewDecoder(bytes.NewReader(body))
-	var doc struct {
-		InputTokens json.RawMessage `json:"input_tokens"`
-	}
-	if err := dec.Decode(&doc); err != nil {
-		return 0, fmt.Errorf("invalid count response: %w", err)
-	}
-	if _, err := dec.Token(); err != io.EOF {
-		return 0, errors.New("invalid count response: trailing data")
-	}
-	// Only a bare JSON integer: not a string, null, fraction or exponent.
-	n, err := strconv.ParseInt(string(doc.InputTokens), 10, 64)
-	if err != nil || n < 0 {
-		return 0, errors.New("invalid count response: input_tokens is not a non-negative integer")
-	}
-	return n, nil
-}
-
-// checkLongContextProfile records, without content, a counted input outside the profile's
-// interval. The counted result still governs the request; profiles change only by review.
-func (s *GatewayService) checkLongContextProfile(a longContextAttempt, p *longContextProfile, bodyBytes int, tokens int64) {
-	b := big.NewInt(int64(bodyBytes))
-	c := big.NewInt(tokens)
-	u := new(big.Int).Mul(b, big.NewInt(p.HighNum))
-	u.Quo(u, big.NewInt(p.HighDen)).Add(u, big.NewInt(longContextFramingAllowance+1))
-	l := new(big.Int).Mul(b, big.NewInt(p.LowNum))
+// longContextInterval returns the profile's L and U for a body of b bytes, exactly as
+// decideLongContextLocally compares them.
+func longContextInterval(p *longContextProfile, b int64) (lo, up int64) {
+	u := new(big.Int).Mul(big.NewInt(b), big.NewInt(p.HighNum))
+	den := big.NewInt(p.HighDen)
+	u.Add(u, new(big.Int).Sub(den, big.NewInt(1))).Quo(u, den).Add(u, big.NewInt(longContextFramingAllowance))
+	l := new(big.Int).Mul(big.NewInt(b), big.NewInt(p.LowNum))
 	l.Quo(l, big.NewInt(p.LowDen)).Sub(l, big.NewInt(longContextFramingAllowance))
-	if c.Cmp(u) > 0 || c.Cmp(l) < 0 {
-		logger.L().Warn("long_context.profile_violation",
-			zap.String("profile", p.Name), zap.String("model", a.Model), zap.String("entry", a.Entry),
-			zap.Int("body_bytes", bodyBytes), zap.Int64("counted_tokens", tokens))
+	if l.Sign() < 0 {
+		l.SetInt64(0)
 	}
+	return l.Int64(), u.Int64()
 }
 
-// logLongContextDecision is the audit record: reason, entry, model, sizes and limit only,
-// never prompt content or credentials. counted is the counted input, or -1 when not counted.
-func (s *GatewayService) logLongContextDecision(c *gin.Context, a longContextAttempt, decision string, bodyBytes int, maxTokens, counted, budget int64) {
-	fields := []zap.Field{
-		zap.String("decision", decision), zap.String("entry", a.Entry), zap.String("model", a.Model),
-		zap.String("route", string(a.Route)), zap.Int64("account_id", a.Account.ID),
-		zap.Int("body_bytes", bodyBytes), zap.Int64("max_tokens", maxTokens),
-		zap.Int64("counted", counted), zap.Int64("input_budget", budget),
-	}
-	if strings.HasSuffix(decision, "admit") {
-		logger.L().Debug("long_context.admission", fields...)
+// longContextRealisticEstimate is ceil(b * 0.4037) + H.
+func longContextRealisticEstimate(b int64) int64 {
+	e := new(big.Int).Mul(big.NewInt(b), big.NewInt(longContextRealisticNum))
+	den := big.NewInt(longContextRealisticDen)
+	e.Add(e, new(big.Int).Sub(den, big.NewInt(1))).Quo(e, den).Add(e, big.NewInt(longContextFramingAllowance))
+	return e.Int64()
+}
+
+func (s *GatewayService) longContextReject(c *gin.Context, message string) error {
+	MarkOpsClientBusinessLimited(c, OpsClientBusinessLimitedReasonLocalPolicyDenied)
+	return newLongContextLocalStop(GatewayFailureReasonLongContextDisabled, http.StatusBadRequest, message)
+}
+
+// LogLongContextOutcome writes one long_context.observe line for the attempt that just
+// finished: what admission decided and, when inference ran, the provider's actual input
+// usage. It is the data for checking the estimates against real traffic.
+func LogLongContextOutcome(c *gin.Context, result *ForwardResult, err error) {
+	if c == nil {
 		return
 	}
-	logger.L().Info("long_context.admission", fields...)
+	v, ok := c.Get(longContextObservationKey)
+	if !ok {
+		return
+	}
+	obs, _ := v.(*longContextObservation)
+	c.Set(longContextObservationKey, nil)
+	if obs == nil {
+		return
+	}
+	fields := []zap.Field{
+		zap.String("entry", obs.Entry), zap.String("model", obs.Model), zap.String("route", obs.Route),
+		zap.Bool("mimic", obs.Mimic), zap.Int64("account_id", obs.AccountID), zap.String("action", obs.Action),
+		zap.String("eligibility", obs.Eligibility), zap.String("decision", obs.Decision),
+		zap.Int("body_bytes", obs.BodyBytes), zap.Int64("max_tokens", obs.MaxTokens), zap.Int64("input_budget", obs.Budget),
+		zap.Int64("profile_lower", obs.Lower), zap.Int64("profile_upper", obs.Upper), zap.Int64("estimate", obs.Estimate),
+	}
+	if result != nil {
+		u := result.Usage
+		total := int64(u.InputTokens + u.CacheCreationInputTokens + u.CacheReadInputTokens)
+		fields = append(fields, zap.String("outcome", "inference"),
+			zap.Int("input_tokens", u.InputTokens), zap.Int("cache_creation_input_tokens", u.CacheCreationInputTokens),
+			zap.Int("cache_read_input_tokens", u.CacheReadInputTokens), zap.Int64("total_input_tokens", total))
+		if obs.Budget >= 0 {
+			fields = append(fields, zap.Bool("actual_over_budget", total > obs.Budget))
+		}
+	} else if err != nil {
+		var stop *UpstreamFailoverError
+		reason := "error"
+		if errors.As(err, &stop) && stop.Reason != "" {
+			reason = string(stop.Reason)
+		}
+		fields = append(fields, zap.String("outcome", reason))
+	}
+	logger.L().Info("long_context.observe", fields...)
 }
 
 // anthropicLongContextAttempt describes a Messages-shaped attempt built by buildUpstreamRequest.
-// The counter is the same account's count_tokens endpoint on the same final body.
-func (s *GatewayService) anthropicLongContextAttempt(c *gin.Context, entry string, account *Account, model string, body []byte, header http.Header, token, tokenType string, mimic bool, proxyURL string) longContextAttempt {
-	a := longContextAttempt{Entry: entry, Account: account, Model: model, Body: body, Header: header, Route: longContextRouteFor(account), ProxyURL: proxyURL}
-	if a.Route != longContextRouteNoCounter {
-		a.BuildCountRequest = func(ctx context.Context) (*http.Request, error) {
-			req, _, err := s.buildCountTokensRequest(ctx, c, account, append([]byte(nil), body...), token, tokenType, model, mimic)
-			return req, err
-		}
-	}
-	return a
-}
-
-func (s *GatewayService) passthroughLongContextAttempt(c *gin.Context, account *Account, model string, body []byte, header http.Header, token, proxyURL string) longContextAttempt {
-	return longContextAttempt{
-		Entry: "passthrough", Account: account, Model: model, Body: body, Header: header,
-		Route: longContextRouteAnthropicAPIKey, ProxyURL: proxyURL,
-		BuildCountRequest: func(ctx context.Context) (*http.Request, error) {
-			return s.buildCountTokensRequestAnthropicAPIKeyPassthrough(ctx, c, account, append([]byte(nil), body...), token)
-		},
-	}
+func anthropicLongContextAttempt(entry string, account *Account, model string, body []byte, header http.Header, mimic bool) longContextAttempt {
+	return longContextAttempt{Entry: entry, Account: account, Model: model, Body: body, Header: header, Route: longContextRouteFor(account), Mimic: mimic}
 }

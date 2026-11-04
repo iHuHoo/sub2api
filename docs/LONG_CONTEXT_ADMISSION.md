@@ -14,14 +14,18 @@ The rule applies only to the accounts in its scope and the models in its whiteli
 
 It runs on the exact body about to be sent to inference: after protocol conversion (Chat Completions, Responses), model mapping, OAuth mimicry and every rewritten retry. The request is admitted when input tokens + `max_tokens` + 8,192 ≤ 200,000. These numbers are a local policy, not a provider limit. Every Anthropic model the gateway routes (Claude 3 and later) has a standard window of at least 200k, so one window serves all of them.
 
-1. If `max_tokens` alone leaves no room, it is rejected locally.
-2. For plain text and local function tools, a reviewed calibration profile for the exact route and model can admit a clearly small request or reject a clearly huge one without a counter call. The profile is empirical, not exact tokenization. Highly repetitive or padded input may be rejected even though it would fit.
-3. Everything else is counted once with the same account's `count_tokens` endpoint, inside a 5-second budget per client request. This adds latency and counter traffic to the account.
-4. Routes without a counter (Bedrock, Vertex) reject requests that step 2 cannot decide.
+The check makes no upstream call. Admission never calls `count_tokens`.
 
-Calibrated profiles exist only for `claude-sonnet-4-6` and `claude-opus-4-6` on Anthropic OAuth accounts without a custom base URL. Every other model, alias, route and content type uses step 3. The profiles were calibrated on 2026-11-05 with one OAuth account and a frozen synthetic corpus: 48 samples per model, 24 for fitting and 24 held out. The samples and a refit test are in `backend/internal/service/testdata/long_context_calibration/`. The bounds are empirical. No held-out sample broke them, but one highly compressible fixture counted below the lower bound, so such input can be rejected near the window even though it would fit.
+1. If `max_tokens` alone leaves no room, the request is rejected.
+2. For plain text and local function tools on a calibrated model, the profile admits a clearly small body or rejects a clearly huge one.
+3. Between those two, the body is estimated at 0.4037 tokens per byte plus 8,192: the highest realistic ratio measured (0.367) plus 10%. It is rejected if the estimate exceeds the budget, otherwise admitted. With `max_tokens` 1,024 the cut-off is about 452 KB. Prose-heavy requests (about 0.19 tokens/byte) can be rejected from about 86k real tokens, a false rejection well before the window. Dense content such as emoji or random IDs (up to about 0.72) can pass above the window; the upstream credits error is still contained without account switching (#132).
+4. Content, models and routes without a calibrated bound are admitted. Only step 1 and the 1M-marker rule apply to them. This covers other models and dated aliases, API key, relay, Bedrock and Vertex accounts, and bodies with images, documents, thinking blocks, citations, MCP or unrecognized fields.
 
-Measured body-size bands. Bodies at or below the first number are admitted without a count. Bodies at or above the second are rejected without a count. Everything in between is counted.
+Profiles apply to both mimicked and native Claude Code preparation. They transfer because a body's tokens-per-byte ratio is a weighted average of its parts, and both preparations add only text and JSON whose ratios were measured. This is an argument from the measured content classes, not a native measurement.
+
+Calibrated profiles exist only for `claude-sonnet-4-6` and `claude-opus-4-6` on Anthropic OAuth accounts without a custom base URL. The profiles were calibrated on 2026-11-05 with one OAuth account and a frozen synthetic corpus: 48 samples per model, 24 for fitting and 24 held out. The samples and a refit test are in `backend/internal/service/testdata/long_context_calibration/`. The bounds are empirical. No held-out sample broke them, but one highly compressible fixture counted below the lower bound, so such input can be rejected near the window even though it would fit.
+
+Measured body-size bands for step 2. Bodies at or below the first number are admitted. Bodies at or above the second are rejected. Everything in between goes to step 3.
 
 | max_tokens | claude-sonnet-4-6 | claude-opus-4-6 |
 | --- | --- | --- |
@@ -30,9 +34,18 @@ Measured body-size bands. Bodies at or below the first number are admitted witho
 | 32,000 | ≤ 105,965 / ≥ 1,780,638 | ≤ 105,964 / ≥ 1,779,775 |
 | 64,000 | ≤ 83,600 / ≥ 1,441,471 | ≤ 83,599 / ≥ 1,440,772 |
 
-The bytes are the final prepared body, including the gateway's own additions. No production request-size distribution has been measured, so how many count calls this saves is unknown.
+The bytes are the final prepared body, including the gateway's own additions. Text with known fields is eligible for steps 2 and 3. `context_management`, which OAuth mimicry adds when thinking is on, is allowed because it can only remove input.
 
-Only text with known fields is eligible for step 2: MCP servers, containers, server tools, citations, documents, images, thinking blocks and any field the gateway does not recognize always go to the counter. A counter response that is not one complete JSON object with a non-negative integer `input_tokens` is a 503.
+## Observe log
+
+Every gated attempt writes one `long_context.observe` line (level info) when it finishes. It records:
+
+- the attempt: entry point, model, route, whether it was mimicked, account ID and effective policy action;
+- the decision: eligibility (`eligible`, `unprofiled` or `ineligible`) and the decision itself (`profile_admit`, `profile_reject`, `estimate_admit`, `estimate_reject`, `unprofiled_admit`, `ineligible_admit`, `output_reject`, `marker_reject`, `policy_pass` or `policy_unavailable`);
+- the numbers behind it: body bytes, `max_tokens`, input budget, the profile's lower and upper bounds, and the estimate;
+- what actually happened: the outcome and, when inference ran, the provider's actual `input_tokens`, `cache_creation_input_tokens`, `cache_read_input_tokens`, their total, and `actual_over_budget`.
+
+Prompt content and credentials are never logged. Comparing the actual total with the estimate and bounds shows false rejections and slips on real traffic.
 
 ## Calibration
 
@@ -45,10 +58,8 @@ No retry, account switch, account state change or Retry-After header is involved
 | Status | Code | Meaning |
 | --- | --- | --- |
 | 400 `invalid_request_error` | `long_context_disabled` | the 1M marker was sent, or the request exceeds the standard window |
-| 400 `invalid_request_error` | `long_context_count_unavailable` | this route or content cannot be counted |
-| 503 `api_error` | `long_context_count_unavailable` | the counter timed out or failed; a later attempt may work |
 | 503 `api_error` | `long_context_policy_unavailable` | the policy could not be read |
 
 The public `/v1/messages/count_tokens` endpoint is unchanged. A count it returns does not grant inference.
 
-Decisions are logged as `long_context.admission` with the decision, entry point, model, route, account ID, body size, `max_tokens`, counted tokens and budget. Prompt content and credentials are never logged.
+Decisions are logged as `long_context.observe` (see above).

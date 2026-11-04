@@ -386,7 +386,7 @@ func (s *GatewayService) Forward(ctx context.Context, c *gin.Context, account *A
 	// #139: every prepared body passes long context admission right before transport,
 	// including the rewritten-body retries below (they can grow input or change max_tokens).
 	admitLongContext := func(wire []byte, header http.Header) error {
-		return s.admitLongContext(ctx, c, s.anthropicLongContextAttempt(c, "messages", account, reqModel, wire, header, token, tokenType, shouldMimicClaudeCode, proxyURL))
+		return s.admitLongContext(ctx, c, anthropicLongContextAttempt("messages", account, reqModel, wire, header, shouldMimicClaudeCode))
 	}
 
 	// 重试循环

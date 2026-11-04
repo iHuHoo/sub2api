@@ -108,7 +108,7 @@ func (s *GatewayService) forwardAnthropicAPIKeyPassthroughWithInput(
 			}
 			input.Body = input.Parsed.Body.Bytes()
 		}
-		if err := s.admitLongContext(ctx, c, s.passthroughLongContextAttempt(c, account, input.RequestModel, wireBody, upstreamReq.Header, token, proxyURL)); err != nil {
+		if err := s.admitLongContext(ctx, c, anthropicLongContextAttempt("passthrough", account, input.RequestModel, wireBody, upstreamReq.Header, false)); err != nil {
 			return nil, err
 		}
 

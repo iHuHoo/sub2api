@@ -298,6 +298,7 @@ func (h *GatewayHandler) Responses(c *gin.Context) {
 		} else {
 			result, err = h.gatewayService.ForwardAsResponses(requestCtx, c, account, forwardBody, parsedReq)
 		}
+		service.LogLongContextOutcome(c, result, err)
 
 		if accountReleaseFunc != nil {
 			accountReleaseFunc()

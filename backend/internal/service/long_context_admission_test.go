@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -166,36 +167,98 @@ const (
 	policyPassAll    = `{"rules":[{"beta_token":"context-1m-2025-08-07","action":"pass","scope":"all"}]}`
 )
 
-// The #139 reproduction, inverted: without the 1M marker an oversized request (by a
-// deterministic counter result, not by its byte size) must not reach inference.
-func TestLongContextAdmission_NoMarkerOversizedNeverReachesInference(t *testing.T) {
-	withoutLongContextProfiles(t) // exercises the counter path
-	for _, tc := range []struct {
-		name, policy string
-	}{{"default (no setting)", ""}, {"block oauth (production shape)", policyBlockOAuth}, {"filter", policyFilterAll}} {
-		t.Run(tc.name, func(t *testing.T) {
-			// budget = 200000 - 1024 - 8192 = 190784
-			upstream := countOK("190785")
-			svc := newLongContextService(upstream, tc.policy, nil)
-			c, _ := longContextContext("/v1/messages", "")
-			_, err := forwardMessages(t, svc, c, newAnthropicOAuthAccountForPartialUsageTest(), smallMessages)
-			requireLongContextStop(t, err, GatewayFailureReasonLongContextDisabled, http.StatusBadRequest)
-			require.Equal(t, 1, upstream.countCalls)
-			require.Zero(t, upstream.inferCalls)
-			require.False(t, gjson.GetBytes(upstream.countBodies[0], "max_tokens").Exists(), "counter gets a generation-sanitized copy")
-		})
+// --- no-counter admission (#139 option C) ---------------------------------------------
+
+// textMessages builds a plain-text request whose content is about n bytes of prose/code.
+func textMessages(model string, maxTokens, n int) string {
+	unit := "func handle(ctx context.Context) error { return nil } // gateway request "
+	return `{"model":"` + model + `","max_tokens":` + strconv.Itoa(maxTokens) + `,"messages":[{"role":"user","content":"` + strings.Repeat(unit, n/len(unit)+1) + `"}]}`
+}
+
+func observationOf(t *testing.T, c *gin.Context) *longContextObservation {
+	t.Helper()
+	v, ok := c.Get(longContextObservationKey)
+	require.True(t, ok, "admission recorded an observation")
+	obs, _ := v.(*longContextObservation)
+	require.NotNil(t, obs)
+	return obs
+}
+
+// Admission never calls the counter: every decision is local.
+func requireNoCount(t *testing.T, u *longContextUpstream) {
+	t.Helper()
+	require.Zero(t, u.countCalls, "inference admission must not call count_tokens")
+}
+
+// The #139 reproduction, inverted without a counter: a long plain-text request on a
+// calibrated model is rejected locally, a medium one is decided by the realistic estimate.
+func TestLongContextAdmission_LocalDecisionsAcrossTheBands(t *testing.T) {
+	for _, policy := range []string{"", policyBlockOAuth, policyFilterAll} {
+		for _, tc := range []struct {
+			name     string
+			bytes    int
+			decision string
+			infer    int
+		}{
+			{"small: profile admit", 1_000, "profile_admit", 1},
+			{"300KB: estimate admit", 300_000, "estimate_admit", 1},
+			{"600KB: estimate reject", 600_000, "estimate_reject", 0},
+			{"2.2MB: profile reject", 2_200_000, "profile_reject", 0},
+		} {
+			t.Run(policy+"/"+tc.name, func(t *testing.T) {
+				upstream := countOK("1")
+				svc := newLongContextService(upstream, policy, nil)
+				c, _ := longContextContext("/v1/messages", "")
+				_, err := forwardMessages(t, svc, c, newAnthropicOAuthAccountForPartialUsageTest(), textMessages("claude-sonnet-4-6", 1024, tc.bytes))
+				obs := observationOf(t, c)
+				require.Equal(t, tc.decision, obs.Decision)
+				require.Equal(t, "eligible", obs.Eligibility)
+				require.True(t, obs.Mimic, "a non Claude Code client is mimicked")
+				if tc.infer == 0 {
+					requireLongContextStop(t, err, GatewayFailureReasonLongContextDisabled, http.StatusBadRequest)
+				} else {
+					require.NoError(t, err)
+				}
+				require.Equal(t, tc.infer, upstream.inferCalls)
+				requireNoCount(t, upstream)
+			})
+		}
 	}
 }
 
-func TestLongContextAdmission_AtBudgetReachesInference(t *testing.T) {
-	withoutLongContextProfiles(t) // exercises the counter path
-	upstream := countOK("190784")
-	svc := newLongContextService(upstream, "", nil)
-	c, _ := longContextContext("/v1/messages", "")
-	_, err := forwardMessages(t, svc, c, newAnthropicOAuthAccountForPartialUsageTest(), smallMessages)
-	require.NoError(t, err)
-	require.Equal(t, 1, upstream.countCalls)
-	require.Equal(t, 1, upstream.inferCalls)
+// The estimate boundary, exactly: reject when ceil(B*0.4037)+H > T.
+func TestLongContextRealisticEstimateBoundary(t *testing.T) {
+	budget := longContextInputBudget(1024) // 190784
+	b := (budget - longContextFramingAllowance) * longContextRealisticDen / longContextRealisticNum
+	for longContextRealisticEstimate(b+1) <= budget {
+		b++
+	}
+	for longContextRealisticEstimate(b) > budget {
+		b--
+	}
+	require.LessOrEqual(t, longContextRealisticEstimate(b), budget)
+	require.Greater(t, longContextRealisticEstimate(b+1), budget)
+	require.InDelta(t, 452_294, b, 2, "about 452 KB at max_tokens 1024")
+	require.Equal(t, int64(4037+8192), longContextRealisticEstimate(10_000))
+}
+
+// Native Claude Code requests use the same profiles (accepted transfer), recorded as mimic=false.
+func TestLongContextAdmission_NativeClaudeCodeUsesProfiles(t *testing.T) {
+	for _, tc := range []struct {
+		bytes    int
+		decision string
+	}{{1_000, "profile_admit"}, {300_000, "estimate_admit"}, {600_000, "estimate_reject"}} {
+		upstream := countOK("1")
+		svc := newLongContextService(upstream, "", nil)
+		c, _ := longContextContext("/v1/messages", "")
+		parsed, err := ParseGatewayRequest(NewRequestBodyRef([]byte(textMessages("claude-opus-4-6", 1024, tc.bytes))), PlatformAnthropic)
+		require.NoError(t, err)
+		_, _ = svc.Forward(SetClaudeCodeClient(context.Background(), true), c, newAnthropicOAuthAccountForPartialUsageTest(), parsed)
+		obs := observationOf(t, c)
+		require.False(t, obs.Mimic)
+		require.Equal(t, tc.decision, obs.Decision)
+		requireNoCount(t, upstream)
+	}
 }
 
 func TestLongContextAdmission_MarkerBlockedWithoutAnyCall(t *testing.T) {
@@ -205,18 +268,19 @@ func TestLongContextAdmission_MarkerBlockedWithoutAnyCall(t *testing.T) {
 	_, err := forwardMessages(t, svc, c, newAnthropicOAuthAccountForPartialUsageTest(), smallMessages)
 	stop := requireLongContextStop(t, err, GatewayFailureReasonLongContextDisabled, http.StatusBadRequest)
 	require.Contains(t, stop.ClientMessage, "1M")
+	require.Equal(t, "marker_reject", observationOf(t, c).Decision)
 	require.Zero(t, upstream.countCalls+upstream.inferCalls)
 }
 
 func TestLongContextAdmission_FilterStripsMarkerAndStillChecksLength(t *testing.T) {
-	withoutLongContextProfiles(t) // exercises the counter path
-	upstream := countOK("10")
+	upstream := countOK("1")
 	svc := newLongContextService(upstream, policyFilterAll, nil)
 	c, _ := longContextContext("/v1/messages", "context-1m-2025-08-07")
-	_, err := forwardMessages(t, svc, c, newAnthropicOAuthAccountForPartialUsageTest(), smallMessages)
-	require.NoError(t, err)
-	require.Equal(t, 1, upstream.countCalls, "filter is not permission")
-	require.Equal(t, 1, upstream.inferCalls)
+	_, err := forwardMessages(t, svc, c, newAnthropicOAuthAccountForPartialUsageTest(), textMessages("claude-sonnet-4-6", 1024, 600_000))
+	requireLongContextStop(t, err, GatewayFailureReasonLongContextDisabled, http.StatusBadRequest)
+	require.Equal(t, "estimate_reject", observationOf(t, c).Decision, "filter is not permission")
+	require.Zero(t, upstream.inferCalls)
+	requireNoCount(t, upstream)
 }
 
 func TestLongContextAdmission_PassAndOutOfScopeSkipTheGate(t *testing.T) {
@@ -230,13 +294,14 @@ func TestLongContextAdmission_PassAndOutOfScopeSkipTheGate(t *testing.T) {
 		{"oauth-only block does not cover api key", policyBlockOAuth, apiKey},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			upstream := countOK("999999")
+			upstream := countOK("1")
 			svc := newLongContextService(upstream, tc.policy, nil)
 			c, _ := longContextContext("/v1/messages", "")
-			_, err := forwardMessages(t, svc, c, tc.account, smallMessages)
+			_, err := forwardMessages(t, svc, c, tc.account, textMessages("claude-sonnet-4-6", 1024, 2_200_000))
 			require.NoError(t, err)
-			require.Zero(t, upstream.countCalls)
+			require.Equal(t, "policy_pass", observationOf(t, c).Decision)
 			require.Equal(t, 1, upstream.inferCalls)
+			requireNoCount(t, upstream)
 		})
 	}
 }
@@ -245,64 +310,11 @@ func TestLongContextAdmission_OutputBudgetAloneRejectsLocally(t *testing.T) {
 	upstream := countOK("1")
 	svc := newLongContextService(upstream, "", nil)
 	c, _ := longContextContext("/v1/messages", "")
-	body := `{"model":"claude-sonnet-4-6","max_tokens":191809,"messages":[{"role":"user","content":"hi"}]}`
+	body := `{"model":"claude-sonnet-4-5","max_tokens":191809,"messages":[{"role":"user","content":"hi"}]}`
 	_, err := forwardMessages(t, svc, c, newAnthropicOAuthAccountForPartialUsageTest(), body)
 	requireLongContextStop(t, err, GatewayFailureReasonLongContextDisabled, http.StatusBadRequest)
+	require.Equal(t, "output_reject", observationOf(t, c).Decision, "applies to every model, profiled or not")
 	require.Zero(t, upstream.countCalls+upstream.inferCalls)
-}
-
-func TestLongContextAdmission_CounterFailures(t *testing.T) {
-	withoutLongContextProfiles(t) // exercises the counter path
-	for _, tc := range []struct {
-		name     string
-		upstream *longContextUpstream
-		status   int
-	}{
-		{"counter 429 is transient", &longContextUpstream{countStatus: 429, countBody: `{"type":"error","error":{"type":"rate_limit_error","message":"x"}}`}, 503},
-		{"counter 500 is transient", &longContextUpstream{countStatus: 500, countBody: `{}`}, 503},
-		{"counter transport error is transient", &longContextUpstream{countErr: errors.New("dial tcp: refused")}, 503},
-		{"counter corrupt output is transient", &longContextUpstream{countStatus: 200, countBody: `{"input_tokens":-3}`}, 503},
-		{"counter 400 is permanent", &longContextUpstream{countStatus: 400, countBody: `{"type":"error","error":{"type":"invalid_request_error","message":"bad"}}`}, 400},
-		{"counter 404 is permanent", &longContextUpstream{countStatus: 404, countBody: `{"type":"error","error":{"type":"not_found_error","message":"Not found"}}`}, 400},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			svc := newLongContextService(tc.upstream, "", nil)
-			c, _ := longContextContext("/v1/messages", "")
-			_, err := forwardMessages(t, svc, c, newAnthropicOAuthAccountForPartialUsageTest(), smallMessages)
-			stop := requireLongContextStop(t, err, GatewayFailureReasonLongContextCountUnavailable, tc.status)
-			if tc.status == 503 {
-				require.Equal(t, "api_error", stop.ClientErrorType())
-			} else {
-				require.Equal(t, "invalid_request_error", stop.ClientErrorType())
-			}
-			require.Equal(t, 1, tc.upstream.countCalls, "no counting retry")
-			require.Zero(t, tc.upstream.inferCalls)
-		})
-	}
-}
-
-func TestLongContextAdmission_CountBudgetBoundsWallTime(t *testing.T) {
-	withoutLongContextProfiles(t) // exercises the counter path
-	upstream := countOK("1")
-	upstream.countDelay = time.Minute
-	svc := newLongContextService(upstream, "", nil)
-	c, _ := longContextContext("/v1/messages", "")
-	state := longContextStateFor(c)
-	state.spent = longContextCountBudget - 50*time.Millisecond
-	started := time.Now()
-	_, err := forwardMessages(t, svc, c, newAnthropicOAuthAccountForPartialUsageTest(), smallMessages)
-	requireLongContextStop(t, err, GatewayFailureReasonLongContextCountUnavailable, http.StatusServiceUnavailable)
-	require.Less(t, time.Since(started), 5*time.Second)
-	require.Zero(t, upstream.inferCalls)
-
-	// Exhausted budget: no further counter call at all.
-	c2, _ := longContextContext("/v1/messages", "")
-	longContextStateFor(c2).spent = longContextCountBudget
-	upstream2 := countOK("1")
-	svc2 := newLongContextService(upstream2, "", nil)
-	_, err = forwardMessages(t, svc2, c2, newAnthropicOAuthAccountForPartialUsageTest(), smallMessages)
-	requireLongContextStop(t, err, GatewayFailureReasonLongContextCountUnavailable, http.StatusServiceUnavailable)
-	require.Zero(t, upstream2.countCalls+upstream2.inferCalls)
 }
 
 func TestLongContextAdmission_PolicyReadFailureIsNeverAPass(t *testing.T) {
@@ -320,134 +332,161 @@ func TestLongContextAdmission_CorruptOrLegacySettingsFallBackToBlock(t *testing.
 	otherOnly := `{"rules":[{"beta_token":"fast-mode-2026-02-01","action":"filter","scope":"all"}]}`
 	for name, policy := range map[string]string{"corrupt json": `{not json`, "legacy generated default": legacy, "no 1M rule": otherOnly} {
 		t.Run(name, func(t *testing.T) {
-			upstream := countOK("190785")
+			upstream := countOK("1")
 			svc := newLongContextService(upstream, policy, nil)
-			c, _ := longContextContext("/v1/messages", "")
-			body := strings.Replace(smallMessages, "claude-sonnet-4-6", "claude-sonnet-5", 1)
-			_, err := forwardMessages(t, svc, c, newAnthropicOAuthAccountForPartialUsageTest(), body)
+			c, _ := longContextContext("/v1/messages", "context-1m-2025-08-07")
+			_, err := forwardMessages(t, svc, c, newAnthropicOAuthAccountForPartialUsageTest(), strings.Replace(smallMessages, "claude-sonnet-4-6", "claude-sonnet-5", 1))
 			requireLongContextStop(t, err, GatewayFailureReasonLongContextDisabled, http.StatusBadRequest)
+			obs := observationOf(t, c)
+			require.Equal(t, BetaPolicyActionBlock, obs.Action)
+			require.Equal(t, "marker_reject", obs.Decision)
 			require.Zero(t, upstream.inferCalls)
 		})
 	}
 }
 
-func TestLongContextAdmission_CalibratedProfileDecidesLocally(t *testing.T) {
-	saved := longContextProfiles
-	t.Cleanup(func() { longContextProfiles = saved })
-	// Controlled profile: tokens within [B/10, B/2].
-	longContextProfiles = []longContextProfile{{Name: "test", Route: longContextRouteAnthropicOAuth, Models: []string{"claude-sonnet-4-6"}, LowNum: 1, LowDen: 10, HighNum: 1, HighDen: 2}}
-
-	t.Run("small text admitted without a count", func(t *testing.T) {
-		upstream := countOK("999999")
-		svc := newLongContextService(upstream, "", nil)
-		c, _ := longContextContext("/v1/messages", "")
-		_, err := forwardMessages(t, svc, c, newAnthropicOAuthAccountForPartialUsageTest(), smallMessages)
-		require.NoError(t, err)
-		require.Zero(t, upstream.countCalls)
-		require.Equal(t, 1, upstream.inferCalls)
-	})
-	t.Run("huge text rejected without a count", func(t *testing.T) {
-		upstream := countOK("1")
-		svc := newLongContextService(upstream, "", nil)
-		c, _ := longContextContext("/v1/messages", "")
-		body := `{"model":"claude-sonnet-4-6","max_tokens":1024,"messages":[{"role":"user","content":"` + strings.Repeat("abcdefghij", 200_000) + `"}]}`
-		_, err := forwardMessages(t, svc, c, newAnthropicOAuthAccountForPartialUsageTest(), body)
-		requireLongContextStop(t, err, GatewayFailureReasonLongContextDisabled, http.StatusBadRequest)
-		require.Zero(t, upstream.countCalls+upstream.inferCalls)
-	})
-	t.Run("image is not locally eligible", func(t *testing.T) {
-		upstream := countOK("10")
-		svc := newLongContextService(upstream, "", nil)
-		c, _ := longContextContext("/v1/messages", "")
-		body := `{"model":"claude-sonnet-4-6","max_tokens":1024,"messages":[{"role":"user","content":[{"type":"image","source":{"type":"base64","media_type":"image/png","data":"iVBORw0KGgo="}},{"type":"text","text":"what"}]}]}`
-		_, err := forwardMessages(t, svc, c, newAnthropicOAuthAccountForPartialUsageTest(), body)
-		require.NoError(t, err)
-		require.Equal(t, 1, upstream.countCalls)
-	})
-	t.Run("other model does not inherit the profile", func(t *testing.T) {
-		upstream := countOK("10")
-		svc := newLongContextService(upstream, "", nil)
-		c, _ := longContextContext("/v1/messages", "")
-		_, err := forwardMessages(t, svc, c, newAnthropicOAuthAccountForPartialUsageTest(), strings.Replace(smallMessages, "claude-sonnet-4-6", "claude-opus-4-6", 1))
-		require.NoError(t, err)
-		require.Equal(t, 1, upstream.countCalls)
-	})
-}
-
-func TestLongContextAdmission_RoutesWithoutCounterRefuseUncertain(t *testing.T) {
-	upstream := countOK("1")
-	svc := newLongContextService(upstream, "", nil)
-	vertex := &Account{ID: 9, Platform: PlatformAnthropic, Type: AccountTypeServiceAccount}
-	bedrock := &Account{ID: 10, Platform: PlatformAnthropic, Type: AccountTypeBedrock}
-	for _, a := range []*Account{vertex, bedrock} {
-		require.Equal(t, longContextRouteNoCounter, longContextRouteFor(a))
-		c, _ := longContextContext("/v1/messages", "")
-		err := svc.admitLongContext(context.Background(), c, longContextAttempt{Entry: "test", Account: a, Model: "claude-sonnet-4-6", Body: []byte(smallMessages), Route: longContextRouteFor(a)})
-		requireLongContextStop(t, err, GatewayFailureReasonLongContextCountUnavailable, http.StatusBadRequest)
+// Content, models and routes without a calibrated bound are admitted (output arithmetic
+// and the marker still apply) and recorded, so the observe log can measure the gap.
+func TestLongContextAdmission_UnboundedInputsAreAdmittedAndRecorded(t *testing.T) {
+	head := `{"model":"claude-sonnet-4-6","max_tokens":1024,`
+	huge := strings.Repeat("x", 2_500_000)
+	for _, tc := range []struct {
+		name, body, eligibility string
+	}{
+		{"unknown model", textMessages("claude-sonnet-4-5", 1024, 2_500_000), "unprofiled"},
+		{"dated alias", textMessages("claude-sonnet-4-6-20260301", 1024, 2_500_000), "unprofiled"},
+		{"mcp servers", head + `"mcp_servers":[{"type":"url","url":"https://mcp.example","name":"m"}],"messages":[{"role":"user","content":"` + huge + `"}]}`, "ineligible"},
+		{"image", head + `"messages":[{"role":"user","content":[{"type":"image","source":{"type":"base64","media_type":"image/png","data":"` + huge + `"}}]}]}`, "ineligible"},
+		{"citations", head + `"messages":[{"role":"user","content":[{"type":"text","text":"hi","citations":[]}]}]}`, "ineligible"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			upstream := countOK("1")
+			svc := newLongContextService(upstream, "", nil)
+			c, _ := longContextContext("/v1/messages", "")
+			_, err := forwardMessages(t, svc, c, newAnthropicOAuthAccountForPartialUsageTest(), tc.body)
+			require.NoError(t, err)
+			obs := observationOf(t, c)
+			require.Equal(t, tc.eligibility, obs.Eligibility)
+			require.Equal(t, tc.eligibility+"_admit", obs.Decision)
+			require.Equal(t, 1, upstream.inferCalls)
+			requireNoCount(t, upstream)
+		})
 	}
-	require.Zero(t, upstream.countCalls+upstream.inferCalls, "a Google credential is never sent to the Anthropic counter")
-}
-
-func TestLongContextAdmission_IdenticalAttemptCountedOnce(t *testing.T) {
-	withoutLongContextProfiles(t) // exercises the counter path
-	upstream := countOK("10")
-	svc := newLongContextService(upstream, "", nil)
-	c, _ := longContextContext("/v1/messages", "")
-	account := newAnthropicOAuthAccountForPartialUsageTest()
-	a := svc.anthropicLongContextAttempt(c, "messages", account, "claude-sonnet-4-6", []byte(smallMessages), http.Header{}, "tok", "oauth", false, "")
-	require.NoError(t, svc.admitLongContext(context.Background(), c, a))
-	require.NoError(t, svc.admitLongContext(context.Background(), c, a))
-	require.Equal(t, 1, upstream.countCalls)
-
-	a.Body = []byte(strings.Replace(smallMessages, "hello", "hello again", 1))
-	require.NoError(t, svc.admitLongContext(context.Background(), c, a))
-	require.Equal(t, 2, upstream.countCalls, "changed input is recounted")
+	t.Run("routes without a profile", func(t *testing.T) {
+		svc := newLongContextService(countOK("1"), "", nil)
+		for _, a := range []*Account{
+			{ID: 9, Platform: PlatformAnthropic, Type: AccountTypeServiceAccount},
+			{ID: 10, Platform: PlatformAnthropic, Type: AccountTypeBedrock},
+			{ID: 11, Platform: PlatformAnthropic, Type: AccountTypeAPIKey},
+		} {
+			require.Equal(t, longContextRouteOther, longContextRouteFor(a))
+			c, _ := longContextContext("/v1/messages", "")
+			require.NoError(t, svc.admitLongContext(context.Background(), c, anthropicLongContextAttempt("test", a, "claude-sonnet-4-6", []byte(textMessages("claude-sonnet-4-6", 1024, 2_500_000)), nil, false)))
+			require.Equal(t, "unprofiled_admit", observationOf(t, c).Decision)
+		}
+	})
 }
 
 func TestLongContextAdmission_CompatAdapters(t *testing.T) {
-	withoutLongContextProfiles(t) // exercises the counter path
+	big := strings.Repeat("calibrated text ", 160_000) // about 2.5 MB of input text
 	for _, tc := range []struct {
 		name, path string
-		call       func(*GatewayService, *gin.Context, *Account) (*ForwardResult, error)
+		call       func(*GatewayService, *gin.Context, *Account, string) (*ForwardResult, error)
 	}{
-		{"chat completions", "/v1/chat/completions", func(svc *GatewayService, c *gin.Context, a *Account) (*ForwardResult, error) {
-			return svc.ForwardAsChatCompletions(context.Background(), c, a, []byte(`{"model":"claude-sonnet-4-6","messages":[{"role":"system","content":"sys"},{"role":"user","content":"hello"}],"stream":true}`), nil)
+		{"chat completions", "/v1/chat/completions", func(svc *GatewayService, c *gin.Context, a *Account, text string) (*ForwardResult, error) {
+			return svc.ForwardAsChatCompletions(context.Background(), c, a, []byte(`{"model":"claude-sonnet-4-6","messages":[{"role":"user","content":"`+text+`"}],"stream":true}`), nil)
 		}},
-		{"responses", "/v1/responses", func(svc *GatewayService, c *gin.Context, a *Account) (*ForwardResult, error) {
-			return svc.ForwardAsResponses(context.Background(), c, a, []byte(`{"model":"claude-sonnet-4-6","input":"hello"}`), nil)
+		{"responses", "/v1/responses", func(svc *GatewayService, c *gin.Context, a *Account, text string) (*ForwardResult, error) {
+			return svc.ForwardAsResponses(context.Background(), c, a, []byte(`{"model":"claude-sonnet-4-6","input":"`+text+`"}`), nil)
 		}},
 	} {
 		t.Run(tc.name+" oversized", func(t *testing.T) {
-			upstream := countOK("199999")
+			upstream := countOK("1")
 			svc := newLongContextService(upstream, "", nil)
 			c, _ := longContextContext(tc.path, "")
-			result, err := tc.call(svc, c, newAnthropicOAuthAccountForPartialUsageTest())
+			result, err := tc.call(svc, c, newAnthropicOAuthAccountForPartialUsageTest(), big)
 			require.Nil(t, result)
 			requireLongContextStop(t, err, GatewayFailureReasonLongContextDisabled, http.StatusBadRequest)
-			require.Equal(t, 1, upstream.countCalls)
+			require.Contains(t, []string{"profile_reject", "estimate_reject"}, observationOf(t, c).Decision)
 			require.Zero(t, upstream.inferCalls)
-			require.True(t, gjson.GetBytes(upstream.countBodies[0], "messages").Exists(), "the converted Anthropic body is counted")
+			requireNoCount(t, upstream)
 		})
 		t.Run(tc.name+" normal", func(t *testing.T) {
-			upstream := countOK("50")
+			upstream := countOK("1")
 			svc := newLongContextService(upstream, "", nil)
 			c, _ := longContextContext(tc.path, "")
-			_, err := tc.call(svc, c, newAnthropicOAuthAccountForPartialUsageTest())
+			_, err := tc.call(svc, c, newAnthropicOAuthAccountForPartialUsageTest(), "hello")
 			require.NoError(t, err)
-			require.Equal(t, 1, upstream.countCalls)
 			require.Equal(t, 1, upstream.inferCalls)
+			requireNoCount(t, upstream)
 		})
 	}
 }
 
-func TestLongContextAdmission_APIKeyPassthroughUsesItsCounter(t *testing.T) {
-	upstream := countOK("190785")
+// The budget rectifier retry raises max_tokens to 64000, which shrinks the input budget:
+// the rewritten body is decided again and stopped before its inference call.
+func TestLongContextAdmission_RewrittenRetryIsDecidedAgain(t *testing.T) {
+	upstream := &longContextUpstream{countStatus: http.StatusOK, inferResps: []*http.Response{{
+		StatusCode: http.StatusBadRequest, Header: http.Header{"Content-Type": {"application/json"}},
+		Body: io.NopCloser(strings.NewReader(`{"type":"error","error":{"type":"invalid_request_error","message":"thinking.budget_tokens: Input should be greater than or equal to 1024"}}`)),
+	}}}
 	svc := newLongContextService(upstream, "", nil)
 	c, _ := longContextContext("/v1/messages", "")
-	_, err := forwardMessages(t, svc, c, newAnthropicAPIKeyAccountForTest(), smallMessages)
+	body := strings.Replace(textMessages("claude-sonnet-4-6", 4096, 350_000), `"max_tokens":4096,`, `"max_tokens":4096,"thinking":{"type":"enabled","budget_tokens":512},`, 1)
+	_, err := forwardMessages(t, svc, c, newAnthropicOAuthAccountForPartialUsageTest(), body)
+	obs := observationOf(t, c)
 	requireLongContextStop(t, err, GatewayFailureReasonLongContextDisabled, http.StatusBadRequest)
-	require.Equal(t, 1, upstream.countCalls)
-	require.Zero(t, upstream.inferCalls)
+	require.Equal(t, "estimate_reject", obs.Decision)
+	require.Equal(t, "eligible", obs.Eligibility, "thinking plus the context_management mimicry adds stays decidable")
+	require.Equal(t, int64(BudgetRectifyMaxTokens), obs.MaxTokens, "the retry's own budget")
+	require.Equal(t, 1, upstream.inferCalls, "the rewritten retry never reaches inference")
+	requireNoCount(t, upstream)
+}
+
+// The observe line carries the decision and, when inference ran, the provider's actual
+// input usage, so the estimates can be checked against real traffic afterwards.
+func TestLogLongContextOutcome(t *testing.T) {
+	sink, restore := captureStructuredLog(t)
+	defer restore()
+
+	upstream := countOK("1")
+	svc := newLongContextService(upstream, "", nil)
+	c, _ := longContextContext("/v1/messages", "")
+	result, err := forwardMessages(t, svc, c, newAnthropicOAuthAccountForPartialUsageTest(), textMessages("claude-sonnet-4-6", 1024, 300_000))
+	require.NoError(t, err)
+	result.Usage = ClaudeUsage{InputTokens: 10, CacheCreationInputTokens: 20, CacheReadInputTokens: 70_000}
+	LogLongContextOutcome(c, result, nil)
+
+	c2, _ := longContextContext("/v1/messages", "")
+	_, err = forwardMessages(t, svc, c2, newAnthropicOAuthAccountForPartialUsageTest(), textMessages("claude-sonnet-4-6", 1024, 600_000))
+	LogLongContextOutcome(c2, nil, err)
+	LogLongContextOutcome(c2, nil, err) // already logged: nothing more
+
+	var lines []map[string]any
+	sink.mu.Lock()
+	for _, ev := range sink.events {
+		if ev.Message == "long_context.observe" {
+			lines = append(lines, ev.Fields)
+		}
+	}
+	sink.mu.Unlock()
+	require.Len(t, lines, 2)
+	require.Equal(t, "estimate_admit", lines[0]["decision"])
+	require.EqualValues(t, 70_030, lines[0]["total_input_tokens"])
+	require.Equal(t, false, lines[0]["actual_over_budget"])
+	require.Equal(t, "inference", lines[0]["outcome"])
+	for _, k := range []string{"body_bytes", "max_tokens", "input_budget", "profile_lower", "profile_upper", "estimate", "mimic", "route", "model", "entry", "account_id", "eligibility", "action"} {
+		require.Contains(t, lines[0], k)
+	}
+	require.Equal(t, "estimate_reject", lines[1]["decision"])
+	require.Equal(t, string(GatewayFailureReasonLongContextDisabled), lines[1]["outcome"])
+	for _, l := range lines {
+		for k := range l {
+			require.NotContains(t, k, "content")
+			require.NotContains(t, k, "token_value")
+		}
+	}
+	requireNoCount(t, upstream)
 }
 
 func TestDecideLongContextLocallyBoundaries(t *testing.T) {
@@ -492,25 +531,10 @@ func TestIsLongContextLocallyEligible(t *testing.T) {
 		`{"messages":[{"role":"user","content":[{"type":"tool_result","tool_use_id":"t","content":[{"type":"image","source":{"type":"url","url":"https://x"}}]}]}]}`: false,
 		`{"messages":[{"role":"user","content":[{"type":"document","source":{"type":"text","data":"x"}}]}]}`:                                                         false,
 		`{"model":"x"}`: false,
+		`{"thinking":{"type":"enabled","budget_tokens":1024},"context_management":{"edits":[{"type":"clear_thinking_20251015","keep":"all"}]},"messages":[{"role":"user","content":"x"}]}`: true,
 	} {
 		require.Equal(t, want, isLongContextLocallyEligible([]byte(body)), body)
 	}
-}
-
-// The budget rectifier retry raises max_tokens (to 64000), which shrinks the input budget:
-// the rewritten body is admitted again and stopped before its inference call.
-func TestLongContextAdmission_RewrittenRetryIsRecounted(t *testing.T) {
-	upstream := &longContextUpstream{countStatus: http.StatusOK, countSeq: []string{"130000", "130000"}, inferResps: []*http.Response{{
-		StatusCode: http.StatusBadRequest, Header: http.Header{"Content-Type": {"application/json"}},
-		Body: io.NopCloser(strings.NewReader(`{"type":"error","error":{"type":"invalid_request_error","message":"thinking.budget_tokens: Input should be greater than or equal to 1024"}}`)),
-	}}}
-	svc := newLongContextService(upstream, "", nil)
-	c, _ := longContextContext("/v1/messages", "")
-	body := `{"model":"claude-sonnet-4-6","max_tokens":4096,"thinking":{"type":"enabled","budget_tokens":512},"messages":[{"role":"user","content":"q"}]}`
-	_, err := forwardMessages(t, svc, c, newAnthropicOAuthAccountForPartialUsageTest(), body)
-	requireLongContextStop(t, err, GatewayFailureReasonLongContextDisabled, http.StatusBadRequest)
-	require.Equal(t, 2, upstream.countCalls, "initial and rewritten bodies are decided separately")
-	require.Equal(t, 1, upstream.inferCalls, "the rewritten retry never reaches inference")
 }
 
 func TestSetBetaPolicyRejectsDuplicateLongContextRule(t *testing.T) {
@@ -520,67 +544,6 @@ func TestSetBetaPolicyRejectsDuplicateLongContextRule(t *testing.T) {
 		{BetaToken: longContextBetaToken, Action: "block", Scope: "oauth"},
 	}})
 	require.ErrorContains(t, err, "duplicate")
-}
-
-// With a profile installed, anything outside the understood schema still goes to the
-// counter: it is never admitted locally, and nothing is stripped to make it eligible.
-func TestLongContextAdmission_UnknownInputsNeverDecidedLocally(t *testing.T) {
-	saved := longContextProfiles
-	t.Cleanup(func() { longContextProfiles = saved })
-	longContextProfiles = []longContextProfile{{Name: "test", Route: longContextRouteAnthropicOAuth, Models: []string{"claude-sonnet-4-6"}, LowNum: 1, LowDen: 10, HighNum: 1, HighDen: 2}}
-	head := `{"model":"claude-sonnet-4-6","max_tokens":1024,`
-	for name, body := range map[string]string{
-		"mcp servers":          head + `"mcp_servers":[{"type":"url","url":"https://mcp.example","name":"m"}],"messages":[{"role":"user","content":"hi"}]}`,
-		"container":            head + `"container":"c_1","messages":[{"role":"user","content":"hi"}]}`,
-		"unknown root field":   head + `"future_input":{"x":1},"messages":[{"role":"user","content":"hi"}]}`,
-		"text with citations":  head + `"messages":[{"role":"user","content":[{"type":"text","text":"hi","citations":[{"type":"web_search_result_location"}]}]}]}`,
-		"unknown message key":  head + `"messages":[{"role":"user","content":"hi","attachments":["f"]}]}`,
-		"tool extra field":     head + `"tools":[{"name":"f","input_schema":{"type":"object"},"defer_loading":true}],"messages":[{"role":"user","content":"hi"}]}`,
-		"server tool":          head + `"tools":[{"type":"web_fetch_20250910","name":"web_fetch"}],"messages":[{"role":"user","content":"hi"}]}`,
-		"tool result document": head + `"messages":[{"role":"user","content":[{"type":"tool_result","tool_use_id":"t","content":[{"type":"document","source":{"type":"url","url":"https://x"}}]}]}]}`,
-		"mcp tool use":         head + `"messages":[{"role":"assistant","content":[{"type":"mcp_tool_use","id":"m","name":"n","server_name":"s","input":{}}]}]}`,
-		"container upload":     head + `"messages":[{"role":"user","content":[{"type":"container_upload","file_id":"f"}]}]}`,
-	} {
-		t.Run(name, func(t *testing.T) {
-			require.False(t, isLongContextLocallyEligible([]byte(body)))
-			upstream := countOK("10")
-			svc := newLongContextService(upstream, "", nil)
-			c, _ := longContextContext("/v1/messages", "")
-			_, err := forwardMessages(t, svc, c, newAnthropicOAuthAccountForPartialUsageTest(), body)
-			require.NoError(t, err)
-			require.Equal(t, 1, upstream.countCalls, "counted, not local_admit")
-		})
-	}
-}
-
-func TestLongContextAdmission_MalformedCountResponsesFailClosed(t *testing.T) {
-	withoutLongContextProfiles(t) // exercises the counter path
-	for name, body := range map[string]string{
-		"truncated json":     `{"input_tokens":1`,
-		"trailing data":      `{"input_tokens":1}{"input_tokens":2}`,
-		"fractional":         `{"input_tokens":1.5}`,
-		"exponent":           `{"input_tokens":1e3}`,
-		"string":             `{"input_tokens":"1"}`,
-		"negative":           `{"input_tokens":-1}`,
-		"missing":            `{"tokens":1}`,
-		"null":               `{"input_tokens":null}`,
-		"overflow":           `{"input_tokens":99999999999999999999}`,
-		"oversized response": `{"input_tokens":1,"pad":"` + strings.Repeat("x", longContextCountMaxResponseBytes) + `"}`,
-		"not an object":      `[1]`,
-		"empty":              ``,
-	} {
-		t.Run(name, func(t *testing.T) {
-			upstream := &longContextUpstream{countStatus: http.StatusOK, countBody: body}
-			svc := newLongContextService(upstream, "", nil)
-			c, _ := longContextContext("/v1/messages", "")
-			_, err := forwardMessages(t, svc, c, newAnthropicOAuthAccountForPartialUsageTest(), smallMessages)
-			requireLongContextStop(t, err, GatewayFailureReasonLongContextCountUnavailable, http.StatusServiceUnavailable)
-			require.Zero(t, upstream.inferCalls)
-		})
-	}
-	n, err := parseLongContextCount([]byte(" {\"input_tokens\": 42, \"other\": [1,2]}\n"))
-	require.NoError(t, err)
-	require.Equal(t, int64(42), n)
 }
 
 // Read-time migration: repeated reads agree, the stored value is untouched until an admin
@@ -621,12 +584,4 @@ func (r *longContextWritableRepo) GetValue(_ context.Context, key string) (strin
 func (r *longContextWritableRepo) Set(_ context.Context, key, value string) error {
 	r.values[key] = value
 	return nil
-}
-
-// withoutLongContextProfiles empties the calibrated registry for one test, so small bodies
-// take the counter path that the test is about.
-func withoutLongContextProfiles(t *testing.T) {
-	saved := longContextProfiles
-	longContextProfiles = nil
-	t.Cleanup(func() { longContextProfiles = saved })
 }
