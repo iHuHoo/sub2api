@@ -80,8 +80,13 @@ func main() {
 	}
 	settings := service.NewSettingService(repository.NewSettingRepository(client), cfg)
 	tls := service.NewTLSFingerprintProfileService(repository.NewTLSFingerprintProfileRepository(client), nil)
-	// The production fingerprint and masked session are read, never written.
-	idCache := service.NewReadOnlyIdentityCache(repository.NewIdentityCache(repository.InitRedis(cfg)))
+	// Reuse or generate identity once in the local calibration directory, never in Redis.
+	rdb := repository.InitRedis(cfg)
+	defer func() { _ = rdb.Close() }()
+	idCache, err := service.NewCalibrationIdentitySnapshot(ctx, repository.NewIdentityCache(rdb), account, dir)
+	if err != nil {
+		log.Fatalf("identity preflight: %v", err)
+	}
 	k := service.NewLongContextCalibrator(cfg, repository.NewHTTPUpstream(cfg), settings, tls, idCache)
 
 	report, err := service.RunLongContextCalibration(ctx, k, account, dir, *live, log.Printf)
