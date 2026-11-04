@@ -169,6 +169,7 @@ const (
 // The #139 reproduction, inverted: without the 1M marker an oversized request (by a
 // deterministic counter result, not by its byte size) must not reach inference.
 func TestLongContextAdmission_NoMarkerOversizedNeverReachesInference(t *testing.T) {
+	withoutLongContextProfiles(t) // exercises the counter path
 	for _, tc := range []struct {
 		name, policy string
 	}{{"default (no setting)", ""}, {"block oauth (production shape)", policyBlockOAuth}, {"filter", policyFilterAll}} {
@@ -187,6 +188,7 @@ func TestLongContextAdmission_NoMarkerOversizedNeverReachesInference(t *testing.
 }
 
 func TestLongContextAdmission_AtBudgetReachesInference(t *testing.T) {
+	withoutLongContextProfiles(t) // exercises the counter path
 	upstream := countOK("190784")
 	svc := newLongContextService(upstream, "", nil)
 	c, _ := longContextContext("/v1/messages", "")
@@ -207,6 +209,7 @@ func TestLongContextAdmission_MarkerBlockedWithoutAnyCall(t *testing.T) {
 }
 
 func TestLongContextAdmission_FilterStripsMarkerAndStillChecksLength(t *testing.T) {
+	withoutLongContextProfiles(t) // exercises the counter path
 	upstream := countOK("10")
 	svc := newLongContextService(upstream, policyFilterAll, nil)
 	c, _ := longContextContext("/v1/messages", "context-1m-2025-08-07")
@@ -249,6 +252,7 @@ func TestLongContextAdmission_OutputBudgetAloneRejectsLocally(t *testing.T) {
 }
 
 func TestLongContextAdmission_CounterFailures(t *testing.T) {
+	withoutLongContextProfiles(t) // exercises the counter path
 	for _, tc := range []struct {
 		name     string
 		upstream *longContextUpstream
@@ -278,6 +282,7 @@ func TestLongContextAdmission_CounterFailures(t *testing.T) {
 }
 
 func TestLongContextAdmission_CountBudgetBoundsWallTime(t *testing.T) {
+	withoutLongContextProfiles(t) // exercises the counter path
 	upstream := countOK("1")
 	upstream.countDelay = time.Minute
 	svc := newLongContextService(upstream, "", nil)
@@ -384,6 +389,7 @@ func TestLongContextAdmission_RoutesWithoutCounterRefuseUncertain(t *testing.T) 
 }
 
 func TestLongContextAdmission_IdenticalAttemptCountedOnce(t *testing.T) {
+	withoutLongContextProfiles(t) // exercises the counter path
 	upstream := countOK("10")
 	svc := newLongContextService(upstream, "", nil)
 	c, _ := longContextContext("/v1/messages", "")
@@ -399,6 +405,7 @@ func TestLongContextAdmission_IdenticalAttemptCountedOnce(t *testing.T) {
 }
 
 func TestLongContextAdmission_CompatAdapters(t *testing.T) {
+	withoutLongContextProfiles(t) // exercises the counter path
 	for _, tc := range []struct {
 		name, path string
 		call       func(*GatewayService, *gin.Context, *Account) (*ForwardResult, error)
@@ -547,6 +554,7 @@ func TestLongContextAdmission_UnknownInputsNeverDecidedLocally(t *testing.T) {
 }
 
 func TestLongContextAdmission_MalformedCountResponsesFailClosed(t *testing.T) {
+	withoutLongContextProfiles(t) // exercises the counter path
 	for name, body := range map[string]string{
 		"truncated json":     `{"input_tokens":1`,
 		"trailing data":      `{"input_tokens":1}{"input_tokens":2}`,
@@ -613,4 +621,12 @@ func (r *longContextWritableRepo) GetValue(_ context.Context, key string) (strin
 func (r *longContextWritableRepo) Set(_ context.Context, key, value string) error {
 	r.values[key] = value
 	return nil
+}
+
+// withoutLongContextProfiles empties the calibrated registry for one test, so small bodies
+// take the counter path that the test is about.
+func withoutLongContextProfiles(t *testing.T) {
+	saved := longContextProfiles
+	longContextProfiles = nil
+	t.Cleanup(func() { longContextProfiles = saved })
 }

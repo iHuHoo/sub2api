@@ -19,7 +19,18 @@ It runs on the exact body about to be sent to inference: after protocol conversi
 3. Everything else is counted once with the same account's `count_tokens` endpoint, inside a 5-second budget per client request. This adds latency and counter traffic to the account.
 4. Routes without a counter (Bedrock, Vertex) reject requests that step 2 cannot decide.
 
-Until a profile has been calibrated and reviewed, step 2 never applies and every request that passes step 1 is counted.
+Calibrated profiles exist only for `claude-sonnet-4-6` and `claude-opus-4-6` on Anthropic OAuth accounts without a custom base URL. Every other model, alias, route and content type uses step 3. The profiles were calibrated on 2026-11-05 with one OAuth account and a frozen synthetic corpus: 48 samples per model, 24 for fitting and 24 held out. The samples and a refit test are in `backend/internal/service/testdata/long_context_calibration/`. The bounds are empirical. No held-out sample broke them, but one highly compressible fixture counted below the lower bound, so such input can be rejected near the window even though it would fit.
+
+Measured body-size bands. Bodies at or below the first number are admitted without a count. Bodies at or above the second are rejected without a count. Everything in between is counted.
+
+| max_tokens | claude-sonnet-4-6 | claude-opus-4-6 |
+| --- | --- | --- |
+| 1,024 | ≤ 127,614 / ≥ 2,108,952 bytes | ≤ 127,613 / ≥ 2,107,929 bytes |
+| 8,192 | ≤ 122,604 / ≥ 2,032,979 | ≤ 122,604 / ≥ 2,031,993 |
+| 32,000 | ≤ 105,965 / ≥ 1,780,638 | ≤ 105,964 / ≥ 1,779,775 |
+| 64,000 | ≤ 83,600 / ≥ 1,441,471 | ≤ 83,599 / ≥ 1,440,772 |
+
+The bytes are the final prepared body, including the gateway's own additions. No production request-size distribution has been measured, so how many count calls this saves is unknown.
 
 Only text with known fields is eligible for step 2: MCP servers, containers, server tools, citations, documents, images, thinking blocks and any field the gateway does not recognize always go to the counter. A counter response that is not one complete JSON object with a non-negative integer `input_tokens` is a 503.
 

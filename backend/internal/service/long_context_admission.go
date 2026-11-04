@@ -222,7 +222,25 @@ type longContextProfile struct {
 
 // longContextProfiles holds reviewed calibration results. Empty means every request that is
 // not already over budget by output arithmetic goes to the counter.
-var longContextProfiles []longContextProfile
+//
+// Calibrated 2026-11-05 on one Anthropic OAuth account with the frozen synthetic corpus
+// lc-corpus-v1 (48 samples per model, 24 fitting / 24 held-out); reviewed. Evidence and a
+// refit test: testdata/long_context_calibration/lc-corpus-v1.json. Empirical bounds, not a
+// tokenizer: no held-out sample broke them, and one adversarial fixture (many_blocks-3,
+// highly compressible) fell below the lower bound, so such input may be rejected as too
+// long once it nears the window. Only these exact model IDs on this route use them.
+var longContextProfiles = []longContextProfile{
+	{
+		Name: "anthropic-oauth-claude-sonnet-4-6-lc-corpus-v1", Route: longContextRouteAnthropicOAuth, Models: []string{"claude-sonnet-4-6"},
+		LowNum: 389, LowDen: 4123, HighNum: 151447, HighDen: 105847,
+		Evidence: "testdata/long_context_calibration/lc-corpus-v1.json",
+	},
+	{
+		Name: "anthropic-oauth-claude-opus-4-6-lc-corpus-v1", Route: longContextRouteAnthropicOAuth, Models: []string{"claude-opus-4-6"},
+		LowNum: 389, LowDen: 4121, HighNum: 302894, HighDen: 211693,
+		Evidence: "testdata/long_context_calibration/lc-corpus-v1.json",
+	},
+}
 
 func findLongContextProfile(route longContextRoute, model string) *longContextProfile {
 	for i := range longContextProfiles {
