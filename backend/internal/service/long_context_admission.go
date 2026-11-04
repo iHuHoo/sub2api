@@ -1,14 +1,17 @@
 package service
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/binary"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"math/big"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -26,6 +29,9 @@ const (
 	longContextBetaToken = "context-1m-2025-08-07"
 
 	// Local policy, not a provider limit: input + max_tokens + reserve must fit this window.
+	// Every Anthropic model this gateway routes (Claude 3 and later) has a standard context
+	// window of at least 200k, so no model needs a smaller one; a model with a smaller window
+	// would need its own entry here before it is supported.
 	longContextStandardWindow = 200_000
 	longContextReserve        = 8_192
 	// Framing/structure allowance added around a profile's byte-based estimate.
@@ -275,74 +281,106 @@ func decideLongContextLocally(bodyBytes int, budget int64, profile *longContextP
 	return longContextUncertain
 }
 
-// isLongContextLocallyEligible accepts only plain text, local function tools and their
-// text results. Anything else (images, documents, thinking, server tools, unknown blocks)
-// cannot be bounded from bytes and must be counted.
+// isLongContextLocallyEligible accepts only an explicitly understood schema: plain text,
+// local function tools and their text results, with known keys at every level. Anything
+// else (images, documents, thinking, server tools, MCP, unknown fields) cannot be bounded
+// from bytes and must be counted. Nothing is stripped to make a body eligible.
 func isLongContextLocallyEligible(body []byte) bool {
 	root := gjson.ParseBytes(body)
-	if !root.IsObject() {
+	if !root.IsObject() || !longContextKeysAllowed(root, longContextRootKeys) {
 		return false
 	}
 	if sys := root.Get("system"); sys.Exists() && !isLongContextTextContent(sys) {
 		return false
 	}
-	ok := true
-	root.Get("tools").ForEach(func(_, tool gjson.Result) bool {
-		if t := tool.Get("type").String(); t != "" && t != "custom" {
-			ok = false
-		}
-		return ok
-	})
-	if !ok {
+	if tools := root.Get("tools"); tools.Exists() && !longContextEach(tools, isLongContextLocalTool) {
 		return false
 	}
 	messages := root.Get("messages")
-	if !messages.IsArray() {
-		return false
+	return messages.IsArray() && longContextEach(messages, func(msg gjson.Result) bool {
+		return msg.IsObject() && longContextKeysAllowed(msg, longContextMessageKeys) && isLongContextMessageContent(msg.Get("content"))
+	})
+}
+
+func longContextSet(keys ...string) map[string]struct{} {
+	m := make(map[string]struct{}, len(keys))
+	for _, k := range keys {
+		m[k] = struct{}{}
 	}
-	messages.ForEach(func(_, msg gjson.Result) bool {
-		ok = isLongContextMessageContent(msg.Get("content"))
+	return m
+}
+
+var (
+	// Generation/config fields do not add input; anything not listed takes the counter path.
+	longContextRootKeys = longContextSet("model", "max_tokens", "messages", "system", "tools", "tool_choice",
+		"metadata", "stream", "temperature", "top_p", "top_k", "stop_sequences", "thinking", "output_config")
+	longContextMessageKeys    = longContextSet("role", "content")
+	longContextTextBlockKeys  = longContextSet("type", "text", "cache_control")
+	longContextToolUseKeys    = longContextSet("type", "id", "name", "input", "cache_control")
+	longContextToolResultKeys = longContextSet("type", "tool_use_id", "content", "is_error", "cache_control")
+	longContextToolKeys       = longContextSet("type", "name", "description", "input_schema", "cache_control")
+)
+
+func longContextKeysAllowed(obj gjson.Result, allowed map[string]struct{}) bool {
+	ok := true
+	obj.ForEach(func(k, _ gjson.Result) bool {
+		_, ok = allowed[k.String()]
 		return ok
 	})
 	return ok
+}
+
+func longContextEach(arr gjson.Result, fn func(gjson.Result) bool) bool {
+	if !arr.IsArray() {
+		return false
+	}
+	ok := true
+	arr.ForEach(func(_, v gjson.Result) bool {
+		ok = fn(v)
+		return ok
+	})
+	return ok
+}
+
+func isLongContextLocalTool(tool gjson.Result) bool {
+	if !tool.IsObject() || !longContextKeysAllowed(tool, longContextToolKeys) {
+		return false
+	}
+	t := tool.Get("type")
+	return (!t.Exists() || t.String() == "custom") && tool.Get("name").Type == gjson.String
+}
+
+func isLongContextTextBlock(block gjson.Result) bool {
+	return block.IsObject() && block.Get("type").String() == "text" && block.Get("text").Type == gjson.String &&
+		longContextKeysAllowed(block, longContextTextBlockKeys)
 }
 
 func isLongContextTextContent(v gjson.Result) bool {
 	if v.Type == gjson.String {
 		return true
 	}
-	if !v.IsArray() {
-		return false
-	}
-	ok := true
-	v.ForEach(func(_, block gjson.Result) bool {
-		ok = block.Get("type").String() == "text"
-		return ok
-	})
-	return ok
+	return longContextEach(v, isLongContextTextBlock)
 }
 
 func isLongContextMessageContent(v gjson.Result) bool {
 	if v.Type == gjson.String {
 		return true
 	}
-	if !v.IsArray() {
-		return false
-	}
-	ok := true
-	v.ForEach(func(_, block gjson.Result) bool {
+	return longContextEach(v, func(block gjson.Result) bool {
 		switch block.Get("type").String() {
-		case "text", "tool_use":
+		case "text":
+			return isLongContextTextBlock(block)
+		case "tool_use":
+			return block.IsObject() && longContextKeysAllowed(block, longContextToolUseKeys)
 		case "tool_result":
-			if c := block.Get("content"); c.Exists() {
-				ok = isLongContextTextContent(c)
+			if !block.IsObject() || !longContextKeysAllowed(block, longContextToolResultKeys) {
+				return false
 			}
-		default:
-			ok = false
+			c := block.Get("content")
+			return !c.Exists() || isLongContextTextContent(c)
 		}
-		return ok
+		return false
 	})
-	return ok
 }
 
 // longContextAttempt is one prepared inference attempt.
@@ -524,7 +562,8 @@ func (s *GatewayService) countLongContextInput(ctx context.Context, a longContex
 	if remaining <= 0 {
 		return 0, 0, true, errors.New("long context count budget exhausted")
 	}
-	countCtx, cancel := context.WithTimeout(ctx, remaining)
+	// One attempt is one request: a redirect is never followed to another host.
+	countCtx, cancel := context.WithTimeout(WithHTTPUpstreamRedirectsDisabled(ctx), remaining)
 	defer cancel()
 	started := time.Now()
 	defer func() { state.spent += time.Since(started) }()
@@ -541,23 +580,57 @@ func (s *GatewayService) countLongContextInput(ctx context.Context, a longContex
 		return 0, 0, true, err
 	}
 	defer func() { _ = resp.Body.Close() }()
-	body, readErr := io.ReadAll(io.LimitReader(resp.Body, longContextCountMaxResponseBytes))
+	body, readErr := readLongContextCountBody(resp.Body)
 	if readErr != nil {
 		return 0, resp.StatusCode, true, readErr
 	}
 	switch {
 	case resp.StatusCode == http.StatusOK:
-		v := gjson.GetBytes(body, "input_tokens")
-		if v.Type != gjson.Number || v.Int() < 0 || float64(v.Int()) != v.Float() {
-			return 0, resp.StatusCode, true, errors.New("invalid count response")
+		n, err := parseLongContextCount(body)
+		if err != nil {
+			return 0, resp.StatusCode, true, err
 		}
-		return v.Int(), resp.StatusCode, false, nil
+		return n, resp.StatusCode, false, nil
 	case resp.StatusCode == http.StatusTooManyRequests, resp.StatusCode == http.StatusUnauthorized,
 		resp.StatusCode == http.StatusForbidden, resp.StatusCode >= 500:
 		return 0, resp.StatusCode, true, fmt.Errorf("count status %d", resp.StatusCode)
 	default:
 		return 0, resp.StatusCode, false, fmt.Errorf("count status %d", resp.StatusCode)
 	}
+}
+
+// readLongContextCountBody reads the whole counter response; an oversized one is an error,
+// never a silently truncated document.
+func readLongContextCountBody(r io.Reader) ([]byte, error) {
+	body, err := io.ReadAll(io.LimitReader(r, longContextCountMaxResponseBytes+1))
+	if err != nil {
+		return nil, err
+	}
+	if len(body) > longContextCountMaxResponseBytes {
+		return nil, errors.New("count response too large")
+	}
+	return body, nil
+}
+
+// parseLongContextCount requires one complete JSON object whose input_tokens is a
+// non-negative integer. Anything else fails closed.
+func parseLongContextCount(body []byte) (int64, error) {
+	dec := json.NewDecoder(bytes.NewReader(body))
+	var doc struct {
+		InputTokens json.RawMessage `json:"input_tokens"`
+	}
+	if err := dec.Decode(&doc); err != nil {
+		return 0, fmt.Errorf("invalid count response: %w", err)
+	}
+	if _, err := dec.Token(); err != io.EOF {
+		return 0, errors.New("invalid count response: trailing data")
+	}
+	// Only a bare JSON integer: not a string, null, fraction or exponent.
+	n, err := strconv.ParseInt(string(doc.InputTokens), 10, 64)
+	if err != nil || n < 0 {
+		return 0, errors.New("invalid count response: input_tokens is not a non-negative integer")
+	}
+	return n, nil
 }
 
 // checkLongContextProfile records, without content, a counted input outside the profile's

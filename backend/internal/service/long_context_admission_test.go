@@ -4,6 +4,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
@@ -46,6 +47,9 @@ func (u *longContextUpstream) DoWithTLS(req *http.Request, _ string, _ int64, _ 
 	body, _ := io.ReadAll(req.Body)
 	if strings.Contains(req.URL.Path, "count_tokens") {
 		u.countCalls++
+		if !HTTPUpstreamRedirectsDisabled(req.Context()) {
+			return nil, errors.New("count request must disable redirects")
+		}
 		u.countBodies = append(u.countBodies, body)
 		u.countURLs = append(u.countURLs, req.URL.String())
 		if u.countDelay > 0 {
@@ -509,4 +513,104 @@ func TestSetBetaPolicyRejectsDuplicateLongContextRule(t *testing.T) {
 		{BetaToken: longContextBetaToken, Action: "block", Scope: "oauth"},
 	}})
 	require.ErrorContains(t, err, "duplicate")
+}
+
+// With a profile installed, anything outside the understood schema still goes to the
+// counter: it is never admitted locally, and nothing is stripped to make it eligible.
+func TestLongContextAdmission_UnknownInputsNeverDecidedLocally(t *testing.T) {
+	saved := longContextProfiles
+	t.Cleanup(func() { longContextProfiles = saved })
+	longContextProfiles = []longContextProfile{{Name: "test", Route: longContextRouteAnthropicOAuth, Models: []string{"claude-sonnet-4-6"}, LowNum: 1, LowDen: 10, HighNum: 1, HighDen: 2}}
+	head := `{"model":"claude-sonnet-4-6","max_tokens":1024,`
+	for name, body := range map[string]string{
+		"mcp servers":          head + `"mcp_servers":[{"type":"url","url":"https://mcp.example","name":"m"}],"messages":[{"role":"user","content":"hi"}]}`,
+		"container":            head + `"container":"c_1","messages":[{"role":"user","content":"hi"}]}`,
+		"unknown root field":   head + `"future_input":{"x":1},"messages":[{"role":"user","content":"hi"}]}`,
+		"text with citations":  head + `"messages":[{"role":"user","content":[{"type":"text","text":"hi","citations":[{"type":"web_search_result_location"}]}]}]}`,
+		"unknown message key":  head + `"messages":[{"role":"user","content":"hi","attachments":["f"]}]}`,
+		"tool extra field":     head + `"tools":[{"name":"f","input_schema":{"type":"object"},"defer_loading":true}],"messages":[{"role":"user","content":"hi"}]}`,
+		"server tool":          head + `"tools":[{"type":"web_fetch_20250910","name":"web_fetch"}],"messages":[{"role":"user","content":"hi"}]}`,
+		"tool result document": head + `"messages":[{"role":"user","content":[{"type":"tool_result","tool_use_id":"t","content":[{"type":"document","source":{"type":"url","url":"https://x"}}]}]}]}`,
+		"mcp tool use":         head + `"messages":[{"role":"assistant","content":[{"type":"mcp_tool_use","id":"m","name":"n","server_name":"s","input":{}}]}]}`,
+		"container upload":     head + `"messages":[{"role":"user","content":[{"type":"container_upload","file_id":"f"}]}]}`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			require.False(t, isLongContextLocallyEligible([]byte(body)))
+			upstream := countOK("10")
+			svc := newLongContextService(upstream, "", nil)
+			c, _ := longContextContext("/v1/messages", "")
+			_, err := forwardMessages(t, svc, c, newAnthropicOAuthAccountForPartialUsageTest(), body)
+			require.NoError(t, err)
+			require.Equal(t, 1, upstream.countCalls, "counted, not local_admit")
+		})
+	}
+}
+
+func TestLongContextAdmission_MalformedCountResponsesFailClosed(t *testing.T) {
+	for name, body := range map[string]string{
+		"truncated json":     `{"input_tokens":1`,
+		"trailing data":      `{"input_tokens":1}{"input_tokens":2}`,
+		"fractional":         `{"input_tokens":1.5}`,
+		"exponent":           `{"input_tokens":1e3}`,
+		"string":             `{"input_tokens":"1"}`,
+		"negative":           `{"input_tokens":-1}`,
+		"missing":            `{"tokens":1}`,
+		"null":               `{"input_tokens":null}`,
+		"overflow":           `{"input_tokens":99999999999999999999}`,
+		"oversized response": `{"input_tokens":1,"pad":"` + strings.Repeat("x", longContextCountMaxResponseBytes) + `"}`,
+		"not an object":      `[1]`,
+		"empty":              ``,
+	} {
+		t.Run(name, func(t *testing.T) {
+			upstream := &longContextUpstream{countStatus: http.StatusOK, countBody: body}
+			svc := newLongContextService(upstream, "", nil)
+			c, _ := longContextContext("/v1/messages", "")
+			_, err := forwardMessages(t, svc, c, newAnthropicOAuthAccountForPartialUsageTest(), smallMessages)
+			requireLongContextStop(t, err, GatewayFailureReasonLongContextCountUnavailable, http.StatusServiceUnavailable)
+			require.Zero(t, upstream.inferCalls)
+		})
+	}
+	n, err := parseLongContextCount([]byte(" {\"input_tokens\": 42, \"other\": [1,2]}\n"))
+	require.NoError(t, err)
+	require.Equal(t, int64(42), n)
+}
+
+// Read-time migration: repeated reads agree, the stored value is untouched until an admin
+// save, and the save persists the migrated rule.
+func TestLegacyLongContextDefaultMigratesOnReadAndPersistsOnSave(t *testing.T) {
+	legacy, err := json.Marshal(BetaPolicySettings{Rules: []BetaPolicyRule{
+		{BetaToken: "fast-mode-2026-02-01", Action: BetaPolicyActionFilter, Scope: BetaPolicyScopeAll},
+		legacyLongContextDefaultRule,
+	}})
+	require.NoError(t, err)
+	repo := &longContextWritableRepo{values: map[string]string{SettingKeyBetaPolicySettings: string(legacy)}}
+	svc := NewSettingService(repo, &config.Config{})
+	for i := 0; i < 2; i++ {
+		got, err := svc.GetBetaPolicySettings(context.Background())
+		require.NoError(t, err)
+		require.Equal(t, defaultLongContextRule(), got.Rules[1])
+		require.Equal(t, BetaPolicyActionFilter, got.Rules[0].Action)
+	}
+	require.Equal(t, string(legacy), repo.values[SettingKeyBetaPolicySettings], "reads never write")
+	got, _ := svc.GetBetaPolicySettings(context.Background())
+	require.NoError(t, svc.SetBetaPolicySettings(context.Background(), got))
+	require.Contains(t, repo.values[SettingKeyBetaPolicySettings], `"action":"block"`)
+	require.NotContains(t, repo.values[SettingKeyBetaPolicySettings], "claude-sonnet-5")
+}
+
+type longContextWritableRepo struct {
+	betaPolicySettingRepoStub
+	values map[string]string
+}
+
+func (r *longContextWritableRepo) GetValue(_ context.Context, key string) (string, error) {
+	if v, ok := r.values[key]; ok {
+		return v, nil
+	}
+	return "", ErrSettingNotFound
+}
+
+func (r *longContextWritableRepo) Set(_ context.Context, key, value string) error {
+	r.values[key] = value
+	return nil
 }
