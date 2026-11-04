@@ -325,7 +325,7 @@ func calibrationManifest(accountID int64, jobs []calibrationJob) string {
 
 type calibrationLedgerEntry struct {
 	Seq       int                       `json:"seq,omitempty"`
-	Phase     string                    `json:"phase"` // manifest | dispatch | result | stop
+	Phase     string                    `json:"phase"` // manifest | dispatch | result | stop | resume
 	Manifest  string                    `json:"manifest_sha256,omitempty"`
 	AccountID int64                     `json:"account_id,omitempty"`
 	Budget    int                       `json:"budget,omitempty"`
@@ -341,6 +341,10 @@ type calibrationLedgerEntry struct {
 	// Terminal is set on the result itself, so a stop is durable even if the separate stop
 	// row is never written (crash, write error).
 	Terminal string `json:"terminal,omitempty"`
+	// resume only: the manifest it replaces, the build revision and the recorded approval.
+	PrevManifest string `json:"prev_manifest_sha256,omitempty"`
+	Revision     string `json:"revision,omitempty"`
+	Approval     string `json:"approval,omitempty"`
 }
 
 type calibrationLedgerState struct {
@@ -351,12 +355,14 @@ type calibrationLedgerState struct {
 	pending           map[string]bool // dispatched, no result: outcome unknown
 	stopped           string
 	trailingTransport int
+	resumed           bool
+	preResume         map[string]bool // results recorded before the resume: kept as evidence, never terminal again
 }
 
 // readCalibrationLedger restores everything a resumed run needs: the bound manifest, the
 // attempt count, terminal stops, unresolved dispatches and the transport failure streak.
 func readCalibrationLedger(path string) (*calibrationLedgerState, error) {
-	st := &calibrationLedgerState{results: map[string]calibrationLedgerEntry{}, pending: map[string]bool{}}
+	st := &calibrationLedgerState{results: map[string]calibrationLedgerEntry{}, pending: map[string]bool{}, preResume: map[string]bool{}}
 	f, err := os.Open(path)
 	if errors.Is(err, os.ErrNotExist) {
 		return st, nil
@@ -399,6 +405,19 @@ func readCalibrationLedger(path string) (*calibrationLedgerState, error) {
 			}
 		case "stop":
 			st.stopped = e.Reason
+		case "resume":
+			// The one approved continuation: it rebinds the manifest and supersedes only the
+			// stops recorded before it. Attempts and evidence carry forward unchanged.
+			if st.resumed || e.PrevManifest != st.manifest || e.Manifest == "" || len(st.pending) > 0 {
+				return nil, errors.New("corrupt ledger: invalid or repeated resume entry")
+			}
+			st.resumed = true
+			st.manifest = e.Manifest
+			st.stopped = ""
+			st.trailingTransport = 0
+			for job := range st.results {
+				st.preResume[job] = true
+			}
 		default:
 			return nil, fmt.Errorf("corrupt ledger: unknown phase %q", e.Phase)
 		}
@@ -478,6 +497,9 @@ func (r *calibrationRunner) run(jobs []calibrationJob) error {
 		readiness[j.key()] = j.Readiness
 	}
 	for job, e := range st.results {
+		if st.preResume[job] {
+			continue
+		}
 		if reason := calibrationTerminalReason(e, readiness[job]); reason != "" && st.stopped == "" {
 			st.stopped = reason
 		}
@@ -774,9 +796,9 @@ type LongContextCalibrationRow struct {
 	Bands map[int64][2]int64 `json:"bands,omitempty"`
 }
 
-// RunLongContextCalibration prepares the frozen corpus for the account, verifies every count
-// request offline, and (live only) runs the ledgered experiment and writes the report.
-func RunLongContextCalibration(ctx context.Context, k *LongContextCalibrator, account *Account, dir string, live bool, logf func(string, ...any)) (*LongContextCalibrationReport, error) {
+// prepareCalibrationJobs prepares the original 98-job plan: per model a standalone readiness
+// probe, then the 48 frozen fixtures, each through the gateway's own preparation.
+func prepareCalibrationJobs(ctx context.Context, k *LongContextCalibrator, account *Account) ([]calibrationJob, error) {
 	var jobs []calibrationJob
 	for _, model := range calibrationModels {
 		ready, err := k.PrepareWireBody(ctx, account, []byte(`{"model":"`+model+`","max_tokens":16,"messages":[{"role":"user","content":"ping"}]}`))
@@ -798,37 +820,199 @@ func RunLongContextCalibration(ctx context.Context, k *LongContextCalibrator, ac
 	if len(jobs) > calibrationMaxAttempts {
 		return nil, fmt.Errorf("%d jobs exceed the %d attempt budget", len(jobs), calibrationMaxAttempts)
 	}
-	for _, j := range jobs {
-		if _, err := k.buildCountRequest(ctx, account, j.Model, j.Body); err != nil {
-			return nil, fmt.Errorf("preflight %s: %w", j.key(), err)
+	return jobs, nil
+}
+
+// calibrationResumeJobs is continuation A: the standalone probes are dropped and each
+// model's first fixture doubles as its readiness check. Bodies, sets and kinds are untouched.
+func calibrationResumeJobs(original []calibrationJob) []calibrationJob {
+	var out []calibrationJob
+	seen := map[string]bool{}
+	for _, j := range original {
+		if j.Set == "" { // standalone readiness probe
+			continue
 		}
-		logf("%s %s/%s B=%d sha256=%s", j.Model, j.Set, j.Kind, len(j.Body), j.bodySHA()[:16]+" "+j.Fixture)
+		j.Readiness = !seen[j.Model]
+		seen[j.Model] = true
+		out = append(out, j)
+	}
+	return out
+}
+
+// preflightCalibrationJobs builds every count request offline: the destination/credential
+// guard must pass and the count copy must carry neither metadata nor max_tokens.
+func preflightCalibrationJobs(ctx context.Context, k *LongContextCalibrator, account *Account, jobs []calibrationJob, logf func(string, ...any)) error {
+	for _, j := range jobs {
+		req, err := k.buildCountRequest(ctx, account, j.Model, j.Body)
+		if err != nil {
+			return fmt.Errorf("preflight %s: %w", j.key(), err)
+		}
+		rc, err := req.GetBody()
+		if err != nil {
+			return fmt.Errorf("preflight %s: %w", j.key(), err)
+		}
+		countBody, err := io.ReadAll(rc)
+		_ = rc.Close()
+		if err != nil {
+			return fmt.Errorf("preflight %s: %w", j.key(), err)
+		}
+		var top map[string]json.RawMessage
+		if err := json.Unmarshal(countBody, &top); err != nil {
+			return fmt.Errorf("preflight %s: count body is not a JSON object", j.key())
+		}
+		for _, field := range []string{"metadata", "max_tokens"} {
+			if _, ok := top[field]; ok {
+				return fmt.Errorf("preflight %s: count body carries %s", j.key(), field)
+			}
+		}
+		logf("%s %s/%s B=%d sha256=%s readiness=%t", j.Model, j.Set, j.Kind, len(j.Body), j.bodySHA()[:16]+" "+j.Fixture, j.Readiness)
 	}
 	if k.idCache != nil {
 		if err := k.idCache.Check(); err != nil {
-			return nil, err
+			return err
 		}
+	}
+	return nil
+}
+
+// RunLongContextCalibration prepares the frozen corpus for the account, verifies every count
+// request offline, and (live only) runs the ledgered experiment and writes the report.
+func RunLongContextCalibration(ctx context.Context, k *LongContextCalibrator, account *Account, dir string, live bool, logf func(string, ...any)) (*LongContextCalibrationReport, error) {
+	jobs, err := prepareCalibrationJobs(ctx, k, account)
+	if err != nil {
+		return nil, err
+	}
+	if err := preflightCalibrationJobs(ctx, k, account, jobs, logf); err != nil {
+		return nil, err
 	}
 	manifest := calibrationManifest(account.ID, jobs)
 	logf("manifest_sha256=%s jobs=%d", manifest, len(jobs))
 	if !live {
 		return &LongContextCalibrationReport{Manifest: manifest}, nil
 	}
+	return runCalibrationJobs(ctx, k, account, dir, jobs, manifest)
+}
 
+// CalibrationResumeApproval records who approved continuation A.
+const CalibrationResumeApproval = "user: $collab-continue 选 A (2026-11-05); decision .ai-collab/decisions/issue-139-calibration-resume-a.md"
+
+// RunLongContextCalibrationResume is continuation A. The prepared original plan must still
+// hash to wantOriginal (the manifest bound by the ledger), and the ledger must hold exactly
+// the original stopped history: the Sonnet readiness probe and its authorized diagnostic,
+// both HTTP 400. execute=false only verifies and prints; execute=true appends the one-time
+// resume entry (once) and runs the remaining 96 jobs under the same cumulative budget.
+func RunLongContextCalibrationResume(ctx context.Context, k *LongContextCalibrator, account *Account, dir, wantOriginal, revision string, execute bool, logf func(string, ...any)) (*LongContextCalibrationReport, error) {
+	original, err := prepareCalibrationJobs(ctx, k, account)
+	if err != nil {
+		return nil, err
+	}
+	oldManifest := calibrationManifest(account.ID, original)
+	logf("original_manifest_sha256=%s jobs=%d", oldManifest, len(original))
+	if oldManifest != wantOriginal {
+		return nil, fmt.Errorf("prepared original plan hashes to %s, not the bound %s; bodies changed", oldManifest, wantOriginal)
+	}
+	jobs := calibrationResumeJobs(original)
+	if err := preflightCalibrationJobs(ctx, k, account, jobs, logf); err != nil {
+		return nil, err
+	}
+	manifest := calibrationManifest(account.ID, jobs)
+	logf("resume_manifest_sha256=%s jobs=%d", manifest, len(jobs))
+	ledger := filepath.Join(dir, "ledger.jsonl")
+	if err := checkCalibrationResume(ledger, oldManifest, manifest); err != nil {
+		return nil, err
+	}
+	if !execute {
+		return &LongContextCalibrationReport{Manifest: manifest}, nil
+	}
+	if revision == "" {
+		return nil, errors.New("resume needs the build revision recorded")
+	}
+	if err := beginCalibrationResume(ledger, oldManifest, manifest, revision, time.Now()); err != nil {
+		return nil, err
+	}
+	return runCalibrationJobs(ctx, k, account, dir, jobs, manifest)
+}
+
+// checkCalibrationResume accepts either the exact original stopped history (a resume may
+// be appended) or a ledger already resumed to this manifest (continue, no new transition).
+func checkCalibrationResume(ledger, oldManifest, newManifest string) error {
+	st, err := readCalibrationLedger(ledger)
+	if err != nil {
+		return fmt.Errorf("%w: %v", errCalibrationStopped, err)
+	}
+	if len(st.pending) > 0 {
+		return fmt.Errorf("%w: %d dispatched attempt(s) have no recorded outcome", errCalibrationStopped, len(st.pending))
+	}
+	if st.resumed {
+		if st.manifest != newManifest {
+			return fmt.Errorf("%w: ledger was resumed to a different manifest", errCalibrationStopped)
+		}
+		if st.stopped != "" {
+			return fmt.Errorf("%w: stopped after resume: %s", errCalibrationStopped, st.stopped)
+		}
+		return nil
+	}
+	want := map[string]bool{"claude-sonnet-4-6/readiness": true, "claude-sonnet-4-6/readiness-diagnostic-1": true}
+	if st.manifest != oldManifest || st.dispatched != len(want) || len(st.results) != len(want) || st.stopped == "" {
+		return fmt.Errorf("%w: ledger is not the exact original stopped history", errCalibrationStopped)
+	}
+	for job, e := range st.results {
+		if !want[job] || e.Status != http.StatusBadRequest {
+			return fmt.Errorf("%w: unexpected result %s (status %d) in the original history", errCalibrationStopped, job, e.Status)
+		}
+	}
+	return nil
+}
+
+// beginCalibrationResume appends the one-time resume entry under the ledger lock, after
+// re-validating the history. It is idempotent: an already resumed ledger is left unchanged.
+func beginCalibrationResume(ledger, oldManifest, newManifest, revision string, now time.Time) error {
+	lock := ledger + ".lock"
+	lf, err := os.OpenFile(lock, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
+	if err != nil {
+		return fmt.Errorf("%w: ledger is locked (%s)", errCalibrationStopped, lock)
+	}
+	_ = lf.Close()
+	defer func() { _ = os.Remove(lock) }()
+	if err := checkCalibrationResume(ledger, oldManifest, newManifest); err != nil {
+		return err
+	}
+	st, err := readCalibrationLedger(ledger)
+	if err != nil {
+		return err
+	}
+	if st.resumed {
+		return nil
+	}
+	return appendCalibrationLedger(ledger, calibrationLedgerEntry{Phase: "resume", PrevManifest: oldManifest, Manifest: newManifest,
+		Reason: "readiness 400 caused by metadata in the count request; fixed", Revision: revision, Approval: CalibrationResumeApproval, At: now})
+}
+
+// runCalibrationJobs runs the ledgered experiment and writes report.json. Every fixture with
+// a successful result is a sample, including the fixtures that doubled as readiness checks.
+func runCalibrationJobs(ctx context.Context, k *LongContextCalibrator, account *Account, dir string, jobs []calibrationJob, manifest string) (*LongContextCalibrationReport, error) {
 	ledger := filepath.Join(dir, "ledger.jsonl")
 	runner := &calibrationRunner{LedgerPath: ledger, AccountID: account.ID, Now: time.Now, Sleep: time.Sleep,
 		Counter: func(j calibrationJob) (int64, int, bool, error) { return k.CountOnce(ctx, account, j) }}
 	runErr := runner.run(jobs)
-
 	st, err := readCalibrationLedger(ledger)
 	if err != nil {
 		return nil, err
 	}
+	report := buildCalibrationReport(jobs, st, manifest)
+	data, _ := json.MarshalIndent(report, "", "  ")
+	if err := os.WriteFile(filepath.Join(dir, "report.json"), data, 0o600); err != nil {
+		return report, err
+	}
+	return report, runErr
+}
+
+func buildCalibrationReport(jobs []calibrationJob, st *calibrationLedgerState, manifest string) *LongContextCalibrationReport {
 	report := &LongContextCalibrationReport{Manifest: manifest, Models: map[string]LongContextCalibrationRow{}}
 	for _, model := range calibrationModels {
 		row := LongContextCalibrationRow{}
 		for _, j := range jobs {
-			if r, ok := st.results[j.key()]; ok && j.Model == model && !j.Readiness && r.ErrClass == "" {
+			if r, ok := st.results[j.key()]; ok && j.Model == model && j.Set != "" && r.ErrClass == "" && !st.preResume[j.key()] {
 				row.Samples = append(row.Samples, calibrationSample{Fixture: j.Fixture, Set: j.Set, Kind: j.Kind, B: int64(len(j.Body)), C: r.Tokens})
 			}
 		}
@@ -845,9 +1029,5 @@ func RunLongContextCalibration(ctx context.Context, k *LongContextCalibrator, ac
 		}
 		report.Models[model] = row
 	}
-	data, _ := json.MarshalIndent(report, "", "  ")
-	if err := os.WriteFile(filepath.Join(dir, "report.json"), data, 0o600); err != nil {
-		return report, err
-	}
-	return report, runErr
+	return report
 }

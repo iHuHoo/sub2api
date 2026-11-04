@@ -22,6 +22,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"runtime/debug"
 	"time"
 
 	"entgo.io/ent/dialect"
@@ -38,6 +39,9 @@ import (
 
 const approvedAccountID = 71
 
+// originalManifest is the plan the host ledger is bound to (two dry runs, before any call).
+const originalManifest = "2d5bb244ed3b4d2ef7fc289fa08bcd57938f3b43e8888bc9116ebdcfd2c9adf1"
+
 // missAsNil reports a missing fingerprint key as (nil, nil), the miss the service expects;
 // every other error stays a read failure.
 type missAsNil struct{ service.IdentityCache }
@@ -53,9 +57,17 @@ func (c missAsNil) GetFingerprint(ctx context.Context, accountID int64) (*servic
 func main() {
 	live := flag.Bool("live", false, "send the count calls (default: dry run)")
 	diagnose := flag.Bool("diagnose-readiness", false, "one separately authorized diagnostic after the first readiness 400")
+	resumeCheck := flag.Bool("resume-check", false, "continuation A: verify bodies, count copies and ledger history; send nothing, write nothing")
+	resume := flag.Bool("resume", false, "continuation A: append the one-time resume entry (if not yet) and run the remaining 96 jobs")
 	flag.Parse()
-	if *live && *diagnose {
-		log.Fatal("choose either live calibration or readiness diagnostic")
+	modes := 0
+	for _, on := range []bool{*live, *diagnose, *resumeCheck, *resume} {
+		if on {
+			modes++
+		}
+	}
+	if modes > 1 {
+		log.Fatal("choose at most one of -live, -diagnose-readiness, -resume-check, -resume")
 	}
 
 	home, err := os.UserHomeDir()
@@ -114,11 +126,37 @@ func main() {
 		return
 	}
 
-	report, err := service.RunLongContextCalibration(ctx, k, account, dir, *live, log.Printf)
+	var report *service.LongContextCalibrationReport
+	if *resumeCheck || *resume {
+		report, err = service.RunLongContextCalibrationResume(ctx, k, account, dir, originalManifest, buildRevision(), *resume, log.Printf)
+	} else {
+		report, err = service.RunLongContextCalibration(ctx, k, account, dir, *live, log.Printf)
+	}
 	if report != nil {
 		log.Printf("manifest_sha256=%s report_dir=%s", report.Manifest, dir)
 	}
 	if err != nil {
 		log.Fatalf("calibration: %v", err)
 	}
+}
+
+// buildRevision is the source commit embedded by the Go toolchain, marked when the tree was dirty.
+func buildRevision() string {
+	info, ok := debug.ReadBuildInfo()
+	if !ok {
+		return ""
+	}
+	rev, dirty := "", false
+	for _, kv := range info.Settings {
+		switch kv.Key {
+		case "vcs.revision":
+			rev = kv.Value
+		case "vcs.modified":
+			dirty = kv.Value == "true"
+		}
+	}
+	if rev != "" && dirty {
+		rev += "+dirty"
+	}
+	return rev
 }
