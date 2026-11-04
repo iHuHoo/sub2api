@@ -1146,7 +1146,9 @@ export default {
         quickPresets: '快捷预设',
         presetOpusOnly: '仅 Opus 允许 1M',
         presetOpusOnlyDesc: 'Opus 透传，其他模型过滤',
-        commonPatterns: '常用模式'
+        commonPatterns: '常用模式',
+        longContextHint:
+          '这条规则也是长上下文开关。拦截或过滤：发起推理前按实际请求长度拒绝超过标准窗口（输入加 max_tokens，共 200k）的请求，不看客户端是否带 1M 标记；透传：允许长上下文。只对生效范围和模型白名单内的账号与模型生效，范围外不受保护。长度先按校准过的规则估算，拿不准的再调用计数接口核验，不是精确计数；无法计数的线路（如 Bedrock、Vertex）上拿不准的请求会被拒绝。'
       },
       openaiFastPolicy: {
         title: 'OpenAI Fast/Flex 策略',

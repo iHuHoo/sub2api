@@ -936,9 +936,10 @@ func (s *SettingService) GetBetaPolicySettings(ctx context.Context) (*BetaPolicy
 
 	var settings BetaPolicySettings
 	if err := json.Unmarshal([]byte(value), &settings); err != nil {
+		slog.Warn("failed to unmarshal beta policy settings, falling back to defaults", "error", err)
 		return DefaultBetaPolicySettings(), nil
 	}
-
+	settings.Rules = migrateLegacyLongContextRules(settings.Rules)
 	return &settings, nil
 }
 

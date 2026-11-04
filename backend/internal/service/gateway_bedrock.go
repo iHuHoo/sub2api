@@ -201,6 +201,10 @@ func (s *GatewayService) executeBedrockUpstream(
 		if err != nil {
 			return nil, err
 		}
+		// Bedrock has no counter: only arithmetic or a same-route profile can admit (#139).
+		if err := s.admitLongContext(ctx, c, longContextAttempt{Entry: "bedrock", Account: account, Model: modelID, Body: body, Header: upstreamReq.Header, Route: longContextRouteNoCounter}); err != nil {
+			return nil, err
+		}
 
 		resp, err = s.httpUpstream.DoWithTLS(upstreamReq, proxyURL, account.ID, account.Concurrency, nil)
 		if err != nil {

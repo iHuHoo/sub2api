@@ -1022,6 +1022,8 @@ func TestGatewayService_AnthropicOAuth_SystemPromptInjectionCanBeDisabled(t *tes
 	}
 	settingService := NewSettingService(&gatewayTTLSettingRepo{data: map[string]string{
 		SettingKeyEnableClaudeOAuthSystemPromptInjection: "false",
+		// Long context opted in so this test keeps a single (inference) upstream call.
+		SettingKeyBetaPolicySettings: `{"rules":[{"beta_token":"context-1m-2025-08-07","action":"pass","scope":"all"}]}`,
 	}}, cfg)
 	svc := &GatewayService{
 		cfg:                  cfg,

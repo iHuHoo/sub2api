@@ -145,6 +145,10 @@ func (s *GatewayService) ForwardAsResponses(
 	reasoningEffort := NormalizeClaudeOutputEffort(gjson.GetBytes(forwardedBody, "output_config.effort").String())
 	reasoningEffort = ApplyThinkingEnabledFallback(reasoningEffort, forwardedBody, mappedModel)
 
+	if err := s.admitLongContext(ctx, c, s.anthropicLongContextAttempt(c, "responses", account, mappedModel, forwardedBody, upstreamReq.Header, token, tokenType, shouldMimicClaudeCode, proxyURL)); err != nil {
+		return nil, err
+	}
+
 	// 11. Send request
 	resp, err := s.httpUpstream.DoWithTLS(upstreamReq, proxyURL, account.ID, account.Concurrency, s.tlsFPProfileService.ResolveTLSProfile(account))
 	if err != nil {

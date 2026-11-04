@@ -383,6 +383,12 @@ func (s *GatewayService) Forward(ctx context.Context, c *gin.Context, account *A
 		}
 	}
 
+	// #139: every prepared body passes long context admission right before transport,
+	// including the rewritten-body retries below (they can grow input or change max_tokens).
+	admitLongContext := func(wire []byte, header http.Header) error {
+		return s.admitLongContext(ctx, c, s.anthropicLongContextAttempt(c, "messages", account, reqModel, wire, header, token, tokenType, shouldMimicClaudeCode, proxyURL))
+	}
+
 	// 重试循环
 	var resp *http.Response
 	lastWireBody := body
@@ -397,6 +403,9 @@ func (s *GatewayService) Forward(ctx context.Context, c *gin.Context, account *A
 		}
 		// 记录本次实际发送的 wire body；只有请求成功后才写回 ParsedRequest，避免 400 retry 基于已签名 CCH 再改写。
 		lastWireBody = wireBody
+		if err := admitLongContext(wireBody, upstreamReq.Header); err != nil {
+			return nil, err
+		}
 
 		// 发送请求
 		resp, err = s.httpUpstream.DoWithTLS(upstreamReq, proxyURL, account.ID, account.Concurrency, tlsProfile)
@@ -462,6 +471,9 @@ func (s *GatewayService) Forward(ctx context.Context, c *gin.Context, account *A
 					retryReq, retryWireBody, buildErr := s.buildUpstreamRequest(retryCtx, c, account, filteredBody, token, tokenType, reqModel, reqStream, shouldMimicClaudeCode)
 					releaseRetryCtx()
 					if buildErr == nil {
+						if err := admitLongContext(retryWireBody, retryReq.Header); err != nil {
+							return nil, err
+						}
 						retryResp, retryErr := s.httpUpstream.DoWithTLS(retryReq, proxyURL, account.ID, account.Concurrency, tlsProfile)
 						if retryErr == nil {
 							if retryResp.StatusCode < 400 {
@@ -505,6 +517,9 @@ func (s *GatewayService) Forward(ctx context.Context, c *gin.Context, account *A
 									retryReq2, retryWireBody2, buildErr2 := s.buildUpstreamRequest(retryCtx2, c, account, filteredBody2, token, tokenType, reqModel, reqStream, shouldMimicClaudeCode)
 									releaseRetryCtx2()
 									if buildErr2 == nil {
+										if err := admitLongContext(retryWireBody2, retryReq2.Header); err != nil {
+											return nil, err
+										}
 										retryResp2, retryErr2 := s.httpUpstream.DoWithTLS(retryReq2, proxyURL, account.ID, account.Concurrency, tlsProfile)
 										if retryErr2 == nil {
 											if retryResp2.StatusCode < 400 {
@@ -588,6 +603,9 @@ func (s *GatewayService) Forward(ctx context.Context, c *gin.Context, account *A
 						budgetRetryReq, budgetWireBody, buildErr := s.buildUpstreamRequest(budgetRetryCtx, c, account, rectifiedBody, token, tokenType, reqModel, reqStream, shouldMimicClaudeCode)
 						releaseBudgetRetryCtx()
 						if buildErr == nil {
+							if err := admitLongContext(budgetWireBody, budgetRetryReq.Header); err != nil {
+								return nil, err
+							}
 							budgetRetryResp, retryErr := s.httpUpstream.DoWithTLS(budgetRetryReq, proxyURL, account.ID, account.Concurrency, tlsProfile)
 							if retryErr == nil {
 								if budgetRetryResp.StatusCode < 400 {

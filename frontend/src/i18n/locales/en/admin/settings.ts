@@ -1152,7 +1152,9 @@ export default {
         quickPresets: 'Quick Presets',
         presetOpusOnly: 'Opus only for 1M',
         presetOpusOnlyDesc: 'Pass for Opus, filter others',
-        commonPatterns: 'Common patterns'
+        commonPatterns: 'Common patterns',
+        longContextHint:
+          'This rule is also the long context switch. Block or filter: before inference, requests whose actual size exceeds the standard window (input plus max_tokens, 200k in total) are rejected, whether or not the client sends the 1M marker. Pass: long context is allowed. It applies only to the accounts and models in its scope and whitelist; anything outside is not protected. Size is estimated with calibrated rules and checked with the count endpoint when uncertain; it is not an exact count. On routes without a counter (such as Bedrock or Vertex), uncertain requests are rejected.'
       },
       openaiFastPolicy: {
         title: 'OpenAI Fast/Flex Policy',
