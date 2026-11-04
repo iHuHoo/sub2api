@@ -17,6 +17,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"math/big"
 	"math/rand"
 	"net/http"
@@ -324,19 +325,20 @@ func calibrationManifest(accountID int64, jobs []calibrationJob) string {
 }
 
 type calibrationLedgerEntry struct {
-	Seq       int       `json:"seq,omitempty"`
-	Phase     string    `json:"phase"` // manifest | dispatch | result | stop
-	Manifest  string    `json:"manifest_sha256,omitempty"`
-	AccountID int64     `json:"account_id,omitempty"`
-	Budget    int       `json:"budget,omitempty"`
-	Job       string    `json:"job,omitempty"`
-	BodySHA   string    `json:"body_sha256,omitempty"`
-	At        time.Time `json:"at"`
-	BodyB     int64     `json:"body_bytes,omitempty"`
-	Status    int       `json:"status,omitempty"`
-	Tokens    int64     `json:"input_tokens,omitempty"`
-	ErrClass  string    `json:"error_class,omitempty"`
-	Reason    string    `json:"reason,omitempty"`
+	Seq       int                       `json:"seq,omitempty"`
+	Phase     string                    `json:"phase"` // manifest | dispatch | result | stop
+	Manifest  string                    `json:"manifest_sha256,omitempty"`
+	AccountID int64                     `json:"account_id,omitempty"`
+	Budget    int                       `json:"budget,omitempty"`
+	Job       string                    `json:"job,omitempty"`
+	BodySHA   string                    `json:"body_sha256,omitempty"`
+	At        time.Time                 `json:"at"`
+	BodyB     int64                     `json:"body_bytes,omitempty"`
+	Status    int                       `json:"status,omitempty"`
+	Tokens    int64                     `json:"input_tokens,omitempty"`
+	ErrClass  string                    `json:"error_class,omitempty"`
+	Reason    string                    `json:"reason,omitempty"`
+	Response  *calibrationErrorResponse `json:"response,omitempty"`
 	// Terminal is set on the result itself, so a stop is durable even if the separate stop
 	// row is never written (crash, write error).
 	Terminal string `json:"terminal,omitempty"`
@@ -527,6 +529,10 @@ func (r *calibrationRunner) run(jobs []calibrationJob) error {
 			consecutiveTransport = 0
 		}
 		entry.Terminal = calibrationTerminalReason(entry, j.Readiness)
+		var responseErr *calibrationErrorResponse
+		if errors.As(callErr, &responseErr) {
+			entry.Response = responseErr
+		}
 		if entry.Terminal == "" && consecutiveTransport >= 2 {
 			entry.Terminal = "two consecutive transport failures"
 		}
@@ -715,12 +721,15 @@ func (k *LongContextCalibrator) CountOnce(ctx context.Context, account *Account,
 		return 0, 0, true, err
 	}
 	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		body, readErr := io.ReadAll(io.LimitReader(resp.Body, (64<<10)+1))
+		detail := newCalibrationErrorResponse(account, resp, body, readErr)
+		log.Printf("calibration_count_error status=%d request_id=%q content_type=%q body=%q truncated=%t read_failed=%t", detail.Status, detail.RequestID, detail.ContentType, detail.Body, detail.Truncated, detail.ReadFailed)
+		return 0, resp.StatusCode, readErr != nil, detail
+	}
 	body, err := readLongContextCountBody(resp.Body)
 	if err != nil {
 		return 0, resp.StatusCode, true, err
-	}
-	if resp.StatusCode != http.StatusOK {
-		return 0, resp.StatusCode, false, fmt.Errorf("count status %d", resp.StatusCode)
 	}
 	n, err := parseLongContextCount(body)
 	if err != nil {

@@ -38,7 +38,11 @@ const approvedAccountID = 71
 
 func main() {
 	live := flag.Bool("live", false, "send the count calls (default: dry run)")
+	diagnose := flag.Bool("diagnose-readiness", false, "one separately authorized diagnostic after the first readiness 400")
 	flag.Parse()
+	if *live && *diagnose {
+		log.Fatal("choose either live calibration or readiness diagnostic")
+	}
 
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -88,6 +92,13 @@ func main() {
 		log.Fatalf("identity preflight: %v", err)
 	}
 	k := service.NewLongContextCalibrator(cfg, repository.NewHTTPUpstream(cfg), settings, tls, idCache)
+	if *diagnose {
+		if err := service.RunLongContextReadinessDiagnostic(ctx, k, account, dir); err != nil {
+			log.Fatalf("diagnostic: %v", err)
+		}
+		log.Print("diagnostic completed; calibration remains stopped")
+		return
+	}
 
 	report, err := service.RunLongContextCalibration(ctx, k, account, dir, *live, log.Printf)
 	if report != nil {
