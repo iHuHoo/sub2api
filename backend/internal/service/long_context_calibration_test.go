@@ -6,13 +6,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"testing"
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
-	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/require"
+	"github.com/tidwall/gjson"
 )
 
 // --- tests -------------------------------------------------------------------------
@@ -328,7 +329,6 @@ func TestCalibrationIdentityCacheFailureClassification(t *testing.T) {
 		want string
 	}{
 		{"nil fingerprint", nil, nil, "identity_cache_missing: no stored production fingerprint"},
-		{"redis miss", nil, redis.Nil, "identity_cache_missing: no stored production fingerprint"},
 		{"read failure", nil, errors.New("private connection details"), "identity_cache_read_failed: could not read or decode production fingerprint"},
 		{"stored fingerprint", &Fingerprint{ClientID: "synthetic"}, nil, ""},
 	} {
@@ -385,3 +385,40 @@ func TestCalibrationIdentityIsReadOnly(t *testing.T) {
 	require.Equal(t, "claude-cli/2.1.258 (external, cli)", getHeaderRaw(req.Header, "User-Agent"), "the stored fingerprint is applied")
 	require.Zero(t, stored.writes, "nothing is written to the production cache")
 }
+
+// The counter rejects metadata ("metadata: Extra inputs are not permitted", seen live on
+// #71). With the identity and account_uuid a real OAuth account has, preparation adds
+// metadata.user_id to the inference body; the count copy must drop it, the inference body
+// must keep it unchanged, and the session header still follows it.
+func TestCountRequestOmitsMetadataKeepsInferenceBody(t *testing.T) {
+	cfg := &config.Config{Gateway: config.GatewayConfig{MaxLineSize: defaultMaxLineSize}}
+	settings := NewSettingService(&longContextSettingRepo{betaPolicySettingRepoStub: betaPolicySettingRepoStub{values: map[string]string{}}}, cfg)
+	stored := &calibrationIdentityStub{fp: &Fingerprint{ClientID: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef", UserAgent: "claude-cli/2.1.258 (external, cli)"}}
+	k := NewLongContextCalibrator(cfg, nil, settings, &TLSFingerprintProfileService{}, NewReadOnlyIdentityCache(stored))
+	account := &Account{ID: 71, Platform: PlatformAnthropic, Type: AccountTypeOAuth, Concurrency: 1,
+		Credentials: map[string]any{"access_token": "synthetic-token"}, Extra: map[string]any{"account_uuid": "11111111-2222-3333-4444-555555555555"}}
+
+	wire, err := k.PrepareWireBody(context.Background(), account, []byte(smallMessages))
+	require.NoError(t, err)
+	uid := gjson.GetBytes(wire, "metadata.user_id").String()
+	require.NotEmpty(t, uid, "the real-account inference body carries metadata")
+	before := append([]byte(nil), wire...)
+
+	req, err := k.buildCountRequest(context.Background(), account, "claude-sonnet-4-6", wire)
+	require.NoError(t, err)
+	countBody, err := io.ReadAll(req.Body)
+	require.NoError(t, err)
+	require.False(t, gjson.GetBytes(countBody, "metadata").Exists(), "count body: %s", countBody)
+	require.False(t, gjson.GetBytes(countBody, "max_tokens").Exists())
+	require.True(t, gjson.GetBytes(countBody, "messages").Exists())
+	require.Equal(t, before, wire, "the prepared inference body is not mutated")
+	if h := getHeaderRaw(req.Header, "X-Claude-Code-Session-Id"); h != "" {
+		parsed := ParseMetadataUserID(uid)
+		require.NotNil(t, parsed)
+		require.Equal(t, parsed.SessionID, h, "session header still derived from metadata.user_id")
+	}
+}
+
+// freshGatewaySettingsCache drops the package-wide 60s settings cache, so a preparation in
+// a test reads its own stub settings rather than values another test cached.
+func freshGatewaySettingsCache() { gatewayForwardingCache.Store(&cachedGatewayForwardingSettings{}) }

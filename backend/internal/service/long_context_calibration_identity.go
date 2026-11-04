@@ -9,8 +9,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-
-	"github.com/redis/go-redis/v9"
 )
 
 // The snapshot contains identity only, never account credentials or proxy credentials.
@@ -59,12 +57,10 @@ func NewCalibrationIdentitySnapshot(ctx context.Context, inner IdentityCache, ac
 	if _, err := os.Stat(filepath.Join(dir, "ledger.jsonl")); !errors.Is(err, os.ErrNotExist) {
 		return nil, errors.New("identity_snapshot_missing_with_ledger: refusing to generate a replacement")
 	}
+	// A miss is (nil, nil); any error is a read or decode failure.
 	fp, err := inner.GetFingerprint(ctx, account.ID)
-	if err != nil && !errors.Is(err, redis.Nil) {
+	if err != nil {
 		return nil, errors.New("identity_cache_read_failed: could not read or decode production fingerprint")
-	}
-	if errors.Is(err, redis.Nil) {
-		fp = nil
 	}
 	snapshot.AccountID = account.ID
 	snapshot.Fingerprint = fp
@@ -77,10 +73,10 @@ func NewCalibrationIdentitySnapshot(ctx context.Context, inner IdentityCache, ac
 	snapshot.Fingerprint = fp
 	if snapshot.Masking {
 		snapshot.Session, err = inner.GetMaskedSessionID(ctx, account.ID)
-		if err != nil && !errors.Is(err, redis.Nil) {
+		if err != nil {
 			return nil, errors.New("identity_cache_read_failed: could not read masked session")
 		}
-		if errors.Is(err, redis.Nil) || snapshot.Session == "" {
+		if snapshot.Session == "" {
 			snapshot.Session = generateRandomUUID()
 		}
 	}

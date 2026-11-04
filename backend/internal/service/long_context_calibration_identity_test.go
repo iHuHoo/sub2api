@@ -10,7 +10,6 @@ import (
 	"testing"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
-	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/require"
 )
 
@@ -18,7 +17,7 @@ func TestCalibrationIdentitySnapshotReuse(t *testing.T) {
 	ctx := context.Background()
 	account := &Account{ID: 71, Platform: PlatformAnthropic, Type: AccountTypeOAuth, Concurrency: 1, Credentials: map[string]any{"access_token": "synthetic"}, Extra: map[string]any{"session_id_masking_enabled": true}}
 	dir := t.TempDir()
-	inner := &calibrationIdentityStub{readErr: redis.Nil}
+	inner := &calibrationIdentityStub{}
 	cache, err := NewCalibrationIdentitySnapshot(ctx, inner, account, dir)
 	require.NoError(t, err)
 	fp, err := cache.GetFingerprint(ctx, account.ID)
@@ -48,9 +47,11 @@ func TestCalibrationIdentitySnapshotReuse(t *testing.T) {
 	cfg := &config.Config{Gateway: config.GatewayConfig{MaxLineSize: defaultMaxLineSize}}
 	settings := NewSettingService(&longContextSettingRepo{betaPolicySettingRepoStub: betaPolicySettingRepoStub{values: map[string]string{}}}, cfg)
 	k := NewLongContextCalibrator(cfg, nil, settings, &TLSFingerprintProfileService{}, cache)
+	freshGatewaySettingsCache()
 	a, err := RunLongContextCalibration(ctx, k, account, dir, false, func(string, ...any) {})
 	require.NoError(t, err)
 	k = NewLongContextCalibrator(cfg, nil, settings, &TLSFingerprintProfileService{}, again)
+	freshGatewaySettingsCache()
 	b, err := RunLongContextCalibration(ctx, k, account, dir, false, func(string, ...any) {})
 	require.NoError(t, err)
 	require.Equal(t, a.Manifest, b.Manifest, "prepared corpus is identical across restart")

@@ -17,6 +17,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"log"
 	"os"
@@ -32,9 +33,22 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/repository"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	_ "github.com/lib/pq"
+	"github.com/redis/go-redis/v9"
 )
 
 const approvedAccountID = 71
+
+// missAsNil reports a missing fingerprint key as (nil, nil), the miss the service expects;
+// every other error stays a read failure.
+type missAsNil struct{ service.IdentityCache }
+
+func (c missAsNil) GetFingerprint(ctx context.Context, accountID int64) (*service.Fingerprint, error) {
+	fp, err := c.IdentityCache.GetFingerprint(ctx, accountID)
+	if errors.Is(err, redis.Nil) {
+		return nil, nil
+	}
+	return fp, err
+}
 
 func main() {
 	live := flag.Bool("live", false, "send the count calls (default: dry run)")
@@ -87,7 +101,7 @@ func main() {
 	// Reuse or generate identity once in the local calibration directory, never in Redis.
 	rdb := repository.InitRedis(cfg)
 	defer func() { _ = rdb.Close() }()
-	idCache, err := service.NewCalibrationIdentitySnapshot(ctx, repository.NewIdentityCache(rdb), account, dir)
+	idCache, err := service.NewCalibrationIdentitySnapshot(ctx, missAsNil{repository.NewIdentityCache(rdb)}, account, dir)
 	if err != nil {
 		log.Fatalf("identity preflight: %v", err)
 	}

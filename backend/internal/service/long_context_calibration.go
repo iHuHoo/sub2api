@@ -30,7 +30,6 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/tlsfingerprint"
 	"github.com/gin-gonic/gin"
-	"github.com/redis/go-redis/v9"
 )
 
 const (
@@ -615,7 +614,8 @@ func NewReadOnlyIdentityCache(inner IdentityCache) *ReadOnlyIdentityCache {
 
 func (c *ReadOnlyIdentityCache) GetFingerprint(ctx context.Context, accountID int64) (*Fingerprint, error) {
 	fp, err := c.inner.GetFingerprint(ctx, accountID)
-	if errors.Is(err, redis.Nil) || (err == nil && fp == nil) {
+	// A miss is (nil, nil): the command maps the cache client's "not found" to that.
+	if err == nil && fp == nil {
 		c.missing = true
 	} else if err != nil {
 		c.readFailed = true
