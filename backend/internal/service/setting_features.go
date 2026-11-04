@@ -956,9 +956,15 @@ func (s *SettingService) SetBetaPolicySettings(ctx context.Context, settings *Be
 		BetaPolicyScopeAll: true, BetaPolicyScopeOAuth: true, BetaPolicyScopeAPIKey: true, BetaPolicyScopeBedrock: true,
 	}
 
+	longContextRules := 0
 	for i, rule := range settings.Rules {
 		if rule.BetaToken == "" {
 			return fmt.Errorf("rule[%d]: beta_token cannot be empty", i)
+		}
+		if strings.TrimSpace(rule.BetaToken) == longContextBetaToken {
+			if longContextRules++; longContextRules > 1 {
+				return fmt.Errorf("rule[%d]: duplicate %s rule; it is the long context switch and must be unique", i, longContextBetaToken)
+			}
 		}
 		if !validActions[rule.Action] {
 			return fmt.Errorf("rule[%d]: invalid action %q", i, rule.Action)

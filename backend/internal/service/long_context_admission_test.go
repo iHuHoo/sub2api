@@ -501,3 +501,12 @@ func TestLongContextAdmission_RewrittenRetryIsRecounted(t *testing.T) {
 	require.Equal(t, 2, upstream.countCalls, "initial and rewritten bodies are decided separately")
 	require.Equal(t, 1, upstream.inferCalls, "the rewritten retry never reaches inference")
 }
+
+func TestSetBetaPolicyRejectsDuplicateLongContextRule(t *testing.T) {
+	svc := NewSettingService(&longContextSettingRepo{betaPolicySettingRepoStub: betaPolicySettingRepoStub{values: map[string]string{}}}, &config.Config{})
+	err := svc.SetBetaPolicySettings(context.Background(), &BetaPolicySettings{Rules: []BetaPolicyRule{
+		{BetaToken: longContextBetaToken, Action: "pass", Scope: "all"},
+		{BetaToken: longContextBetaToken, Action: "block", Scope: "oauth"},
+	}})
+	require.ErrorContains(t, err, "duplicate")
+}
