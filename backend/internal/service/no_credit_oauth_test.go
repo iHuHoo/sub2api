@@ -148,7 +148,7 @@ func TestNoCreditOAuth_FastSpeedStoppedLocally(t *testing.T) {
 			if tc.wantCalls == 0 {
 				require.Error(t, err)
 				require.Equal(t, http.StatusBadRequest, rec.Code)
-				require.Contains(t, rec.Body.String(), "Fast mode requires usage credits")
+				require.Contains(t, rec.Body.String(), "fast mode requires usage credits")
 				require.Zero(t, upstream.countCalls)
 				return
 			}

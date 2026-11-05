@@ -489,7 +489,7 @@ func filterSonnet55ToolsetBeta(header string, body []byte, modelID string) strin
 // accounts are treated as having no credits (#147), so these never leave such a request,
 // whatever the beta policy says.
 // noCreditFastModeText answers a speed=fast request on a subscription OAuth account.
-const noCreditFastModeText = "Fast mode requires usage credits and is not available on this gateway. Remove speed=fast and retry."
+const noCreditFastModeText = "fast mode requires usage credits and is not available on this gateway; remove speed=fast and retry"
 
 var noCreditOAuthBetaSet = buildBetaTokenSet([]string{claude.BetaFastMode, claude.BetaContext1M})
 
