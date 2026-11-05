@@ -31,18 +31,29 @@ func TestRedactHeaderValueForLog(t *testing.T) {
 	got := redactHeaderValueForLog("Authorization", "Bearer "+oauth)
 	require.True(t, strings.HasPrefix(got, "Bearer …TAIL1234 (len=81 sha256="), got)
 	require.NotContains(t, got, oauth[:20])
-	require.Equal(t, "[redacted len=6]", redactHeaderValueForLog("x-api-key", "short1"), "short secrets show length only")
-	require.Equal(t, "Basic [redacted len=8]", redactHeaderValueForLog("Proxy-Authorization", "Basic dXNlcjpw"[:14]))
 	require.Contains(t, redactHeaderValueForLog("X-Api-Key", "sk-ant-api03-"+strings.Repeat("b", 40)), "…bbbbbbbb (len=53")
-	require.Equal(t, "claude-cli/2.1.318 (external, cli)", redactHeaderValueForLog("User-Agent", "claude-cli/2.1.318 (external, cli)"))
-	require.Contains(t, redactHeaderValueForLog("X-Custom-Token", strings.Repeat("z", 30)), "…zzzzzzzz")
+	require.Contains(t, redactHeaderValueForLog("x-api-key", "sk-"+strings.Repeat("9", 40)), "…99999999", "gateway sk- keys")
 
-	cookie := redactHeaderValueForLog("Cookie", "sid="+strings.Repeat("s", 40)+"; theme=dark; csrf=abc")
-	require.Contains(t, cookie, "sid=…ssssssss (len=40")
-	require.Contains(t, cookie, "theme=[redacted len=4]")
-	require.Contains(t, cookie, "csrf=[redacted len=3]")
+	for name, tc := range map[string]struct{ header, value, want string }{
+		"short key":              {"x-api-key", "short1", "[redacted len=6]"},
+		"password with spaces":   {"X-Password", "mysecret rest", "[redacted len=13]"},
+		"long ordinary password": {"X-Password", "correct horse battery staple 2026!", "[redacted len=34]"},
+		"long non-token secret":  {"X-Custom-Token", strings.Repeat("z", 40), "[redacted len=40]"},
+		"basic auth":             {"Authorization", "Basic dXNlcjpwYXNzd29yZA==", "Basic [redacted len=20]"},
+		"proxy basic":            {"Proxy-Authorization", "Basic dXNlcjpw", "Basic [redacted len=8]"},
+		"unknown scheme":         {"Authorization", "Digest username=alice, response=abc", "[redacted len=35]"},
+		"bearer non-token":       {"Authorization", "Bearer " + strings.Repeat("x", 40), "Bearer [redacted len=40]"},
+		"raw non-token auth":     {"Authorization", "plainpassword", "[redacted len=13]"},
+		"set-cookie":             {"Set-Cookie", "sid=abc; Path=/; HttpOnly", "[redacted len=25]"},
+		"malformed cookie":       {"Cookie", "notacookie", "[redacted cookie len=10]"},
+	} {
+		require.Equal(t, tc.want, redactHeaderValueForLog(tc.header, tc.value), name)
+	}
+	cookie := redactHeaderValueForLog("Cookie", "sid="+strings.Repeat("s", 40)+"; theme=dark; key=sk-"+strings.Repeat("c", 30))
+	require.Equal(t, "sid=[redacted len=40]; theme=[redacted len=4]; key=…cccccccc (len=33 sha256="+cookie[len(cookie)-13:], cookie)
 	require.NotContains(t, cookie, "dark")
-	require.Equal(t, "[redacted cookie len=10]", redactHeaderValueForLog("Cookie", "notacookie"))
+	require.Equal(t, "claude-cli/2.1.318 (external, cli)", redactHeaderValueForLog("User-Agent", "claude-cli/2.1.318 (external, cli)"))
+	require.Equal(t, "3f1d", redactHeaderValueForLog("X-Claude-Code-Session-Id", "3f1d"), "session ids are not credentials")
 	// The legacy debug dump shares the rule.
 	require.Equal(t, redactHeaderValueForLog("Cookie", "a=b"), safeHeaderValueForLog("cookie", "a=b"))
 }
@@ -71,6 +82,9 @@ func TestClaudeHeaderLogPairsInboundAndOutbound(t *testing.T) {
 	c.Request = c.Request.WithContext(logger.IntoContext(c.Request.Context(), logger.L().With(zap.String("client_request_id", "cr-1"))))
 	c.Request.Header.Set("User-Agent", "claude-cli/2.1.400 (external, cli)")
 	c.Request.Header.Set("X-Api-Key", "sk-gateway-"+strings.Repeat("k", 30))
+	c.Request.Header.Set("X-Password", "mysecret rest of the password")
+	c.Request.Header.Set("Proxy-Authorization", "Basic dXNlcjpzZWNyZXQ=")
+	c.Request.Header.Set("Cookie", "sid=opaque-session-value-1234567890; theme=dark")
 	inner := &recordingUpstream{}
 	up := WithClaudeHeaderLog(inner)
 	account := &Account{ID: 42, Platform: PlatformAnthropic}
@@ -118,6 +132,10 @@ func TestClaudeHeaderLogPairsInboundAndOutbound(t *testing.T) {
 	require.Contains(t, all, "User-Agent: claude-cli/2.1.400 (external, cli)")
 	require.NotContains(t, all, secret)
 	require.NotContains(t, all, strings.Repeat("k", 30))
+	for _, leaked := range []string{"mysecret", "password", "dXNlcjpzZWNyZXQ=", "opaque-session", "dark"} {
+		require.NotContains(t, all, leaked)
+	}
+	require.Contains(t, all, "X-Password: [redacted len=29]")
 
 	SetClaudeHeaderLogEnabled(false)
 	defer SetClaudeHeaderLogEnabled(true)

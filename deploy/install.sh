@@ -665,7 +665,31 @@ download_and_extract() {
         cp -r "$TEMP_DIR/deploy/"* "$INSTALL_DIR/" 2>/dev/null || true
     fi
 
+    install_client_profile "$TEMP_DIR" "$INSTALL_DIR"
+
     print_success "$(msg 'binary_installed') $INSTALL_DIR/sub2api"
+}
+
+# Install the release's Claude client profile (#144), which the server requires at startup
+# at ./resources/claude-client-profile/profile.json under its working directory. The shipped
+# file belongs to the release: it is replaced on install/upgrade, and a changed previous
+# copy is kept as profile.json.backup. Operators who want their own profile point
+# gateway.claude_client_profile_file elsewhere; that file is never touched.
+install_client_profile() {
+    local src="$1/resources/claude-client-profile/profile.json"
+    local dst_dir="$2/resources/claude-client-profile"
+    local dst="$dst_dir/profile.json"
+    if [ ! -f "$src" ]; then
+        print_warning "Release archive has no Claude client profile ($src); releases from #144 on require it"
+        return 0
+    fi
+    mkdir -p "$dst_dir"
+    if [ -f "$dst" ] && ! cmp -s "$src" "$dst"; then
+        cp "$dst" "$dst.backup"
+    fi
+    cp "$src" "$dst"
+    chmod 644 "$dst"
+    print_success "Claude client profile installed: $dst"
 }
 
 # Create system user

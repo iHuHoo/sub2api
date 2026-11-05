@@ -3,6 +3,7 @@ package service
 import (
 	"archive/tar"
 	"bufio"
+	"bytes"
 	"compress/gzip"
 	"context"
 	"crypto/sha256"
@@ -19,6 +20,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/pkg/claude"
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 )
 
@@ -262,6 +264,12 @@ func (s *UpdateService) applyReleaseAssets(ctx context.Context, releaseAssets []
 		return fmt.Errorf("extraction failed: %w", err)
 	}
 
+	// The release's Claude client profile (#144) is validated before anything is replaced.
+	profileData, err := extractClientProfileFromArchive(archivePath)
+	if err != nil {
+		return fmt.Errorf("claude client profile in release: %w", err)
+	}
+
 	// Set executable permission before replacement
 	if err := os.Chmod(newBinaryPath, 0755); err != nil {
 		return fmt.Errorf("chmod failed: %w", err)
@@ -290,9 +298,110 @@ func (s *UpdateService) applyReleaseAssets(ctx context.Context, releaseAssets []
 		return fmt.Errorf("replace failed (restored backup): %w", err)
 	}
 
+	if err := installShippedClientProfile(profileData); err != nil {
+		if restoreErr := os.Rename(backupPath, exePath); restoreErr != nil {
+			return fmt.Errorf("client profile install failed and restore failed: %w (restore error: %v)", err, restoreErr)
+		}
+		return fmt.Errorf("client profile install failed (restored backup): %w", err)
+	}
+
 	// Success - backup file is kept for rollback capability
 	// It will be cleaned up on next successful update
 	return nil
+}
+
+const maxClientProfileBytes = 64 << 10
+
+// extractClientProfileFromArchive returns the validated shipped profile, or nil when the
+// archive has none (releases before #144, which do not need it).
+func extractClientProfileFromArchive(archivePath string) ([]byte, error) {
+	if !strings.Contains(archivePath, ".tar") && !strings.HasSuffix(archivePath, ".tgz") {
+		return nil, nil
+	}
+	f, err := os.Open(archivePath)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = f.Close() }()
+	gzr, err := gzip.NewReader(f)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = gzr.Close() }()
+	tr := tar.NewReader(gzr)
+	for {
+		hdr, err := tr.Next()
+		if err == io.EOF {
+			return nil, nil
+		}
+		if err != nil {
+			return nil, err
+		}
+		if hdr.Typeflag != tar.TypeReg || strings.TrimPrefix(hdr.Name, "./") != claude.ClientProfileArchivePath {
+			continue
+		}
+		if hdr.Size > maxClientProfileBytes {
+			return nil, fmt.Errorf("profile too large: %d bytes", hdr.Size)
+		}
+		data, err := io.ReadAll(io.LimitReader(tr, maxClientProfileBytes+1))
+		if err != nil {
+			return nil, err
+		}
+		if _, err := claude.ParseClientProfile(data); err != nil {
+			return nil, err
+		}
+		return data, nil
+	}
+}
+
+// installShippedClientProfile replaces the profile only when the server uses the shipped
+// default location; an operator-configured path is the operator's file and is left alone.
+// A changed file is kept as <path>.backup so Rollback restores it with the binary.
+func installShippedClientProfile(data []byte) error {
+	path, shipped := claude.ActiveClientProfileSource()
+	if data == nil || !shipped || path == "" {
+		return nil
+	}
+	current, err := os.ReadFile(path)
+	if err == nil && bytes.Equal(current, data) {
+		return nil
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
+	if err == nil {
+		if err := os.WriteFile(path+".backup", current, 0o644); err != nil { //nolint:gosec // public, non-secret config
+			return err
+		}
+	}
+	tmp, err := os.CreateTemp(filepath.Dir(path), ".profile-*.json")
+	if err != nil {
+		return err
+	}
+	defer func() { _ = os.Remove(tmp.Name()) }()
+	if _, err := tmp.Write(data); err != nil {
+		_ = tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	if err := os.Chmod(tmp.Name(), 0o644); err != nil { //nolint:gosec // public, non-secret config
+		return err
+	}
+	return os.Rename(tmp.Name(), path)
+}
+
+// restoreShippedClientProfileBackup puts back the profile saved by the last update.
+func restoreShippedClientProfileBackup() error {
+	path, shipped := claude.ActiveClientProfileSource()
+	if !shipped || path == "" {
+		return nil
+	}
+	if _, err := os.Stat(path + ".backup"); err != nil {
+		return nil
+	}
+	return os.Rename(path+".backup", path)
 }
 
 // Rollback restores the previous version
@@ -318,6 +427,10 @@ func (s *UpdateService) Rollback() error {
 	// Replace current with backup
 	if err := os.Rename(backupFile, exePath); err != nil {
 		return fmt.Errorf("rollback failed: %w", err)
+	}
+	// The previous release runs with the profile it shipped with (#144).
+	if err := restoreShippedClientProfileBackup(); err != nil {
+		return fmt.Errorf("rollback restored the binary but not the client profile: %w", err)
 	}
 
 	return nil

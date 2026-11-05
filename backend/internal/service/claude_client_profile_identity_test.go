@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -66,55 +67,130 @@ func withTestClientProfile(t *testing.T) claude.ClientProfile {
 	return p
 }
 
+// adversarialClaudeHeaders are client values for every profile-owned header, in mixed
+// casing, that must never reach an OAuth upstream.
+var adversarialClaudeHeaders = map[string]string{
+	"user-agent": "claude-cli/2.1.400 (external, cli)", "X-Stainless-Lang": "py", "x-stainless-package-version": "0.200.0",
+	"X-Stainless-OS": "Windows", "x-stainless-arch": "x64", "X-Stainless-Runtime": "deno", "x-stainless-runtime-version": "v30.0.0",
+	"x-stainless-timeout": "999", "X-App": "desktop", "anthropic-dangerous-direct-browser-access": "false", "Anthropic-Version": "2099-01-01",
+}
+
 func requireProfileHeaders(t *testing.T, p claude.ClientProfile, h http.Header) {
 	t.Helper()
-	for k, v := range map[string]string{
-		"User-Agent": p.UserAgent, "X-Stainless-Package-Version": p.StainlessPackageVersion,
-		"X-Stainless-Runtime-Version": p.StainlessRuntimeVersion, "X-Stainless-OS": p.StainlessOS,
-		"X-Stainless-Arch": p.StainlessArch, "X-Stainless-Runtime": p.StainlessRuntime, "X-Stainless-Lang": p.StainlessLang,
-	} {
-		require.Equal(t, v, getHeaderRaw(h, k), k)
+	want := map[string]string{
+		"User-Agent": p.UserAgent, "X-Stainless-Lang": p.StainlessLang, "X-Stainless-Package-Version": p.StainlessPackageVersion,
+		"X-Stainless-OS": p.StainlessOS, "X-Stainless-Arch": p.StainlessArch, "X-Stainless-Runtime": p.StainlessRuntime,
+		"X-Stainless-Runtime-Version": p.StainlessRuntimeVersion, "X-Stainless-Timeout": p.StainlessTimeout, "X-App": p.XApp,
+		"Anthropic-Dangerous-Direct-Browser-Access": p.DangerousDirectBrowserAccess, "anthropic-version": p.AnthropicVersion,
+	}
+	require.Len(t, want, len(claudeClientProfileHeaderNames), "every profile-owned header is asserted")
+	for k, v := range want {
+		var got []string
+		for name, values := range h {
+			if strings.EqualFold(name, k) {
+				got = append(got, values...)
+			}
+		}
+		require.Equal(t, []string{v}, got, "%s: exactly one value, from the profile", k)
 	}
 }
 
-// Mimic and native OAuth, messages and count_tokens: every software header and the
-// body's cc_version come from the one profile, whatever the client or cache says.
+type failingIdentityCache struct{ stubIdentityCache }
+
+func (f *failingIdentityCache) GetFingerprint(context.Context, int64) (*Fingerprint, error) {
+	return nil, errors.New("redis down")
+}
+
+func (f *failingIdentityCache) SetFingerprint(context.Context, int64, *Fingerprint) error {
+	return errors.New("redis down")
+}
+
+// Every OAuth route (mimic and native, messages and count_tokens, default and custom base
+// URL), with fingerprint unification on or off and with a failing cache, sends exactly
+// the profile's headers and a matching cc_version, whatever the client sent.
 func TestClaudeOAuthRequestsUseOneClientProfile(t *testing.T) {
 	p := withTestClientProfile(t)
 	stale := &Fingerprint{ClientID: "client-1", UserAgent: "claude-cli/2.1.316 (external, claude-desktop-3p, agent-sdk/0.3.308)",
 		StainlessPackageVersion: "0.128.0", StainlessRuntimeVersion: "v26.3.0", StainlessOS: "Windows", StainlessArch: "x64"}
-	for _, mimic := range []bool{true, false} {
-		for _, endpoint := range []string{"messages", "count_tokens"} {
-			t.Run(endpoint+map[bool]string{true: "/mimic", false: "/native"}[mimic], func(t *testing.T) {
-				resetGatewayForwardingSettingsCacheForTest(t)
-				c, _ := gin.CreateTestContext(httptest.NewRecorder())
-				c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
-				c.Request.Header.Set("User-Agent", "claude-cli/2.1.400 (external, cli)")
-				c.Request.Header.Set("X-Stainless-Package-Version", "0.200.0")
-				c.Request.Header.Set("X-Stainless-Runtime-Version", "v30.0.0")
-				body := []byte(`{"model":"claude-haiku-4-5","system":[{"type":"text","text":""}],"messages":[{"role":"user","content":"hello world"}]}`)
-				billing, err := buildBillingAttributionText(body, "2.1.400")
-				require.NoError(t, err)
-				body, err = sjson.SetBytes(body, "system.0.text", billing)
-				require.NoError(t, err)
+	type variant struct {
+		name      string
+		cache     IdentityCache
+		disableFP bool
+		customURL bool
+	}
+	variants := []variant{
+		{name: "stale-cache", cache: &stubIdentityCache{fingerprint: stale}},
+		{name: "fp-disabled", cache: &stubIdentityCache{fingerprint: stale}, disableFP: true},
+		{name: "cache-failure", cache: &failingIdentityCache{}},
+		{name: "no-identity-service"},
+		{name: "custom-base-url", cache: &stubIdentityCache{fingerprint: stale}, customURL: true},
+	}
+	for _, v := range variants {
+		for _, mimic := range []bool{true, false} {
+			for _, endpoint := range []string{"messages", "count_tokens"} {
+				t.Run(v.name+"/"+endpoint+map[bool]string{true: "/mimic", false: "/native"}[mimic], func(t *testing.T) {
+					resetGatewayForwardingSettingsCacheForTest(t)
+					c, _ := gin.CreateTestContext(httptest.NewRecorder())
+					c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+					for k, val := range adversarialClaudeHeaders {
+						c.Request.Header[k] = []string{val}
+					}
+					body := []byte(`{"model":"claude-haiku-4-5","system":[{"type":"text","text":""}],"messages":[{"role":"user","content":"hello world"}]}`)
+					billing, err := buildBillingAttributionText(body, "2.1.400")
+					require.NoError(t, err)
+					body, err = sjson.SetBytes(body, "system.0.text", billing)
+					require.NoError(t, err)
 
-				svc := &GatewayService{cfg: &config.Config{}, identityService: NewIdentityService(&stubIdentityCache{fingerprint: stale})}
-				account := &Account{ID: 1, Platform: PlatformAnthropic, Type: AccountTypeOAuth}
-				var req *http.Request
-				var wire []byte
-				if endpoint == "messages" {
-					req, wire, err = svc.buildUpstreamRequest(context.Background(), c, account, body, "tok", "oauth", "claude-haiku-4-5", false, mimic)
-				} else {
-					req, wire, err = svc.buildCountTokensRequest(context.Background(), c, account, body, "tok", "oauth", "claude-haiku-4-5", mimic)
-				}
-				require.NoError(t, err)
-				requireProfileHeaders(t, p, req.Header)
-				text := gjson.GetBytes(wire, "system.0.text").String()
-				require.Contains(t, text, "cc_version="+p.CLIVersion+"."+computeClaudeCodeFingerprint(wire, p.CLIVersion)+";")
-				require.NotContains(t, text, "2.1.400")
-			})
+					cfg := &config.Config{}
+					svc := &GatewayService{cfg: cfg}
+					if v.cache != nil {
+						svc.identityService = NewIdentityService(v.cache)
+					}
+					if v.disableFP {
+						svc.settingService = NewSettingService(&gatewayTTLSettingRepo{data: map[string]string{
+							SettingKeyEnableFingerprintUnification: "false",
+						}}, cfg)
+					}
+					account := &Account{ID: 1, Platform: PlatformAnthropic, Type: AccountTypeOAuth}
+					if v.customURL {
+						account.Extra = map[string]any{"custom_base_url_enabled": true, "custom_base_url": "https://relay.example.com"}
+					}
+					var req *http.Request
+					var wire []byte
+					if endpoint == "messages" {
+						req, wire, err = svc.buildUpstreamRequest(context.Background(), c, account, body, "tok", "oauth", "claude-haiku-4-5", false, mimic)
+					} else {
+						req, wire, err = svc.buildCountTokensRequest(context.Background(), c, account, body, "tok", "oauth", "claude-haiku-4-5", mimic)
+					}
+					require.NoError(t, err)
+					if v.customURL {
+						require.Equal(t, "relay.example.com", req.URL.Host, "custom base OAuth stays in the OAuth identity row")
+					}
+					requireProfileHeaders(t, p, req.Header)
+					text := gjson.GetBytes(wire, "system.0.text").String()
+					require.Contains(t, text, "cc_version="+p.CLIVersion+"."+computeClaudeCodeFingerprint(wire, p.CLIVersion)+";")
+					require.NotContains(t, text, "2.1.400")
+				})
+			}
 		}
 	}
+}
+
+// API-key accounts keep their pass-through contract: client values are not replaced.
+func TestClaudeClientProfileDoesNotTouchAPIKeyRequests(t *testing.T) {
+	withTestClientProfile(t)
+	resetGatewayForwardingSettingsCacheForTest(t)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+	c.Request.Header.Set("User-Agent", "my-app/1.0")
+	c.Request.Header.Set("Anthropic-Version", "2099-01-01")
+	svc := &GatewayService{cfg: &config.Config{}}
+	account := &Account{ID: 2, Platform: PlatformAnthropic, Type: AccountTypeAPIKey, Credentials: map[string]any{"api_key": "k"}}
+	req, _, err := svc.buildUpstreamRequest(context.Background(), c, account,
+		[]byte(`{"model":"claude-haiku-4-5","messages":[{"role":"user","content":"hi"}]}`), "k", "apikey", "claude-haiku-4-5", false, false)
+	require.NoError(t, err)
+	require.Equal(t, "my-app/1.0", getHeaderRaw(req.Header, "User-Agent"))
+	require.Equal(t, "2099-01-01", getHeaderRaw(req.Header, "anthropic-version"))
 }
 
 // The cache keeps only the stable ClientID; software fields align to the profile and

@@ -30,6 +30,7 @@ import (
 	dbent "github.com/Wei-Shaw/sub2api/ent"
 	_ "github.com/Wei-Shaw/sub2api/ent/runtime"
 	"github.com/Wei-Shaw/sub2api/internal/config"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/claude"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/timezone"
 	"github.com/Wei-Shaw/sub2api/internal/repository"
 	"github.com/Wei-Shaw/sub2api/internal/service"
@@ -82,6 +83,14 @@ func main() {
 	cfg, err := config.LoadForBootstrap()
 	if err != nil {
 		log.Fatalf("load config: %v", err)
+	}
+	// The gateway's preparation takes its Claude identity from the client profile (#144).
+	profile, err := claude.LoadClientProfileFile(cfg.Gateway.ClaudeClientProfileFile)
+	if err != nil {
+		log.Fatalf("claude client profile: %v", err)
+	}
+	if err := claude.SetActiveClientProfile(profile); err != nil {
+		log.Fatalf("claude client profile: %v", err)
 	}
 	if err := timezone.Init(cfg.Timezone); err != nil {
 		log.Fatalf("timezone: %v", err)

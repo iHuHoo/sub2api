@@ -11,18 +11,29 @@ import (
 
 const profileFile = "../../../resources/claude-client-profile/profile.json"
 
-// The shipped file and the built-in copy are the same reviewed profile.
-func TestShippedClientProfileMatchesBuiltin(t *testing.T) {
+func TestMain(m *testing.M) {
 	p, err := LoadClientProfileFile(profileFile)
-	require.NoError(t, err)
-	require.Equal(t, builtinClientProfile, p)
-	require.NoError(t, builtinClientProfile.Validate())
+	if err != nil {
+		panic(err)
+	}
+	if err := SetActiveClientProfile(p); err != nil {
+		panic(err)
+	}
+	os.Exit(m.Run())
+}
+
+// Without a loaded profile there is no identity to send.
+func TestActiveClientProfileHasNoFallback(t *testing.T) {
+	prev := activeClientProfile.Load()
+	activeClientProfile.Store(nil)
+	defer activeClientProfile.Store(prev)
+	require.PanicsWithValue(t, "claude client profile not loaded: call SetActiveClientProfile at startup (gateway.claude_client_profile_file)", func() { ActiveClientProfile() })
 }
 
 // The profile's evidence digest is the checked-in capture, and every software field
 // equals what the captured interactive 2.1.318 CLI actually sent.
 func TestClientProfileMatchesCaptureEvidence(t *testing.T) {
-	p := builtinClientProfile
+	p := ActiveClientProfile()
 	raw, err := os.ReadFile("testdata/client_profile_capture/evidence-" + p.CLIVersion + ".json")
 	require.NoError(t, err)
 	require.Equal(t, p.Source.EvidenceSHA256, sha256Hex(raw))

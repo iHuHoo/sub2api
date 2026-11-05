@@ -28,3 +28,31 @@ func TestLoadClaudeClientProfileAtStartup(t *testing.T) {
 	require.Error(t, loadClaudeClientProfile(write("bad.json", []byte(`{"schema_version":1}`))))
 	require.Error(t, loadClaudeClientProfile(""))
 }
+
+// An extracted release or /opt/sub2api install: the default relative path resolves from a
+// working directory outside the repository, and the source is recorded as shipped.
+func TestLoadClaudeClientProfileFromInstalledLayout(t *testing.T) {
+	good, err := os.ReadFile("../../resources/claude-client-profile/profile.json")
+	require.NoError(t, err)
+	root := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(root, "resources", "claude-client-profile"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(root, claude.ClientProfileArchivePath), good, 0o644))
+	t.Chdir(root)
+
+	require.NoError(t, loadClaudeClientProfile(claude.DefaultClientProfileFile))
+	path, shipped := claude.ActiveClientProfileSource()
+	require.True(t, shipped)
+	require.Equal(t, resolved(t, filepath.Join(root, claude.ClientProfileArchivePath)), resolved(t, path))
+
+	empty := t.TempDir()
+	t.Chdir(empty)
+	err = loadClaudeClientProfile(claude.DefaultClientProfileFile)
+	require.ErrorContains(t, err, "install.sh upgrade", "a missing shipped profile says how to fix it")
+}
+
+func resolved(t *testing.T, p string) string {
+	t.Helper()
+	r, err := filepath.EvalSymlinks(p)
+	require.NoError(t, err)
+	return r
+}

@@ -102,23 +102,6 @@ func (s *IdentityService) GetOrCreateFingerprint(ctx context.Context, accountID 
 	return &fp, nil
 }
 
-// ApplyFingerprint writes the client profile's software headers (#144). The cached
-// fingerprint contributes nothing here: only its ClientID is identity, and that lives in
-// the body. fp nil means "no fingerprint for this request" and leaves headers unchanged.
-func (s *IdentityService) ApplyFingerprint(req *http.Request, fp *Fingerprint) {
-	if fp == nil {
-		return
-	}
-	pf := profileFingerprint()
-	setHeaderRaw(req.Header, "User-Agent", pf.UserAgent)
-	setHeaderRaw(req.Header, "X-Stainless-Lang", pf.StainlessLang)
-	setHeaderRaw(req.Header, "X-Stainless-Package-Version", pf.StainlessPackageVersion)
-	setHeaderRaw(req.Header, "X-Stainless-OS", pf.StainlessOS)
-	setHeaderRaw(req.Header, "X-Stainless-Arch", pf.StainlessArch)
-	setHeaderRaw(req.Header, "X-Stainless-Runtime", pf.StainlessRuntime)
-	setHeaderRaw(req.Header, "X-Stainless-Runtime-Version", pf.StainlessRuntimeVersion)
-}
-
 // RewriteUserID 重写body中的metadata.user_id
 // 支持旧拼接格式和新 JSON 格式的 user_id 解析，
 // 根据 fingerprintUA 版本选择输出格式。

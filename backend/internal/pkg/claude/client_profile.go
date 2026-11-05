@@ -55,43 +55,43 @@ var (
 	sha256HexRe        = regexp.MustCompile(`^[0-9a-f]{64}$`)
 )
 
-// builtinClientProfile mirrors backend/resources/claude-client-profile/profile.json
-// (a unit test keeps them identical). It serves packages and tests that run without
-// startup wiring; the server always loads and validates the file and refuses to start
-// when it is missing or invalid.
-var builtinClientProfile = ClientProfile{
-	SchemaVersion:                1,
-	Revision:                     "2026-11-05.1",
-	CLIVersion:                   "2.1.318",
-	UserAgent:                    "claude-cli/2.1.318 (external, cli)",
-	AnthropicVersion:             "2023-06-01",
-	StainlessLang:                "js",
-	StainlessPackageVersion:      "0.128.0",
-	StainlessOS:                  "Linux",
-	StainlessArch:                "arm64",
-	StainlessRuntime:             "node",
-	StainlessRuntimeVersion:      "v26.12.1",
-	StainlessTimeout:             "600",
-	XApp:                         "cli",
-	DangerousDirectBrowserAccess: "true",
-	Source: ClientProfileSource{
-		Artifact:       "npm @anthropic-ai/claude-code@2.1.318 (native linux-arm64 binary, sha512-OTJgLxcvWefv8IdTsq5n90Z2IxEhLwKqHUBhwZYE4odXzKA/Tb6p2Zb5Iy9Vq7JIVcNZzn9cPxW5sb42wLF95Q==)",
-		ArtifactDigest: "53a0d7e219d7b0804ecba5dbc002745e89f786cc946d2de85a6470d5b2d1fb06",
-		CaptureMode:    "interactive OAuth (CLAUDE_CODE_OAUTH_TOKEN synthetic), linux/arm64 docker --network none, local receiver via ANTHROPIC_BASE_URL",
-		CapturedAt:     "2026-11-05",
-		EvidenceSHA256: "b3a9f73417d0dd57b0fd9dc6aa24024cc7f8fac8d8de1105170d9e8f3ecd7283",
-		ReviewedBy:     "pending codex review (#144)",
-	},
-}
-
 var activeClientProfile atomic.Pointer[ClientProfile]
 
-// ActiveClientProfile returns the profile every outbound Claude identity uses.
+// DefaultClientProfileFile is the shipped location, relative to the working directory.
+const DefaultClientProfileFile = "./resources/claude-client-profile/profile.json"
+
+// ClientProfileArchivePath is where release archives carry the shipped profile.
+const ClientProfileArchivePath = "resources/claude-client-profile/profile.json"
+
+type clientProfileSource struct {
+	path    string
+	shipped bool
+}
+
+var activeClientProfileSource atomic.Pointer[clientProfileSource]
+
+// SetActiveClientProfileSource records the absolute file the active profile came from and
+// whether it is the shipped default location (which release installs may replace).
+func SetActiveClientProfileSource(absPath string, shipped bool) {
+	activeClientProfileSource.Store(&clientProfileSource{path: absPath, shipped: shipped})
+}
+
+// ActiveClientProfileSource returns what SetActiveClientProfileSource recorded.
+func ActiveClientProfileSource() (absPath string, shipped bool) {
+	if s := activeClientProfileSource.Load(); s != nil {
+		return s.path, s.shipped
+	}
+	return "", false
+}
+
+// ActiveClientProfile returns the profile every outbound Claude identity uses. There is
+// no built-in fallback: a process that has not loaded a profile is misconfigured, and
+// sending some other identity would be worse than failing loudly.
 func ActiveClientProfile() ClientProfile {
 	if p := activeClientProfile.Load(); p != nil {
 		return *p
 	}
-	return builtinClientProfile
+	panic("claude client profile not loaded: call SetActiveClientProfile at startup (gateway.claude_client_profile_file)")
 }
 
 // SetActiveClientProfile installs a validated profile; it is called once at startup.

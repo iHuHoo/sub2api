@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"net/http"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -165,44 +166,67 @@ func claudeHeaderSnapshot(h http.Header) ([]string, bool) {
 	return out, truncated
 }
 
+// claudeLoggableTokenRe matches the token formats whose tail may be logged: Anthropic
+// OAuth/API keys and sk- style API keys (the gateway's own default). Anything else that
+// sits in a secret-bearing header is treated as unknown-format and shows its length only.
+var claudeLoggableTokenRe = regexp.MustCompile(`^sk-[A-Za-z0-9_-]{21,}$`)
+
 // redactHeaderValueForLog applies the credential rule to secret-bearing headers and
 // returns other values as they are.
 func redactHeaderValueForLog(name, value string) string {
 	value = strings.TrimSpace(value)
+	if value == "" {
+		return ""
+	}
 	switch n := strings.ToLower(strings.TrimSpace(name)); {
-	case n == "cookie" || n == "set-cookie":
+	case n == "authorization" || n == "proxy-authorization":
+		return redactAuthorizationForLog(value)
+	case n == "cookie":
 		return redactCookieForLog(value)
-	case n == "authorization" || n == "proxy-authorization" || n == "x-api-key" || n == "api-key" ||
-		n == "x-goog-api-key" || strings.Contains(n, "token") || strings.Contains(n, "secret") ||
-		strings.Contains(n, "password") || strings.HasSuffix(n, "-key") || strings.Contains(n, "credential"):
+	case n == "set-cookie":
+		return redactedLength(value)
+	case n == "x-api-key" || n == "api-key" || n == "x-goog-api-key" || strings.Contains(n, "token") ||
+		strings.Contains(n, "secret") || strings.Contains(n, "password") || strings.Contains(n, "passwd") ||
+		strings.HasSuffix(n, "-key") || strings.Contains(n, "credential") || strings.Contains(n, "auth"):
 		return redactSecretForLog(value)
 	}
 	return value
 }
 
-// redactSecretForLog keeps the auth scheme; long secrets show last 8 characters, length and
-// a 12-hex SHA-256 prefix; short ones show length only. A whole value never appears.
+// redactAuthorizationForLog recognises only the Bearer and Basic schemes. An unknown
+// scheme is not echoed: the whole value is redacted.
+func redactAuthorizationForLog(value string) string {
+	scheme, rest, hasScheme := strings.Cut(value, " ")
+	if hasScheme {
+		rest = strings.TrimSpace(rest)
+		switch strings.ToLower(scheme) {
+		case "bearer":
+			return "Bearer " + redactSecretForLog(rest)
+		case "basic":
+			return "Basic " + redactedLength(rest)
+		}
+		return redactedLength(value)
+	}
+	return redactSecretForLog(value)
+}
+
+// redactSecretForLog shows last 8 characters, length and a 12-hex SHA-256 prefix only for
+// recognised long token formats; every other value shows its length only.
 func redactSecretForLog(value string) string {
-	if value == "" {
-		return ""
+	if !claudeLoggableTokenRe.MatchString(value) || len(value) < claudeSecretTailMinLen {
+		return redactedLength(value)
 	}
-	scheme, secret := "", value
-	if i := strings.IndexByte(value, ' '); i > 0 && i < 16 && !strings.ContainsAny(value[:i], "=:") {
-		scheme, secret = value[:i]+" ", strings.TrimSpace(value[i+1:])
-	}
-	if len(secret) < claudeSecretTailMinLen {
-		return scheme + "[redacted len=" + strconv.Itoa(len(secret)) + "]"
-	}
-	sum := sha256.Sum256([]byte(secret))
-	return scheme + "…" + secret[len(secret)-8:] + " (len=" + strconv.Itoa(len(secret)) + " sha256=" + hex.EncodeToString(sum[:])[:12] + ")"
+	sum := sha256.Sum256([]byte(value))
+	return "…" + value[len(value)-8:] + " (len=" + strconv.Itoa(len(value)) + " sha256=" + hex.EncodeToString(sum[:])[:12] + ")"
+}
+
+func redactedLength(value string) string {
+	return "[redacted len=" + strconv.Itoa(len(value)) + "]"
 }
 
 // redactCookieForLog keeps cookie names and redacts each value; anything malformed is
 // redacted whole.
 func redactCookieForLog(value string) string {
-	if value == "" {
-		return ""
-	}
 	parts := strings.Split(value, ";")
 	out := make([]string, 0, len(parts))
 	for _, part := range parts {
@@ -211,10 +235,11 @@ func redactCookieForLog(value string) string {
 			continue
 		}
 		name, v, ok := strings.Cut(part, "=")
-		if !ok || strings.TrimSpace(name) == "" {
+		name = strings.TrimSpace(name)
+		if !ok || name == "" || strings.ContainsAny(name, " \t,") {
 			return "[redacted cookie len=" + strconv.Itoa(len(value)) + "]"
 		}
-		out = append(out, strings.TrimSpace(name)+"="+redactSecretForLog(strings.TrimSpace(v)))
+		out = append(out, name+"="+redactSecretForLog(strings.TrimSpace(v)))
 	}
 	return strings.Join(out, "; ")
 }

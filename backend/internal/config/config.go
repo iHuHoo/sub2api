@@ -14,6 +14,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/pkg/claude"
 	"github.com/spf13/viper"
 	"golang.org/x/net/http/httpguts"
 )
@@ -2569,7 +2570,7 @@ func setDefaults() {
 	viper.SetDefault("gateway.image_stream_keepalive_interval", 10)
 	viper.SetDefault("gateway.image_nonstream_keepalive_interval", 0)
 	viper.SetDefault("gateway.max_line_size", 500*1024*1024)
-	viper.SetDefault("gateway.claude_client_profile_file", "./resources/claude-client-profile/profile.json")
+	viper.SetDefault("gateway.claude_client_profile_file", claude.DefaultClientProfileFile)
 	viper.SetDefault("gateway.log_claude_headers", true)
 	viper.SetDefault("gateway.scheduling.sticky_session_max_waiting", 3)
 	viper.SetDefault("gateway.scheduling.sticky_session_wait_timeout", 120*time.Second)
