@@ -619,17 +619,21 @@ func TestLongContextWindowComesFromModelCapacity(t *testing.T) {
 	}
 	require.Equal(t, int64(0), func() int64 { w, _ := (&GatewayService{}).longContextWindow("claude-sonnet-4-6"); return w }(), "no pricing wired: unknown")
 
+	// Scope, not protection: a 1M window without a calibrated profile bounds max_tokens only.
+	// A 12 MB Opus 5.5 body (far above 1M tokens) is admitted under the default block policy.
 	for _, tc := range []struct {
 		model, decision string
 		window          int64
+		bytes           int
 	}{
-		{"claude-sonnet-4-5", "unprofiled_admit", 200_000},
-		{"not-a-model-xyz", "unknown_window_admit", 0},
+		{"claude-sonnet-4-5", "unprofiled_admit", 200_000, 600_000},
+		{"claude-opus-5-5", "unprofiled_admit", 1_000_000, 12_000_000},
+		{"not-a-model-xyz", "unknown_window_admit", 0, 600_000},
 	} {
 		upstream := countOK("1")
 		svc := newLongContextService(upstream, "", nil)
 		c, _ := longContextContext("/v1/messages", "")
-		_, err := forwardMessages(t, svc, c, newAnthropicOAuthAccountForPartialUsageTest(), textMessages(tc.model, 1024, 600_000))
+		_, err := forwardMessages(t, svc, c, newAnthropicOAuthAccountForPartialUsageTest(), textMessages(tc.model, 1024, tc.bytes))
 		require.NoError(t, err, tc.model)
 		obs := observationOf(t, c)
 		require.Equal(t, tc.decision, obs.Decision, tc.model)
