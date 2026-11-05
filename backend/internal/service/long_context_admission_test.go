@@ -642,3 +642,48 @@ func TestLongContextWindowComesFromModelCapacity(t *testing.T) {
 		requireNoCount(t, upstream)
 	}
 }
+
+// An uncalibrated 1M model is not gated by size, so the observe line must show when the
+// provider itself rejected the size, plus a recorded-only estimate for later analysis.
+func TestLogLongContextOutcomeRecordsUpstreamOverflow(t *testing.T) {
+	sink, restore := captureStructuredLog(t)
+	defer restore()
+	upstream := &longContextUpstream{countStatus: http.StatusOK, inferResps: []*http.Response{{
+		StatusCode: http.StatusBadRequest, Header: http.Header{"Content-Type": {"application/json"}},
+		Body: io.NopCloser(strings.NewReader(`{"type":"error","error":{"type":"invalid_request_error","message":"prompt is too long: 1200000 tokens > 1000000 maximum"}}`)),
+	}}}
+	svc := newLongContextService(upstream, "", nil)
+	c, _ := longContextContext("/v1/messages", "")
+	res, err := forwardMessages(t, svc, c, newAnthropicOAuthAccountForPartialUsageTest(), textMessages("claude-opus-5-5", 1024, 600_000))
+	require.Error(t, err)
+	LogLongContextOutcome(c, res, err)
+
+	var line map[string]any
+	sink.mu.Lock()
+	for _, ev := range sink.events {
+		if ev.Message == "long_context.observe" {
+			line = ev.Fields
+		}
+	}
+	sink.mu.Unlock()
+	require.NotNil(t, line)
+	require.Equal(t, "unprofiled_admit", line["decision"], "recording never changes the decision")
+	require.EqualValues(t, longContextRealisticEstimate(int64(observationBytes(line))), line["estimate"])
+	require.EqualValues(t, 400, line["upstream_status"])
+	require.Equal(t, "invalid_request_error", line["upstream_error_type"])
+	require.Equal(t, true, line["prompt_too_long"])
+	require.Equal(t, 1, upstream.inferCalls)
+	requireNoCount(t, upstream)
+}
+
+func observationBytes(line map[string]any) int64 {
+	switch v := line["body_bytes"].(type) {
+	case int64:
+		return v
+	case int:
+		return int64(v)
+	case float64:
+		return int64(v)
+	}
+	return -1
+}

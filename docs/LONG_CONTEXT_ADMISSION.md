@@ -48,10 +48,11 @@ Every gated attempt writes one `long_context.observe` line (level info) when it 
 
 - the attempt: entry point, model, route, whether it was mimicked, account ID and effective policy action;
 - the decision: eligibility (`eligible`, `unprofiled` or `ineligible`) and the decision itself (`profile_admit`, `profile_reject`, `estimate_admit`, `estimate_reject`, `unprofiled_admit`, `ineligible_admit`, `output_reject`, `marker_reject`, `unknown_window_admit`, `policy_pass` or `policy_unavailable`);
-- the numbers behind it: body bytes, `max_tokens`, `window` and `window_source` (`pricing` or `unknown`), input budget, the profile's lower and upper bounds, and the estimate;
-- what actually happened: the outcome and, when inference ran, the provider's actual `input_tokens`, `cache_creation_input_tokens`, `cache_read_input_tokens`, their total, and `actual_over_budget`.
+- the numbers behind it: body bytes, `max_tokens`, `window` and `window_source` (`pricing` or `unknown`), input budget, the profile's lower and upper bounds, and the estimate. For `unprofiled` bodies (plain text on a model without a profile, such as Opus 5.5) the estimate is recorded too but never decides;
+- what actually happened: the outcome and, when inference ran, the provider's actual `input_tokens`, `cache_creation_input_tokens`, `cache_read_input_tokens`, their total, and `actual_over_budget`. When the provider rejected the attempt, `upstream_status`, `upstream_error_type` and `prompt_too_long` (the provider's "prompt is too long" error) are added;
+- `client_request_id`, from the request logger, to join the line with error and usage records.
 
-Prompt content and credentials are never logged. Comparing the actual total with the estimate and bounds shows false rejections and slips on real traffic.
+Prompt content and credentials are never logged. For uncalibrated models, `prompt_too_long` lines and the unprofiled estimate against the actual total are the data for deciding whether those models need an input check. Comparing the actual total with the estimate and bounds shows false rejections and slips on real traffic.
 
 ## Calibration
 

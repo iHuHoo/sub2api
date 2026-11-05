@@ -432,6 +432,10 @@ type longContextObservation struct {
 	Lower        int64 // profile L, -1 if not computed
 	Upper        int64 // profile U, -1 if not computed
 	Estimate     int64 // realistic estimate, -1 if not computed
+	// Upstream error response, when inference was rejected (0 = none seen).
+	UpstreamStatus    int
+	UpstreamErrorType string
+	PromptTooLong     bool
 }
 
 const longContextObservationKey = "longContextObservation"
@@ -534,6 +538,9 @@ func (s *GatewayService) decideLongContext(c *gin.Context, a longContextAttempt,
 	if profile == nil {
 		// shortcut: content or model without a calibrated bound is admitted (only output
 		// arithmetic and the marker apply); the observe log shows how often and how large.
+		if obs.Eligibility == "unprofiled" {
+			obs.Estimate = longContextRealisticEstimate(b) // recorded only, never decides
+		}
 		obs.Decision = obs.Eligibility + "_admit"
 		return nil
 	}
@@ -582,6 +589,23 @@ func (s *GatewayService) longContextReject(c *gin.Context, message string) error
 	return newLongContextLocalStop(GatewayFailureReasonLongContextDisabled, http.StatusBadRequest, message)
 }
 
+// noteLongContextUpstreamError records an upstream error response on the attempt's
+// observation, so the observe line shows when the provider itself rejected the size.
+func noteLongContextUpstreamError(c *gin.Context, status int, body []byte) {
+	if c == nil {
+		return
+	}
+	v, ok := c.Get(longContextObservationKey)
+	if !ok {
+		return
+	}
+	if obs, _ := v.(*longContextObservation); obs != nil {
+		obs.UpstreamStatus = status
+		obs.UpstreamErrorType = gjson.GetBytes(body, "error.type").String()
+		obs.PromptTooLong = strings.Contains(strings.ToLower(gjson.GetBytes(body, "error.message").String()), "prompt is too long")
+	}
+}
+
 // LogLongContextOutcome writes one long_context.observe line for the attempt that just
 // finished: what admission decided and, when inference ran, the provider's actual input
 // usage. It is the data for checking the estimates against real traffic.
@@ -616,6 +640,10 @@ func LogLongContextOutcome(c *gin.Context, result *ForwardResult, err error) {
 			fields = append(fields, zap.Bool("actual_over_budget", total > obs.Budget))
 		}
 	} else if err != nil {
+		if obs.UpstreamStatus != 0 {
+			fields = append(fields, zap.Int("upstream_status", obs.UpstreamStatus),
+				zap.String("upstream_error_type", obs.UpstreamErrorType), zap.Bool("prompt_too_long", obs.PromptTooLong))
+		}
 		var stop *UpstreamFailoverError
 		reason := "error"
 		if errors.As(err, &stop) && stop.Reason != "" {
@@ -623,7 +651,11 @@ func LogLongContextOutcome(c *gin.Context, result *ForwardResult, err error) {
 		}
 		fields = append(fields, zap.String("outcome", reason))
 	}
-	logger.L().Info("long_context.observe", fields...)
+	log := logger.L()
+	if c.Request != nil {
+		log = logger.FromContext(c.Request.Context()) // carries client_request_id
+	}
+	log.Info("long_context.observe", fields...)
 }
 
 // anthropicLongContextAttempt describes a Messages-shaped attempt built by buildUpstreamRequest.

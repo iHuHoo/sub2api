@@ -154,6 +154,7 @@ func (s *GatewayService) ForwardAsChatCompletions(
 	if resp.StatusCode >= 400 {
 		respBody, _ := s.readUpstreamErrorBody(resp)
 		_ = resp.Body.Close()
+		noteLongContextUpstreamError(c, resp.StatusCode, respBody)
 		resp.Body = io.NopCloser(bytes.NewReader(respBody))
 
 		upstreamMsg := strings.TrimSpace(extractUpstreamErrorMessage(respBody))
