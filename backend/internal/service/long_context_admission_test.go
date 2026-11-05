@@ -620,7 +620,7 @@ func TestLongContextWindowComesFromModelCapacity(t *testing.T) {
 	require.Equal(t, int64(0), func() int64 { w, _ := (&GatewayService{}).longContextWindow("claude-sonnet-4-6"); return w }(), "no pricing wired: unknown")
 
 	// Scope, not protection: a 1M window without a calibrated profile bounds max_tokens only.
-	// A 12 MB Opus 5.5 body (far above 1M tokens) is admitted under the default block policy.
+	// A 12 MB unprofiled Opus 5.5 input is admitted under the default block policy.
 	for _, tc := range []struct {
 		model, decision string
 		window          int64
