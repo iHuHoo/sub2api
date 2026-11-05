@@ -1,9 +1,18 @@
 # Claude client profile
 
 Since #144 the gateway's Claude Code identity comes from one reviewed file, loaded once at startup:
-`backend/resources/claude-client-profile/profile.json` (config key `gateway.claude_client_profile_file`, default `./resources/claude-client-profile/profile.json`). Docker images ship it under `/app/resources`. Release archives carry it at `resources/claude-client-profile/profile.json`; `deploy/install.sh` (install, upgrade, version install) and the in-app update install it under `/opt/sub2api/resources/...`, replacing the shipped copy and keeping a changed previous one as `profile.json.backup` (restored by rollback). A profile at an operator-configured path is never replaced. An in-app update started from a version before #144 runs the old updater, which does not install the file: the new binary then stops with a message to run `install.sh upgrade` or copy the file from the archive.
+`backend/resources/claude-client-profile/profile.json` (config key `gateway.claude_client_profile_file`, default `./resources/claude-client-profile/profile.json`). Docker images ship it under `/app/resources`. Release archives carry it at `resources/claude-client-profile/profile.json`; `deploy/install.sh` (install, upgrade, version install) and the in-app update install it under `/opt/sub2api/resources/...`, replacing the shipped copy and keeping a changed previous one as `profile.json.backup` (restored by rollback). A profile at an operator-configured path is never replaced. The backup always holds the profile the previous binary ran with, so a rollback restores the matching pair.
 
 The profile holds the CLI version, `User-Agent`, `anthropic-version` and the `X-Stainless-*` values (package version, runtime and version, OS, arch, timeout), plus `x-app`, `anthropic-dangerous-direct-browser-access` and source metadata. Loading is strict: unknown or duplicate keys, missing fields, a User-Agent that does not match the version, control characters or a bad digest all stop the server. There is no fallback to older or built-in values: a process that has not loaded a profile fails instead of sending some other identity.
+
+## Upgrading from a version before #144
+
+Binary installs (not Docker) need the profile before the new binary starts. An in-app update started from a version before #144 runs the old updater, which installs only the binary. For that first upgrade, do one of:
+
+- upgrade with `deploy/install.sh upgrade` (installs `resources/claude-client-profile/profile.json` with the binary), or
+- before restarting the new binary, copy `resources/claude-client-profile/profile.json` from the release archive to `/opt/sub2api/resources/claude-client-profile/profile.json` (or the path set in `gateway.claude_client_profile_file`).
+
+Otherwise the new binary refuses to start and says which file is missing. Later in-app updates install the profile themselves. Docker images already contain it.
 
 ## What uses it
 

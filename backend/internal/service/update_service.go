@@ -9,8 +9,10 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -354,25 +356,38 @@ func extractClientProfileFromArchive(archivePath string) ([]byte, error) {
 	}
 }
 
-// installShippedClientProfile replaces the profile only when the server uses the shipped
-// default location; an operator-configured path is the operator's file and is left alone.
-// A changed file is kept as <path>.backup so Rollback restores it with the binary.
+// installShippedClientProfile runs after every successful binary swap. When the server uses
+// the shipped default location it first makes <path>.backup the profile the previous binary
+// ran with (or removes a stale backup when there was none), so Rollback always restores the
+// profile that belongs to the restored binary, and then installs the release's profile if
+// the archive has one. An operator-configured path is the operator's file and is left alone.
 func installShippedClientProfile(data []byte) error {
 	path, shipped := claude.ActiveClientProfileSource()
-	if data == nil || !shipped || path == "" {
+	if !shipped || path == "" {
 		return nil
 	}
 	current, err := os.ReadFile(path)
-	if err == nil && bytes.Equal(current, data) {
-		return nil
-	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return err
-	}
-	if err == nil {
-		if err := os.WriteFile(path+".backup", current, 0o644); err != nil { //nolint:gosec // public, non-secret config
+	switch {
+	case err == nil:
+		if err := writeFileAtomic(path+".backup", current); err != nil {
 			return err
 		}
+	case errors.Is(err, fs.ErrNotExist):
+		if err := os.Remove(path + ".backup"); err != nil && !errors.Is(err, fs.ErrNotExist) {
+			return err
+		}
+	default:
+		return err
+	}
+	if data == nil || bytes.Equal(current, data) {
+		return nil
+	}
+	return writeFileAtomic(path, data)
+}
+
+func writeFileAtomic(path string, data []byte) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
 	}
 	tmp, err := os.CreateTemp(filepath.Dir(path), ".profile-*.json")
 	if err != nil {
@@ -392,13 +407,14 @@ func installShippedClientProfile(data []byte) error {
 	return os.Rename(tmp.Name(), path)
 }
 
-// restoreShippedClientProfileBackup puts back the profile saved by the last update.
+// restoreShippedClientProfileBackup puts back the profile the restored binary ran with;
+// installShippedClientProfile refreshes that backup on every update.
 func restoreShippedClientProfileBackup() error {
 	path, shipped := claude.ActiveClientProfileSource()
 	if !shipped || path == "" {
 		return nil
 	}
-	if _, err := os.Stat(path + ".backup"); err != nil {
+	if _, err := os.Stat(path + ".backup"); errors.Is(err, fs.ErrNotExist) {
 		return nil
 	}
 	return os.Rename(path+".backup", path)
