@@ -235,6 +235,7 @@ func (s *GatewayService) buildUpstreamRequest(ctx context.Context, c *gin.Contex
 	// 放在所有 header 逻辑之后，确保配置值对同名头拥有最终决定权。
 	account.ApplyHeaderOverrides(req.Header)
 	filterSonnet55ToolsetBetaHeader(req.Header, body, modelID)
+	stripNoCreditOAuthBetaHeader(account, req.Header)
 
 	// === DEBUG: 打印上游转发请求（headers + body 摘要），与 CLIENT_ORIGINAL 对比 ===
 	s.debugLogGatewaySnapshot("UPSTREAM_FORWARD", req.Header, body, map[string]string{
@@ -481,6 +482,37 @@ func filterSonnet55ToolsetBeta(header string, body []byte, modelID string) strin
 		}
 	}
 	return header
+}
+
+// noCreditOAuthBetaSet lists betas that need usage credits on a subscription: fast mode
+// always, and 1M context on Sonnet 4.6 and (plan-dependent) Opus 4.6. Subscription OAuth
+// accounts are treated as having no credits (#147), so these never leave such a request,
+// whatever the beta policy says.
+// noCreditFastModeText answers a speed=fast request on a subscription OAuth account.
+const noCreditFastModeText = "Fast mode requires usage credits and is not available on this gateway. Remove speed=fast and retry."
+
+var noCreditOAuthBetaSet = buildBetaTokenSet([]string{claude.BetaFastMode, claude.BetaContext1M})
+
+// isNoCreditOAuthAccount reports whether the account is an Anthropic subscription OAuth
+// account (OAuth or setup token), the accounts the no-credit rules apply to.
+func isNoCreditOAuthAccount(account *Account) bool {
+	return account != nil && account.Platform == PlatformAnthropic && account.IsOAuth()
+}
+
+// stripNoCreditOAuthBetaHeader removes credit-gated betas from the final outgoing header.
+func stripNoCreditOAuthBetaHeader(account *Account, headers http.Header) {
+	if !isNoCreditOAuthAccount(account) {
+		return
+	}
+	header := getHeaderRaw(headers, "anthropic-beta")
+	filtered := stripBetaTokensWithSet(header, noCreditOAuthBetaSet)
+	if filtered == header {
+		return
+	}
+	deleteHeaderAllForms(headers, "anthropic-beta")
+	if filtered != "" {
+		setHeaderRaw(headers, "anthropic-beta", filtered)
+	}
 }
 
 func filterSonnet55ToolsetBetaHeader(headers http.Header, body []byte, modelID string) {

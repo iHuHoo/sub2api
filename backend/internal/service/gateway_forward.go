@@ -110,6 +110,13 @@ func (s *GatewayService) Forward(ctx context.Context, c *gin.Context, account *A
 			return nil, err
 		}
 	}
+	// Fast mode bills usage credits on every subscription, and subscription OAuth accounts
+	// are treated as having none (#147): stop it here instead of sending it upstream.
+	if isNoCreditOAuthAccount(account) && parsed.Speed == "fast" {
+		err := errors.New(noCreditFastModeText)
+		c.JSON(http.StatusBadRequest, gin.H{"type": "error", "error": gin.H{"type": "invalid_request_error", "message": err.Error()}})
+		return nil, err
+	}
 	// Anthropic Fast is requested with speed=fast rather than OpenAI's
 	// service_tier. Attach it at this shared boundary so passthrough, OAuth and
 	// partial-stream results all use the same billing and usage-log path.

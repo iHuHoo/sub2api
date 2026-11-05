@@ -8,6 +8,8 @@ The beta policy rule for `context-1m-2025-08-07` (Admin → Settings → Beta po
 | filter | marker removed | checked against the model's window |
 | pass | forwarded as before | long context allowed (explicit opt-in) |
 
+Subscription OAuth accounts (OAuth and setup token) are treated as having no usage credits (#147). On them the 1M marker and `fast-mode-2026-02-01` are removed from every outgoing messages and count_tokens request, native or mimic. Pass, a model whitelist or a scope that does not cover the account acts as filter: the window check still runs. A request body with `speed: "fast"` is rejected with 400 before dispatch. Models whose own window is 1M (Opus 4.7, Sonnet 5.5, Opus 5.5 and later) keep it. Opening 1M per group or account is not available yet.
+
 The rule applies only to the accounts in its scope and the models in its whitelist; anything outside is not protected. A missing rule, missing or unreadable-as-JSON settings, and the old generated default (pass for Sonnet 5, filter otherwise) all mean block for every scope. The old default is replaced when settings are read, and saving the page persists it. A customized rule is kept as it is.
 
 ## The window check
