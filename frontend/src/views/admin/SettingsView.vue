@@ -782,6 +782,12 @@
                       {{ rule.beta_token }}
                     </span>
                   </div>
+                  <p
+                    v-if="rule.beta_token === 'context-1m-2025-08-07'"
+                    class="mb-3 text-xs text-amber-700 dark:text-amber-400"
+                  >
+                    {{ t("admin.settings.betaPolicy.longContextHint") }}
+                  </p>
 
                   <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <!-- Action -->

@@ -1152,7 +1152,9 @@ export default {
         quickPresets: 'Quick Presets',
         presetOpusOnly: 'Opus only for 1M',
         presetOpusOnlyDesc: 'Pass for Opus, filter others',
-        commonPatterns: 'Common patterns'
+        commonPatterns: 'Common patterns',
+        longContextHint:
+          'This rule is also the long context switch. Block or filter: before inference, requests whose actual size exceeds the model context window (input plus max_tokens; 1M for 4.6 and later, 200k for 4.5 and earlier, from max_input_tokens in the pricing data) are rejected, whether or not the client sends the 1M marker. Models the pricing data does not identify get no size check. Pass: long context is allowed. It applies only to the accounts and models in its scope and whitelist; anything outside is not protected. Size is estimated locally with calibrated rules, with no count call, and is not an exact count. Plain-text requests to the calibrated models (claude-sonnet-4-6 and claude-opus-4-6 on OAuth) are checked; other models, routes and content (such as images or thinking blocks) are only checked for max_tokens and the 1M marker, then admitted. The old generated default (pass for Sonnet 5, filter otherwise) is already shown here as the new default, block; saving writes it.'
       },
       openaiFastPolicy: {
         title: 'OpenAI Fast/Flex Policy',

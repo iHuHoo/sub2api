@@ -741,6 +741,9 @@ func (s *GatewayService) evaluateBetaPolicy(ctx context.Context, betaHeader stri
 		effectiveAction, effectiveErrMsg := resolveRuleAction(rule, model)
 		switch effectiveAction {
 		case BetaPolicyActionBlock:
+			if rule.BetaToken == longContextBetaToken {
+				continue // admitLongContext rejects the marker with long_context_disabled
+			}
 			if result.blockErr == nil && betaHeader != "" && containsBetaToken(betaHeader, rule.BetaToken) {
 				msg := effectiveErrMsg
 				if msg == "" {
@@ -918,7 +921,7 @@ func (s *GatewayService) checkBetaPolicyBlockForTokens(ctx context.Context, toke
 	tokenSet := buildBetaTokenSet(tokens)
 	for _, rule := range settings.Rules {
 		effectiveAction, effectiveErrMsg := resolveRuleAction(rule, model)
-		if effectiveAction != BetaPolicyActionBlock {
+		if effectiveAction != BetaPolicyActionBlock || rule.BetaToken == longContextBetaToken {
 			continue
 		}
 		if !betaPolicyScopeMatches(rule.Scope, isOAuth, isBedrock) {

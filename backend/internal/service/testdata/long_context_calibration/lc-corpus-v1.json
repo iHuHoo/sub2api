@@ -1,0 +1,759 @@
+{
+ "attempts": {
+  "failed_before_resume": 2,
+  "successful_samples": 96,
+  "total": 98
+ },
+ "calibrated_at": "2026-11-05 (Asia/Singapore)",
+ "corpus_version": "lc-corpus-v1",
+ "models": {
+  "claude-opus-4-6": {
+   "bands_fastpass_max_reject_min": {
+    "1024": [
+     127613,
+     2107929
+    ],
+    "32000": [
+     105964,
+     1779775
+    ],
+    "64000": [
+     83599,
+     1440772
+    ],
+    "8192": [
+     122604,
+     2031993
+    ]
+   },
+   "false_rejections": [
+    "many_blocks-3: C=40590 < L=63831"
+   ],
+   "profile": {
+    "high": [
+     302894,
+     211693
+    ],
+    "low": [
+     389,
+     4121
+    ]
+   },
+   "samples": [
+    {
+     "body_bytes": 4121,
+     "fixture": "prose-0",
+     "input_tokens": 778,
+     "kind": "realistic",
+     "set": "fitting"
+    },
+    {
+     "body_bytes": 62127,
+     "fixture": "prose-1",
+     "input_tokens": 12216,
+     "kind": "realistic",
+     "set": "heldout"
+    },
+    {
+     "body_bytes": 402124,
+     "fixture": "prose-2",
+     "input_tokens": 78767,
+     "kind": "realistic",
+     "set": "fitting"
+    },
+    {
+     "body_bytes": 702129,
+     "fixture": "prose-3",
+     "input_tokens": 137833,
+     "kind": "realistic",
+     "set": "heldout"
+    },
+    {
+     "body_bytes": 5746,
+     "fixture": "code-0",
+     "input_tokens": 1717,
+     "kind": "realistic",
+     "set": "fitting"
+    },
+    {
+     "body_bytes": 95348,
+     "fixture": "code-1",
+     "input_tokens": 34253,
+     "kind": "realistic",
+     "set": "heldout"
+    },
+    {
+     "body_bytes": 526200,
+     "fixture": "code-2",
+     "input_tokens": 191200,
+     "kind": "realistic",
+     "set": "fitting"
+    },
+    {
+     "body_bytes": 759053,
+     "fixture": "code-3",
+     "input_tokens": 275969,
+     "kind": "realistic",
+     "set": "heldout"
+    },
+    {
+     "body_bytes": 6449,
+     "fixture": "tool_json-0",
+     "input_tokens": 1874,
+     "kind": "realistic",
+     "set": "fitting"
+    },
+    {
+     "body_bytes": 99798,
+     "fixture": "tool_json-1",
+     "input_tokens": 23208,
+     "kind": "realistic",
+     "set": "heldout"
+    },
+    {
+     "body_bytes": 327146,
+     "fixture": "tool_json-2",
+     "input_tokens": 75060,
+     "kind": "realistic",
+     "set": "fitting"
+    },
+    {
+     "body_bytes": 651929,
+     "fixture": "tool_json-3",
+     "input_tokens": 149724,
+     "kind": "realistic",
+     "set": "heldout"
+    },
+    {
+     "body_bytes": 4137,
+     "fixture": "cjk-0",
+     "input_tokens": 1067,
+     "kind": "realistic",
+     "set": "fitting"
+    },
+    {
+     "body_bytes": 52137,
+     "fixture": "cjk-1",
+     "input_tokens": 17068,
+     "kind": "realistic",
+     "set": "heldout"
+    },
+    {
+     "body_bytes": 252129,
+     "fixture": "cjk-2",
+     "input_tokens": 83733,
+     "kind": "realistic",
+     "set": "fitting"
+    },
+    {
+     "body_bytes": 452121,
+     "fixture": "cjk-3",
+     "input_tokens": 150396,
+     "kind": "realistic",
+     "set": "heldout"
+    },
+    {
+     "body_bytes": 18718,
+     "fixture": "tool_exchange-0",
+     "input_tokens": 6811,
+     "kind": "realistic",
+     "set": "fitting"
+    },
+    {
+     "body_bytes": 129976,
+     "fixture": "tool_exchange-1",
+     "input_tokens": 46685,
+     "kind": "realistic",
+     "set": "heldout"
+    },
+    {
+     "body_bytes": 415544,
+     "fixture": "tool_exchange-2",
+     "input_tokens": 149174,
+     "kind": "realistic",
+     "set": "fitting"
+    },
+    {
+     "body_bytes": 893237,
+     "fixture": "tool_exchange-3",
+     "input_tokens": 320473,
+     "kind": "realistic",
+     "set": "heldout"
+    },
+    {
+     "body_bytes": 12644,
+     "fixture": "mixed_realistic-0",
+     "input_tokens": 4645,
+     "kind": "realistic",
+     "set": "fitting"
+    },
+    {
+     "body_bytes": 138028,
+     "fixture": "mixed_realistic-1",
+     "input_tokens": 44684,
+     "kind": "realistic",
+     "set": "heldout"
+    },
+    {
+     "body_bytes": 572638,
+     "fixture": "mixed_realistic-2",
+     "input_tokens": 184316,
+     "kind": "realistic",
+     "set": "fitting"
+    },
+    {
+     "body_bytes": 1360753,
+     "fixture": "mixed_realistic-3",
+     "input_tokens": 434183,
+     "kind": "realistic",
+     "set": "heldout"
+    },
+    {
+     "body_bytes": 902124,
+     "fixture": "prose_large-0",
+     "input_tokens": 176800,
+     "kind": "realistic",
+     "set": "fitting"
+    },
+    {
+     "body_bytes": 1502122,
+     "fixture": "prose_large-1",
+     "input_tokens": 295057,
+     "kind": "realistic",
+     "set": "heldout"
+    },
+    {
+     "body_bytes": 1102124,
+     "fixture": "prose_large-2",
+     "input_tokens": 216159,
+     "kind": "realistic",
+     "set": "fitting"
+    },
+    {
+     "body_bytes": 1702122,
+     "fixture": "prose_large-3",
+     "input_tokens": 334178,
+     "kind": "realistic",
+     "set": "heldout"
+    },
+    {
+     "body_bytes": 1166350,
+     "fixture": "code_large-0",
+     "input_tokens": 423803,
+     "kind": "realistic",
+     "set": "fitting"
+    },
+    {
+     "body_bytes": 1690343,
+     "fixture": "code_large-1",
+     "input_tokens": 614658,
+     "kind": "realistic",
+     "set": "heldout"
+    },
+    {
+     "body_bytes": 1399153,
+     "fixture": "code_large-2",
+     "input_tokens": 508426,
+     "kind": "realistic",
+     "set": "fitting"
+    },
+    {
+     "body_bytes": 1865126,
+     "fixture": "code_large-3",
+     "input_tokens": 678408,
+     "kind": "realistic",
+     "set": "heldout"
+    },
+    {
+     "body_bytes": 52121,
+     "fixture": "repetition-0",
+     "input_tokens": 12638,
+     "kind": "adversarial",
+     "set": "fitting"
+    },
+    {
+     "body_bytes": 602121,
+     "fixture": "repetition-1",
+     "input_tokens": 147272,
+     "kind": "adversarial",
+     "set": "heldout"
+    },
+    {
+     "body_bytes": 1502121,
+     "fixture": "repetition-2",
+     "input_tokens": 367585,
+     "kind": "adversarial",
+     "set": "fitting"
+    },
+    {
+     "body_bytes": 302121,
+     "fixture": "repetition-3",
+     "input_tokens": 73835,
+     "kind": "adversarial",
+     "set": "heldout"
+    },
+    {
+     "body_bytes": 22759,
+     "fixture": "random_ids-0",
+     "input_tokens": 12500,
+     "kind": "adversarial",
+     "set": "fitting"
+    },
+    {
+     "body_bytes": 208195,
+     "fixture": "random_ids-1",
+     "input_tokens": 121024,
+     "kind": "adversarial",
+     "set": "heldout"
+    },
+    {
+     "body_bytes": 517289,
+     "fixture": "random_ids-2",
+     "input_tokens": 301942,
+     "kind": "adversarial",
+     "set": "fitting"
+    },
+    {
+     "body_bytes": 929403,
+     "fixture": "random_ids-3",
+     "input_tokens": 544252,
+     "kind": "adversarial",
+     "set": "heldout"
+    },
+    {
+     "body_bytes": 12657,
+     "fixture": "unicode_edge-0",
+     "input_tokens": 8034,
+     "kind": "adversarial",
+     "set": "fitting"
+    },
+    {
+     "body_bytes": 160012,
+     "fixture": "unicode_edge-1",
+     "input_tokens": 113842,
+     "kind": "adversarial",
+     "set": "heldout"
+    },
+    {
+     "body_bytes": 423386,
+     "fixture": "unicode_edge-2",
+     "input_tokens": 302894,
+     "kind": "adversarial",
+     "set": "fitting"
+    },
+    {
+     "body_bytes": 739649,
+     "fixture": "unicode_edge-3",
+     "input_tokens": 529188,
+     "kind": "adversarial",
+     "set": "heldout"
+    },
+    {
+     "body_bytes": 24919,
+     "fixture": "many_blocks-0",
+     "input_tokens": 1594,
+     "kind": "adversarial",
+     "set": "fitting"
+    },
+    {
+     "body_bytes": 192443,
+     "fixture": "many_blocks-1",
+     "input_tokens": 10467,
+     "kind": "adversarial",
+     "set": "heldout"
+    },
+    {
+     "body_bytes": 458977,
+     "fixture": "many_blocks-2",
+     "input_tokens": 24627,
+     "kind": "adversarial",
+     "set": "fitting"
+    },
+    {
+     "body_bytes": 763000,
+     "fixture": "many_blocks-3",
+     "input_tokens": 40590,
+     "kind": "adversarial",
+     "set": "heldout"
+    }
+   ],
+   "violations": []
+  },
+  "claude-sonnet-4-6": {
+   "bands_fastpass_max_reject_min": {
+    "1024": [
+     127614,
+     2108952
+    ],
+    "32000": [
+     105965,
+     1780638
+    ],
+    "64000": [
+     83600,
+     1441471
+    ],
+    "8192": [
+     122604,
+     2032979
+    ]
+   },
+   "false_rejections": [
+    "many_blocks-3: C=40590 < L=63796"
+   ],
+   "profile": {
+    "high": [
+     151447,
+     105847
+    ],
+    "low": [
+     389,
+     4123
+    ]
+   },
+   "samples": [
+    {
+     "body_bytes": 4123,
+     "fixture": "prose-0",
+     "input_tokens": 778,
+     "kind": "realistic",
+     "set": "fitting"
+    },
+    {
+     "body_bytes": 62129,
+     "fixture": "prose-1",
+     "input_tokens": 12216,
+     "kind": "realistic",
+     "set": "heldout"
+    },
+    {
+     "body_bytes": 402126,
+     "fixture": "prose-2",
+     "input_tokens": 78767,
+     "kind": "realistic",
+     "set": "fitting"
+    },
+    {
+     "body_bytes": 702131,
+     "fixture": "prose-3",
+     "input_tokens": 137833,
+     "kind": "realistic",
+     "set": "heldout"
+    },
+    {
+     "body_bytes": 5748,
+     "fixture": "code-0",
+     "input_tokens": 1717,
+     "kind": "realistic",
+     "set": "fitting"
+    },
+    {
+     "body_bytes": 95350,
+     "fixture": "code-1",
+     "input_tokens": 34253,
+     "kind": "realistic",
+     "set": "heldout"
+    },
+    {
+     "body_bytes": 526202,
+     "fixture": "code-2",
+     "input_tokens": 191200,
+     "kind": "realistic",
+     "set": "fitting"
+    },
+    {
+     "body_bytes": 759055,
+     "fixture": "code-3",
+     "input_tokens": 275969,
+     "kind": "realistic",
+     "set": "heldout"
+    },
+    {
+     "body_bytes": 6451,
+     "fixture": "tool_json-0",
+     "input_tokens": 1874,
+     "kind": "realistic",
+     "set": "fitting"
+    },
+    {
+     "body_bytes": 99800,
+     "fixture": "tool_json-1",
+     "input_tokens": 23208,
+     "kind": "realistic",
+     "set": "heldout"
+    },
+    {
+     "body_bytes": 327148,
+     "fixture": "tool_json-2",
+     "input_tokens": 75060,
+     "kind": "realistic",
+     "set": "fitting"
+    },
+    {
+     "body_bytes": 651931,
+     "fixture": "tool_json-3",
+     "input_tokens": 149724,
+     "kind": "realistic",
+     "set": "heldout"
+    },
+    {
+     "body_bytes": 4139,
+     "fixture": "cjk-0",
+     "input_tokens": 1067,
+     "kind": "realistic",
+     "set": "fitting"
+    },
+    {
+     "body_bytes": 52139,
+     "fixture": "cjk-1",
+     "input_tokens": 17068,
+     "kind": "realistic",
+     "set": "heldout"
+    },
+    {
+     "body_bytes": 252131,
+     "fixture": "cjk-2",
+     "input_tokens": 83733,
+     "kind": "realistic",
+     "set": "fitting"
+    },
+    {
+     "body_bytes": 452123,
+     "fixture": "cjk-3",
+     "input_tokens": 150396,
+     "kind": "realistic",
+     "set": "heldout"
+    },
+    {
+     "body_bytes": 18720,
+     "fixture": "tool_exchange-0",
+     "input_tokens": 6811,
+     "kind": "realistic",
+     "set": "fitting"
+    },
+    {
+     "body_bytes": 129978,
+     "fixture": "tool_exchange-1",
+     "input_tokens": 46685,
+     "kind": "realistic",
+     "set": "heldout"
+    },
+    {
+     "body_bytes": 415546,
+     "fixture": "tool_exchange-2",
+     "input_tokens": 149174,
+     "kind": "realistic",
+     "set": "fitting"
+    },
+    {
+     "body_bytes": 893239,
+     "fixture": "tool_exchange-3",
+     "input_tokens": 320473,
+     "kind": "realistic",
+     "set": "heldout"
+    },
+    {
+     "body_bytes": 12646,
+     "fixture": "mixed_realistic-0",
+     "input_tokens": 4645,
+     "kind": "realistic",
+     "set": "fitting"
+    },
+    {
+     "body_bytes": 138030,
+     "fixture": "mixed_realistic-1",
+     "input_tokens": 44684,
+     "kind": "realistic",
+     "set": "heldout"
+    },
+    {
+     "body_bytes": 572640,
+     "fixture": "mixed_realistic-2",
+     "input_tokens": 184316,
+     "kind": "realistic",
+     "set": "fitting"
+    },
+    {
+     "body_bytes": 1360755,
+     "fixture": "mixed_realistic-3",
+     "input_tokens": 434183,
+     "kind": "realistic",
+     "set": "heldout"
+    },
+    {
+     "body_bytes": 902126,
+     "fixture": "prose_large-0",
+     "input_tokens": 176800,
+     "kind": "realistic",
+     "set": "fitting"
+    },
+    {
+     "body_bytes": 1502124,
+     "fixture": "prose_large-1",
+     "input_tokens": 295057,
+     "kind": "realistic",
+     "set": "heldout"
+    },
+    {
+     "body_bytes": 1102126,
+     "fixture": "prose_large-2",
+     "input_tokens": 216159,
+     "kind": "realistic",
+     "set": "fitting"
+    },
+    {
+     "body_bytes": 1702124,
+     "fixture": "prose_large-3",
+     "input_tokens": 334178,
+     "kind": "realistic",
+     "set": "heldout"
+    },
+    {
+     "body_bytes": 1166352,
+     "fixture": "code_large-0",
+     "input_tokens": 423803,
+     "kind": "realistic",
+     "set": "fitting"
+    },
+    {
+     "body_bytes": 1690345,
+     "fixture": "code_large-1",
+     "input_tokens": 614658,
+     "kind": "realistic",
+     "set": "heldout"
+    },
+    {
+     "body_bytes": 1399155,
+     "fixture": "code_large-2",
+     "input_tokens": 508426,
+     "kind": "realistic",
+     "set": "fitting"
+    },
+    {
+     "body_bytes": 1865128,
+     "fixture": "code_large-3",
+     "input_tokens": 678408,
+     "kind": "realistic",
+     "set": "heldout"
+    },
+    {
+     "body_bytes": 52123,
+     "fixture": "repetition-0",
+     "input_tokens": 12638,
+     "kind": "adversarial",
+     "set": "fitting"
+    },
+    {
+     "body_bytes": 602123,
+     "fixture": "repetition-1",
+     "input_tokens": 147272,
+     "kind": "adversarial",
+     "set": "heldout"
+    },
+    {
+     "body_bytes": 1502123,
+     "fixture": "repetition-2",
+     "input_tokens": 367585,
+     "kind": "adversarial",
+     "set": "fitting"
+    },
+    {
+     "body_bytes": 302123,
+     "fixture": "repetition-3",
+     "input_tokens": 73835,
+     "kind": "adversarial",
+     "set": "heldout"
+    },
+    {
+     "body_bytes": 22761,
+     "fixture": "random_ids-0",
+     "input_tokens": 12500,
+     "kind": "adversarial",
+     "set": "fitting"
+    },
+    {
+     "body_bytes": 208197,
+     "fixture": "random_ids-1",
+     "input_tokens": 121024,
+     "kind": "adversarial",
+     "set": "heldout"
+    },
+    {
+     "body_bytes": 517291,
+     "fixture": "random_ids-2",
+     "input_tokens": 301942,
+     "kind": "adversarial",
+     "set": "fitting"
+    },
+    {
+     "body_bytes": 929405,
+     "fixture": "random_ids-3",
+     "input_tokens": 544252,
+     "kind": "adversarial",
+     "set": "heldout"
+    },
+    {
+     "body_bytes": 12659,
+     "fixture": "unicode_edge-0",
+     "input_tokens": 8034,
+     "kind": "adversarial",
+     "set": "fitting"
+    },
+    {
+     "body_bytes": 160014,
+     "fixture": "unicode_edge-1",
+     "input_tokens": 113842,
+     "kind": "adversarial",
+     "set": "heldout"
+    },
+    {
+     "body_bytes": 423388,
+     "fixture": "unicode_edge-2",
+     "input_tokens": 302894,
+     "kind": "adversarial",
+     "set": "fitting"
+    },
+    {
+     "body_bytes": 739651,
+     "fixture": "unicode_edge-3",
+     "input_tokens": 529188,
+     "kind": "adversarial",
+     "set": "heldout"
+    },
+    {
+     "body_bytes": 24921,
+     "fixture": "many_blocks-0",
+     "input_tokens": 1594,
+     "kind": "adversarial",
+     "set": "fitting"
+    },
+    {
+     "body_bytes": 192445,
+     "fixture": "many_blocks-1",
+     "input_tokens": 10467,
+     "kind": "adversarial",
+     "set": "heldout"
+    },
+    {
+     "body_bytes": 458979,
+     "fixture": "many_blocks-2",
+     "input_tokens": 24627,
+     "kind": "adversarial",
+     "set": "fitting"
+    },
+    {
+     "body_bytes": 763002,
+     "fixture": "many_blocks-3",
+     "input_tokens": 40590,
+     "kind": "adversarial",
+     "set": "heldout"
+    }
+   ],
+   "violations": []
+  }
+ },
+ "note": "B is the length of the final prepared inference body; C is the provider count_tokens input_tokens for it. Synthetic corpus only; no prompts, identities or credentials.",
+ "original_manifest_sha256": "2d5bb244ed3b4d2ef7fc289fa08bcd57938f3b43e8888bc9116ebdcfd2c9adf1",
+ "resume_manifest_sha256": "299da1ce765c303889ad62e2757418f06d83fe13510d6e7f5c3dffc496d59139",
+ "route": "anthropic_oauth"
+}

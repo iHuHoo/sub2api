@@ -554,6 +554,8 @@ func (s *GatewayService) buildCountTokensRequest(ctx context.Context, c *gin.Con
 		body = sanitized
 	}
 
+	// The session header below follows metadata.user_id, which the counter itself rejects.
+	sessionUserID := gjson.GetBytes(body, "metadata.user_id").String()
 	body = sanitizeCountTokensRequestBody(body)
 
 	req, err := http.NewRequestWithContext(ctx, "POST", targetURL, bytes.NewReader(body))
@@ -610,7 +612,7 @@ func (s *GatewayService) buildCountTokensRequest(ctx context.Context, c *gin.Con
 
 	// 同步 X-Claude-Code-Session-Id 头：取 body 中已处理的 metadata.user_id 的 session_id 覆盖
 	if sessionHeader := getHeaderRaw(req.Header, "X-Claude-Code-Session-Id"); sessionHeader != "" {
-		if uid := gjson.GetBytes(body, "metadata.user_id").String(); uid != "" {
+		if uid := sessionUserID; uid != "" {
 			if parsed := ParseMetadataUserID(uid); parsed != nil {
 				setHeaderRaw(req.Header, "X-Claude-Code-Session-Id", parsed.SessionID)
 			}
@@ -644,6 +646,9 @@ func sanitizeCountTokensRequestBody(body []byte) []byte {
 		// max_tokens is a generation parameter; OAuth mimicry may inject it to
 		// resemble Claude Code messages requests, so it must never reach this endpoint.
 		"max_tokens",
+		// metadata is a Messages-only field: count_tokens answers 400 "metadata: Extra
+		// inputs are not permitted" (seen on an OAuth account, #139). Inference keeps it.
+		"metadata",
 	} {
 		if gjson.GetBytes(out, path).Exists() {
 			if next, ok := deleteJSONPathBytes(out, path); ok {

@@ -109,3 +109,58 @@ func TestLongContextCreditsHandlerKeepsSingleTerminalFrame(t *testing.T) {
 		})
 	}
 }
+
+// Local admission stops (#139) use the same writers with their own status, type and code.
+func TestLongContextAdmissionStopResponses(t *testing.T) {
+	h := &GatewayHandler{}
+	stops := []struct {
+		reason  service.GatewayFailureReason
+		status  int
+		errType string
+	}{
+		{service.GatewayFailureReasonLongContextDisabled, http.StatusBadRequest, "invalid_request_error"},
+		{service.GatewayFailureReasonLongContextCountUnavailable, http.StatusServiceUnavailable, "api_error"},
+		{service.GatewayFailureReasonLongContextPolicyUnavailable, http.StatusServiceUnavailable, "api_error"},
+	}
+	for _, st := range stops {
+		stop := func() *service.UpstreamFailoverError {
+			return &service.UpstreamFailoverError{Reason: st.reason, NextAccountAction: service.NextAccountStop, ClientStatusCode: st.status, ClientMessage: "m"}
+		}
+		writers := map[string]struct {
+			path  string
+			write func(*gin.Context, bool)
+		}{
+			"messages":         {"/v1/messages", func(c *gin.Context, s bool) { h.handleFailoverExhausted(c, stop(), service.PlatformAnthropic, s) }},
+			"chat completions": {"/v1/chat/completions", func(c *gin.Context, s bool) { h.handleCCFailoverExhausted(c, stop(), s) }},
+			"responses":        {"/v1/responses", func(c *gin.Context, s bool) { h.handleResponsesFailoverExhausted(c, stop(), s) }},
+		}
+		for name, w := range writers {
+			t.Run(string(st.reason)+"/"+name, func(t *testing.T) {
+				rec := httptest.NewRecorder()
+				c, _ := gin.CreateTestContext(rec)
+				c.Request = httptest.NewRequest(http.MethodPost, w.path, nil)
+				w.write(c, false)
+				require.Equal(t, st.status, rec.Code, rec.Body.String())
+				require.Equal(t, string(st.reason), gjson.Get(rec.Body.String(), "error.code").String(), rec.Body.String())
+				if name != "responses" {
+					require.Equal(t, st.errType, gjson.Get(rec.Body.String(), "error.type").String())
+				}
+				require.Empty(t, rec.Header().Get("Retry-After"))
+
+				rec2 := httptest.NewRecorder()
+				c2, _ := gin.CreateTestContext(rec2)
+				c2.Request = httptest.NewRequest(http.MethodPost, w.path, nil)
+				c2.Writer.Header().Set("Content-Type", "text/event-stream")
+				n, _ := c2.Writer.WriteString(": ping\n\n")
+				c2.Writer.Flush()
+				recordGatewayStreamHeartbeat(c2, n)
+				w.write(c2, true)
+				frame := strings.TrimPrefix(rec2.Body.String(), ": ping\n\n")
+				require.Equal(t, 1, strings.Count(frame, string(st.reason)), frame)
+				if name != "responses" { // the Responses error object carries only code and message
+					require.Contains(t, frame, st.errType)
+				}
+			})
+		}
+	}
+}

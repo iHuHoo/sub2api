@@ -16,14 +16,15 @@ const (
 	clientProtocolResponses
 )
 
-// writeLongContextCreditsError answers a long context credits stop in the client's
-// protocol and reports whether it did. Before headers it is a JSON 400; once a
-// keepalive or output committed HTTP 200, it is a terminal SSE error with the same code.
+// writeLongContextCreditsError answers a long context stop (upstream credits error or
+// local admission, #132/#139) in the client's protocol and reports whether it did. Before
+// headers it is a JSON error with the stop's status; once a keepalive or output committed
+// HTTP 200, it is a terminal SSE error with the same code.
 func writeLongContextCreditsError(c *gin.Context, e *service.UpstreamFailoverError, streamStarted bool, protocol clientProtocol) bool {
-	if !e.IsLongContextCreditsRequired() || c == nil || c.Writer == nil {
+	if !e.IsLongContextStop() || c == nil || c.Writer == nil {
 		return false
 	}
-	const errType = "invalid_request_error"
+	errType := e.ClientErrorType()
 	code, message, status := string(e.Reason), e.ClientMessage, e.ClientStatusCode
 	errObj := gin.H{"type": errType, "code": code, "message": message}
 
