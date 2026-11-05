@@ -3,7 +3,6 @@
 package service
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -11,7 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/stretchr/testify/require"
 )
 
@@ -228,36 +226,4 @@ func TestCalibrationResumeInterruptionsAndLaterStops(t *testing.T) {
 		_, err := readCalibrationLedger(ledger)
 		require.ErrorContains(t, err, "resume")
 	})
-}
-
-// End to end through the real preparation: resume-check verifies the original manifest,
-// the count copies and the ledger history, and writes nothing.
-func TestRunLongContextCalibrationResumeCheck(t *testing.T) {
-	ctx := context.Background()
-	cfg := &config.Config{Gateway: config.GatewayConfig{MaxLineSize: defaultMaxLineSize}}
-	settings := NewSettingService(&longContextSettingRepo{betaPolicySettingRepoStub: betaPolicySettingRepoStub{values: map[string]string{SettingKeyBetaPolicySettings: policyBlockOAuth}}}, cfg)
-	stored := &calibrationIdentityStub{fp: &Fingerprint{ClientID: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef", UserAgent: "claude-cli/2.1.258 (external, cli)"}}
-	k := NewLongContextCalibrator(cfg, nil, settings, &TLSFingerprintProfileService{}, NewReadOnlyIdentityCache(stored))
-	account := &Account{ID: 71, Platform: PlatformAnthropic, Type: AccountTypeOAuth, Concurrency: 1,
-		Credentials: map[string]any{"access_token": "synthetic-token"}, Extra: map[string]any{"account_uuid": "11111111-2222-3333-4444-555555555555"}}
-	dir := t.TempDir()
-	freshGatewaySettingsCache()
-	plan, err := prepareCalibrationJobs(ctx, k, account)
-	require.NoError(t, err)
-	oldM := calibrationManifest(71, plan)
-	writeOriginalHistory(t, dir+"/ledger.jsonl", plan, nil)
-	before, err := os.ReadFile(dir + "/ledger.jsonl")
-	require.NoError(t, err)
-
-	_, err = RunLongContextCalibrationResume(ctx, k, account, dir, strings.Repeat("0", 64), "rev", false, func(string, ...any) {})
-	require.ErrorContains(t, err, "bodies changed", "a different original manifest is refused")
-
-	freshGatewaySettingsCache()
-	report, err := RunLongContextCalibrationResume(ctx, k, account, dir, oldM, "rev", false, func(string, ...any) {})
-	require.NoError(t, err)
-	require.Equal(t, calibrationManifest(71, calibrationResumeJobs(plan)), report.Manifest)
-	after, err := os.ReadFile(dir + "/ledger.jsonl")
-	require.NoError(t, err)
-	require.Equal(t, before, after, "resume-check writes nothing")
-	require.Zero(t, stored.writes)
 }

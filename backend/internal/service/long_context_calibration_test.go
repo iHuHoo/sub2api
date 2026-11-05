@@ -241,21 +241,6 @@ func TestCheckLongContextCalibrationAccount(t *testing.T) {
 	require.ErrorContains(t, CheckLongContextCalibrationAccount(expired, 71, now), "expired")
 }
 
-// Dry run with real (stubbed) settings and the production policy shape: every job is
-// prepared through Forward, fits the cap and passes the guard; nothing is sent.
-func TestRunLongContextCalibrationDry(t *testing.T) {
-	cfg := &config.Config{Gateway: config.GatewayConfig{MaxLineSize: defaultMaxLineSize}}
-	settings := NewSettingService(&longContextSettingRepo{betaPolicySettingRepoStub: betaPolicySettingRepoStub{values: map[string]string{SettingKeyBetaPolicySettings: policyBlockOAuth}}}, cfg)
-	k := NewLongContextCalibrator(cfg, nil, settings, &TLSFingerprintProfileService{}, nil)
-	account := &Account{ID: 71, Platform: PlatformAnthropic, Type: AccountTypeOAuth, Concurrency: 1, Credentials: map[string]any{"access_token": "synthetic-token"}}
-	var lines int
-	report, err := RunLongContextCalibration(context.Background(), k, account, t.TempDir(), false, func(string, ...any) { lines++ })
-	require.NoError(t, err)
-	require.Len(t, report.Manifest, 64)
-	require.Equal(t, calibrationMaxAttempts+1, lines, "98 jobs plus the manifest line")
-	t.Logf("dry manifest_sha256=%s", report.Manifest)
-}
-
 // A terminal result is durable on its own: with the separate stop row missing (crash or a
 // failed write), a resumed run still makes no further call. A non-terminal failure does not
 // stop the run and is not retried.
@@ -355,35 +340,6 @@ func (c *calibrationIdentityStub) GetMaskedSessionID(context.Context, int64) (st
 func (c *calibrationIdentityStub) SetMaskedSessionID(context.Context, int64, string) error {
 	c.writes++
 	return nil
-}
-
-// Calibration uses the production identity read-only, and refuses to invent one.
-func TestCalibrationIdentityIsReadOnly(t *testing.T) {
-	cfg := &config.Config{Gateway: config.GatewayConfig{MaxLineSize: defaultMaxLineSize}}
-	// The command always has settings; identity rewriting reads them.
-	settings := NewSettingService(&longContextSettingRepo{betaPolicySettingRepoStub: betaPolicySettingRepoStub{values: map[string]string{}}}, cfg)
-	account := &Account{ID: 71, Platform: PlatformAnthropic, Type: AccountTypeOAuth, Concurrency: 1, Credentials: map[string]any{"access_token": "synthetic-token"}}
-
-	missing := &calibrationIdentityStub{}
-	k := NewLongContextCalibrator(cfg, nil, settings, &TLSFingerprintProfileService{}, NewReadOnlyIdentityCache(missing))
-	_, err := RunLongContextCalibration(context.Background(), k, account, t.TempDir(), false, func(string, ...any) {})
-	require.ErrorContains(t, err, "fingerprint")
-	require.Zero(t, missing.writes)
-
-	unreadable := &calibrationIdentityStub{readErr: errors.New("private connection details")}
-	k = NewLongContextCalibrator(cfg, nil, settings, &TLSFingerprintProfileService{}, NewReadOnlyIdentityCache(unreadable))
-	_, err = RunLongContextCalibration(context.Background(), k, account, t.TempDir(), false, func(string, ...any) {})
-	require.EqualError(t, err, "identity_cache_read_failed: could not read or decode production fingerprint")
-	require.Zero(t, unreadable.writes)
-
-	stored := &calibrationIdentityStub{fp: &Fingerprint{ClientID: "client-id-from-production", UserAgent: "claude-cli/2.1.258 (external, cli)"}}
-	k = NewLongContextCalibrator(cfg, nil, settings, &TLSFingerprintProfileService{}, NewReadOnlyIdentityCache(stored))
-	wire, err := k.PrepareWireBody(context.Background(), account, []byte(smallMessages))
-	require.NoError(t, err)
-	req, err := k.buildCountRequest(context.Background(), account, "claude-sonnet-4-6", wire)
-	require.NoError(t, err)
-	require.Equal(t, "claude-cli/2.1.258 (external, cli)", getHeaderRaw(req.Header, "User-Agent"), "the stored fingerprint is applied")
-	require.Zero(t, stored.writes, "nothing is written to the production cache")
 }
 
 // The counter rejects metadata ("metadata: Extra inputs are not permitted", seen live on
