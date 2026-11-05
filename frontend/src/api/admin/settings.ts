@@ -647,6 +647,8 @@ export interface SystemSettings {
   claude_code_client_version: string;
   claude_code_client_version_synced: string;
   claude_code_version_auto_sync_enabled: boolean;
+  /** Read-only startup Claude client profile (#144); the claude_code_* fields above are legacy. */
+  claude_client_profile: ClaudeClientProfileSummary;
   // codex_cli_only 加固
   min_codex_version: string;
   max_codex_version: string;
@@ -971,8 +973,6 @@ export interface UpdateSettingsRequest {
   openai_codex_user_agent?: string;
   openai_codex_client_version?: string;
   openai_codex_version_auto_sync_enabled?: boolean;
-  claude_code_client_version?: string;
-  claude_code_version_auto_sync_enabled?: boolean;
   // codex_cli_only 加固
   min_codex_version?: string;
   max_codex_version?: string;
@@ -1618,3 +1618,17 @@ export const settingsAPI = {
 };
 
 export default settingsAPI;
+
+export interface ClaudeClientProfileSummary {
+  revision: string;
+  cli_version: string;
+  user_agent: string;
+  x_stainless_package_version: string;
+  x_stainless_runtime: string;
+  x_stainless_runtime_version: string;
+  x_stainless_os: string;
+  x_stainless_arch: string;
+  anthropic_version: string;
+  source_artifact: string;
+  captured_at: string;
+}

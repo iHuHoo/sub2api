@@ -15,10 +15,10 @@ import (
 //	"Claude Code <ver> does not support this model; version 2.1.251 or newer is required."
 const fable51MinCLIVersion = "2.1.251"
 
-// TestCLICurrentVersionMatchesDefaultUserAgent 锁定"常量与 UA 同源"这条约束。
+// TestCLIVersionMatchesDefaultUserAgent 锁定"常量与 UA 同源"这条约束。
 // 两者不一致会被 Anthropic 判为第三方客户端，且只改一处是历史上的常见疏漏，
 // 所以这里从 UA 里反解版本号来比对，而不是并列两个字面量。
-func TestCLICurrentVersionMatchesDefaultUserAgent(t *testing.T) {
+func TestCLIVersionMatchesDefaultUserAgent(t *testing.T) {
 	t.Parallel()
 
 	ua := DefaultHeaders()["User-Agent"]
@@ -30,19 +30,19 @@ func TestCLICurrentVersionMatchesDefaultUserAgent(t *testing.T) {
 	if idx := strings.IndexByte(rest, ' '); idx >= 0 {
 		version = rest[:idx]
 	}
-	require.Equal(t, CLICurrentVersion, version,
-		"DefaultHeaders User-Agent version must match CLICurrentVersion")
+	require.Equal(t, CLIVersion(), version,
+		"DefaultHeaders User-Agent version must match the profile cli_version")
 }
 
-// TestCLICurrentVersionSatisfiesFable51Gate 锁定伪装版本不低于 claude-fable-5-1
+// TestCLIVersionSatisfiesFable51Gate 锁定伪装版本不低于 claude-fable-5-1
 // 的闸门下限。DefaultModels 里登记了该模型却发着更旧的版本号，等于模型清单可见
 // 但一调就 400。
-func TestCLICurrentVersionSatisfiesFable51Gate(t *testing.T) {
+func TestCLIVersionSatisfiesFable51Gate(t *testing.T) {
 	t.Parallel()
 
-	require.GreaterOrEqual(t, compareSemver(t, CLICurrentVersion, fable51MinCLIVersion), 0,
-		"CLICurrentVersion %s is below the claude-fable-5-1 gate %s",
-		CLICurrentVersion, fable51MinCLIVersion)
+	require.GreaterOrEqual(t, compareSemver(t, CLIVersion(), fable51MinCLIVersion), 0,
+		"CLIVersion() %s is below the claude-fable-5-1 gate %s",
+		CLIVersion(), fable51MinCLIVersion)
 }
 
 // compareSemver 比较两个三段 semver，返回 -1 / 0 / 1。

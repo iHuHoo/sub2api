@@ -17,6 +17,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/pkg/claude"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
 	"github.com/Wei-Shaw/sub2api/internal/util/responseheaders"
 	"github.com/tidwall/gjson"
@@ -365,14 +366,14 @@ func (s *GatewayService) buildUpstreamRequestAnthropicAPIKeyPassthrough(
 		setHeaderRaw(req.Header, "content-type", "application/json")
 	}
 	if getHeaderRaw(req.Header, "anthropic-version") == "" {
-		setHeaderRaw(req.Header, "anthropic-version", "2023-06-01")
+		setHeaderRaw(req.Header, "anthropic-version", claude.ActiveClientProfile().AnthropicVersion)
 	}
 
 	// 账号级请求头覆写（最终生效，覆盖上面所有来源的同名头）
 	account.ApplyHeaderOverrides(req.Header)
 	filterSonnet55ToolsetBetaHeader(req.Header, body, gjson.GetBytes(body, "model").String())
 
-	return req, body, nil
+	return markClaudeOutbound(c, req, account, "passthrough"), body, nil
 }
 
 func (s *GatewayService) handleStreamingResponseAnthropicAPIKeyPassthrough(

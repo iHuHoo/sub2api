@@ -8,11 +8,12 @@ import (
 	"strings"
 	"sync/atomic"
 
+	"sync"
+
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/xai"
 	"golang.org/x/sync/singleflight"
-	"sync"
 )
 
 const (
@@ -131,8 +132,6 @@ type SettingService struct {
 	openAICodexUASF             singleflight.Group
 	openAICodexVersionCache     atomic.Value // *cachedOpenAICodexClientVersion
 	openAICodexVersionSF        singleflight.Group
-	claudeCodeVersionCache      atomic.Value // *cachedClaudeCodeClientVersion
-	claudeCodeVersionSF         singleflight.Group
 	codexRestrictionPolicyCache atomic.Value // *cachedCodexRestrictionPolicy
 	codexRestrictionPolicySF    singleflight.Group
 

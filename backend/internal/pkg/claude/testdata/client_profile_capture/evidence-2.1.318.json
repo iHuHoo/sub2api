@@ -1,0 +1,767 @@
+{
+ "cli_version": "2.1.318",
+ "artifact": "npm @anthropic-ai/claude-code@2.1.318 (native linux-arm64 binary via optionalDependencies)",
+ "npm_integrity": "sha512-OTJgLxcvWefv8IdTsq5n90Z2IxEhLwKqHUBhwZYE4odXzKA/Tb6p2Zb5Iy9Vq7JIVcNZzn9cPxW5sb42wLF95Q==",
+ "binary_sha256": "53a0d7e219d7b0804ecba5dbc002745e89f786cc946d2de85a6470d5b2d1fb06",
+ "environment": "docker linux/arm64 node:22-bookworm-slim, --network none, local receiver 127.0.0.1:8765, CLAUDE_CODE_OAUTH_TOKEN synthetic, ANTHROPIC_BASE_URL set",
+ "captured_at": "2026-11-05 +08",
+ "cases": {
+  "p_sonnet46": [
+   {
+    "method": "POST",
+    "url": "/v1/messages?beta=true",
+    "headers": [
+     [
+      "Accept",
+      "application/json"
+     ],
+     [
+      "Authorization",
+      "Bearer <synthetic len=102>"
+     ],
+     [
+      "Content-Type",
+      "application/json"
+     ],
+     [
+      "User-Agent",
+      "claude-cli/2.1.318 (external, sdk-cli)"
+     ],
+     [
+      "X-Claude-Code-Session-Id",
+      "624ac220-97ae-4f38-980e-c20f5341790d"
+     ],
+     [
+      "X-Stainless-Arch",
+      "arm64"
+     ],
+     [
+      "X-Stainless-Lang",
+      "js"
+     ],
+     [
+      "X-Stainless-OS",
+      "Linux"
+     ],
+     [
+      "X-Stainless-Package-Version",
+      "0.128.0"
+     ],
+     [
+      "X-Stainless-Retry-Count",
+      "0"
+     ],
+     [
+      "X-Stainless-Runtime",
+      "node"
+     ],
+     [
+      "X-Stainless-Runtime-Version",
+      "v26.12.1"
+     ],
+     [
+      "X-Stainless-Timeout",
+      "600"
+     ],
+     [
+      "anthropic-beta",
+      "claude-code-20250219,oauth-2025-04-20,interleaved-thinking-2025-05-14,context-management-2025-06-27,thinking-token-count-2026-05-13,advanced-tool-use-2025-11-20,effort-2025-11-24,extended-cache-ttl-2025-04-11"
+     ],
+     [
+      "anthropic-dangerous-direct-browser-access",
+      "true"
+     ],
+     [
+      "anthropic-version",
+      "2023-06-01"
+     ],
+     [
+      "x-app",
+      "cli"
+     ],
+     [
+      "Connection",
+      "keep-alive"
+     ],
+     [
+      "Host",
+      "127.0.0.1:8765"
+     ],
+     [
+      "Accept-Encoding",
+      "gzip, deflate, br, zstd"
+     ],
+     [
+      "Content-Length",
+      "84708"
+     ]
+    ],
+    "billing_block": "x-anthropic-billing-header: cc_version=2.1.318.41c; cc_entrypoint=sdk-cli;",
+    "metadata_user_id_keys": [
+     "device_id",
+     "account_uuid",
+     "session_id"
+    ],
+    "body_top_keys": [
+     "model",
+     "messages",
+     "system",
+     "tools",
+     "metadata",
+     "max_tokens",
+     "thinking",
+     "context_management",
+     "output_config",
+     "stream"
+    ],
+    "thinking": {
+     "type": "adaptive",
+     "display": "omitted"
+    },
+    "output_config": {
+     "effort": "high"
+    },
+    "context_management": {
+     "edits": [
+      {
+       "type": "clear_thinking_20251015",
+       "keep": "all"
+      }
+     ]
+    },
+    "max_tokens": 32000
+   }
+  ],
+  "interactive_sonnet46": [
+   {
+    "method": "POST",
+    "url": "/v1/messages?beta=true",
+    "headers": [
+     [
+      "Accept",
+      "application/json"
+     ],
+     [
+      "Authorization",
+      "Bearer <synthetic len=102>"
+     ],
+     [
+      "Content-Type",
+      "application/json"
+     ],
+     [
+      "User-Agent",
+      "claude-cli/2.1.318 (external, cli)"
+     ],
+     [
+      "X-Claude-Code-Session-Id",
+      "1e835e1b-cdf2-4cbc-9e05-a23e5d2084f2"
+     ],
+     [
+      "X-Stainless-Arch",
+      "arm64"
+     ],
+     [
+      "X-Stainless-Lang",
+      "js"
+     ],
+     [
+      "X-Stainless-OS",
+      "Linux"
+     ],
+     [
+      "X-Stainless-Package-Version",
+      "0.128.0"
+     ],
+     [
+      "X-Stainless-Retry-Count",
+      "0"
+     ],
+     [
+      "X-Stainless-Runtime",
+      "node"
+     ],
+     [
+      "X-Stainless-Runtime-Version",
+      "v26.12.1"
+     ],
+     [
+      "X-Stainless-Timeout",
+      "600"
+     ],
+     [
+      "anthropic-beta",
+      "claude-code-20250219,oauth-2025-04-20,interleaved-thinking-2025-05-14,context-management-2025-06-27,thinking-token-count-2026-05-13,advanced-tool-use-2025-11-20,effort-2025-11-24,dangerous-tool-use-2026-09-03,thinking-display-updates-2026-08-18,afk-mode-2026-01-31,extended-cache-ttl-2025-04-11"
+     ],
+     [
+      "anthropic-dangerous-direct-browser-access",
+      "true"
+     ],
+     [
+      "anthropic-version",
+      "2023-06-01"
+     ],
+     [
+      "x-app",
+      "cli"
+     ],
+     [
+      "Connection",
+      "keep-alive"
+     ],
+     [
+      "Host",
+      "127.0.0.1:8765"
+     ],
+     [
+      "Accept-Encoding",
+      "gzip, deflate, br, zstd"
+     ],
+     [
+      "Content-Length",
+      "91314"
+     ]
+    ],
+    "billing_block": "x-anthropic-billing-header: cc_version=2.1.318.41c; cc_entrypoint=cli;",
+    "metadata_user_id_keys": [
+     "device_id",
+     "account_uuid",
+     "session_id"
+    ],
+    "body_top_keys": [
+     "model",
+     "messages",
+     "system",
+     "tools",
+     "metadata",
+     "max_tokens",
+     "thinking",
+     "context_management",
+     "safeguards",
+     "output_config",
+     "stream"
+    ],
+    "thinking": {
+     "type": "adaptive",
+     "display": "updates"
+    },
+    "output_config": {
+     "effort": "high"
+    },
+    "context_management": {
+     "edits": [
+      {
+       "type": "clear_thinking_20251015",
+       "keep": "all"
+      }
+     ]
+    },
+    "max_tokens": 32000
+   }
+  ],
+  "p_tool_sonnet46": [
+   {
+    "method": "POST",
+    "url": "/v1/messages?beta=true",
+    "headers": [
+     [
+      "Accept",
+      "application/json"
+     ],
+     [
+      "Authorization",
+      "Bearer <synthetic len=102>"
+     ],
+     [
+      "Content-Type",
+      "application/json"
+     ],
+     [
+      "User-Agent",
+      "claude-cli/2.1.318 (external, sdk-cli)"
+     ],
+     [
+      "X-Claude-Code-Session-Id",
+      "f9003995-3166-4849-8f43-fde5df383084"
+     ],
+     [
+      "X-Stainless-Arch",
+      "arm64"
+     ],
+     [
+      "X-Stainless-Lang",
+      "js"
+     ],
+     [
+      "X-Stainless-OS",
+      "Linux"
+     ],
+     [
+      "X-Stainless-Package-Version",
+      "0.128.0"
+     ],
+     [
+      "X-Stainless-Retry-Count",
+      "0"
+     ],
+     [
+      "X-Stainless-Runtime",
+      "node"
+     ],
+     [
+      "X-Stainless-Runtime-Version",
+      "v26.12.1"
+     ],
+     [
+      "X-Stainless-Timeout",
+      "600"
+     ],
+     [
+      "anthropic-beta",
+      "claude-code-20250219,oauth-2025-04-20,interleaved-thinking-2025-05-14,context-management-2025-06-27,thinking-token-count-2026-05-13,advanced-tool-use-2025-11-20,effort-2025-11-24,extended-cache-ttl-2025-04-11"
+     ],
+     [
+      "anthropic-dangerous-direct-browser-access",
+      "true"
+     ],
+     [
+      "anthropic-version",
+      "2023-06-01"
+     ],
+     [
+      "x-app",
+      "cli"
+     ],
+     [
+      "Connection",
+      "keep-alive"
+     ],
+     [
+      "Host",
+      "127.0.0.1:8765"
+     ],
+     [
+      "Accept-Encoding",
+      "gzip, deflate, br, zstd"
+     ],
+     [
+      "Content-Length",
+      "84741"
+     ]
+    ],
+    "billing_block": "x-anthropic-billing-header: cc_version=2.1.318.861; cc_entrypoint=sdk-cli;",
+    "metadata_user_id_keys": [
+     "device_id",
+     "account_uuid",
+     "session_id"
+    ],
+    "body_top_keys": [
+     "model",
+     "messages",
+     "system",
+     "tools",
+     "metadata",
+     "max_tokens",
+     "thinking",
+     "context_management",
+     "output_config",
+     "stream"
+    ],
+    "thinking": {
+     "type": "adaptive",
+     "display": "omitted"
+    },
+    "output_config": {
+     "effort": "high"
+    },
+    "context_management": {
+     "edits": [
+      {
+       "type": "clear_thinking_20251015",
+       "keep": "all"
+      }
+     ]
+    },
+    "max_tokens": 32000
+   },
+   {
+    "method": "POST",
+    "url": "/v1/messages?beta=true",
+    "headers": [
+     [
+      "Accept",
+      "application/json"
+     ],
+     [
+      "Authorization",
+      "Bearer <synthetic len=102>"
+     ],
+     [
+      "Content-Type",
+      "application/json"
+     ],
+     [
+      "User-Agent",
+      "claude-cli/2.1.318 (external, sdk-cli)"
+     ],
+     [
+      "X-Claude-Code-Session-Id",
+      "f9003995-3166-4849-8f43-fde5df383084"
+     ],
+     [
+      "X-Stainless-Arch",
+      "arm64"
+     ],
+     [
+      "X-Stainless-Lang",
+      "js"
+     ],
+     [
+      "X-Stainless-OS",
+      "Linux"
+     ],
+     [
+      "X-Stainless-Package-Version",
+      "0.128.0"
+     ],
+     [
+      "X-Stainless-Retry-Count",
+      "0"
+     ],
+     [
+      "X-Stainless-Runtime",
+      "node"
+     ],
+     [
+      "X-Stainless-Runtime-Version",
+      "v26.12.1"
+     ],
+     [
+      "X-Stainless-Timeout",
+      "600"
+     ],
+     [
+      "anthropic-beta",
+      "claude-code-20250219,oauth-2025-04-20,interleaved-thinking-2025-05-14,context-management-2025-06-27,thinking-token-count-2026-05-13,advanced-tool-use-2025-11-20,effort-2025-11-24,extended-cache-ttl-2025-04-11"
+     ],
+     [
+      "anthropic-dangerous-direct-browser-access",
+      "true"
+     ],
+     [
+      "anthropic-version",
+      "2023-06-01"
+     ],
+     [
+      "x-app",
+      "cli"
+     ],
+     [
+      "Connection",
+      "keep-alive"
+     ],
+     [
+      "Host",
+      "127.0.0.1:8765"
+     ],
+     [
+      "Accept-Encoding",
+      "gzip, deflate, br, zstd"
+     ],
+     [
+      "Content-Length",
+      "85085"
+     ]
+    ],
+    "billing_block": "x-anthropic-billing-header: cc_version=2.1.318.861; cc_entrypoint=sdk-cli;",
+    "metadata_user_id_keys": [
+     "device_id",
+     "account_uuid",
+     "session_id"
+    ],
+    "body_top_keys": [
+     "model",
+     "messages",
+     "system",
+     "tools",
+     "metadata",
+     "max_tokens",
+     "thinking",
+     "context_management",
+     "output_config",
+     "stream"
+    ],
+    "thinking": {
+     "type": "adaptive",
+     "display": "omitted"
+    },
+    "output_config": {
+     "effort": "high"
+    },
+    "context_management": {
+     "edits": [
+      {
+       "type": "clear_thinking_20251015",
+       "keep": "all"
+      }
+     ]
+    },
+    "max_tokens": 32000
+   }
+  ],
+  "interactive_opus55": [
+   {
+    "method": "POST",
+    "url": "/v1/messages?beta=true",
+    "headers": [
+     [
+      "Accept",
+      "application/json"
+     ],
+     [
+      "Authorization",
+      "Bearer <synthetic len=102>"
+     ],
+     [
+      "Content-Type",
+      "application/json"
+     ],
+     [
+      "User-Agent",
+      "claude-cli/2.1.318 (external, cli)"
+     ],
+     [
+      "X-Claude-Code-Session-Id",
+      "c3dfbaa7-8d3d-4879-a3a9-c2ec8ddc829a"
+     ],
+     [
+      "X-Stainless-Arch",
+      "arm64"
+     ],
+     [
+      "X-Stainless-Lang",
+      "js"
+     ],
+     [
+      "X-Stainless-OS",
+      "Linux"
+     ],
+     [
+      "X-Stainless-Package-Version",
+      "0.128.0"
+     ],
+     [
+      "X-Stainless-Retry-Count",
+      "0"
+     ],
+     [
+      "X-Stainless-Runtime",
+      "node"
+     ],
+     [
+      "X-Stainless-Runtime-Version",
+      "v26.12.1"
+     ],
+     [
+      "X-Stainless-Timeout",
+      "600"
+     ],
+     [
+      "anthropic-beta",
+      "claude-code-20250219,oauth-2025-04-20,interleaved-thinking-2025-05-14,context-management-2025-06-27,per-turn-control-2026-07-01,mid-conversation-tool-changes-2026-07-01,thinking-token-count-2026-05-13,advanced-tool-use-2025-11-20,effort-2025-11-24,dangerous-tool-use-2026-09-03,thinking-display-updates-2026-08-18,afk-mode-2026-01-31,extended-cache-ttl-2025-04-11"
+     ],
+     [
+      "anthropic-dangerous-direct-browser-access",
+      "true"
+     ],
+     [
+      "anthropic-version",
+      "2023-06-01"
+     ],
+     [
+      "x-app",
+      "cli"
+     ],
+     [
+      "Connection",
+      "keep-alive"
+     ],
+     [
+      "Host",
+      "127.0.0.1:8765"
+     ],
+     [
+      "Accept-Encoding",
+      "gzip, deflate, br, zstd"
+     ],
+     [
+      "Content-Length",
+      "53387"
+     ]
+    ],
+    "billing_block": "x-anthropic-billing-header: cc_version=2.1.318.41c; cc_entrypoint=cli;",
+    "metadata_user_id_keys": [
+     "device_id",
+     "account_uuid",
+     "session_id"
+    ],
+    "body_top_keys": [
+     "model",
+     "messages",
+     "system",
+     "tools",
+     "metadata",
+     "max_tokens",
+     "thinking",
+     "context_management",
+     "safeguards",
+     "output_config",
+     "stream"
+    ],
+    "thinking": {
+     "type": "adaptive",
+     "display": "updates"
+    },
+    "output_config": {
+     "effort": "medium"
+    },
+    "context_management": {
+     "edits": [
+      {
+       "type": "clear_thinking_20251015",
+       "keep": "all"
+      }
+     ]
+    },
+    "max_tokens": 128000
+   }
+  ],
+  "interactive_haiku55": [
+   {
+    "method": "POST",
+    "url": "/v1/messages?beta=true",
+    "headers": [
+     [
+      "Accept",
+      "application/json"
+     ],
+     [
+      "Authorization",
+      "Bearer <synthetic len=102>"
+     ],
+     [
+      "Content-Type",
+      "application/json"
+     ],
+     [
+      "User-Agent",
+      "claude-cli/2.1.318 (external, cli)"
+     ],
+     [
+      "X-Claude-Code-Session-Id",
+      "5f477bf2-9a7f-47a7-9ed8-9940ff28ae19"
+     ],
+     [
+      "X-Stainless-Arch",
+      "arm64"
+     ],
+     [
+      "X-Stainless-Lang",
+      "js"
+     ],
+     [
+      "X-Stainless-OS",
+      "Linux"
+     ],
+     [
+      "X-Stainless-Package-Version",
+      "0.128.0"
+     ],
+     [
+      "X-Stainless-Retry-Count",
+      "0"
+     ],
+     [
+      "X-Stainless-Runtime",
+      "node"
+     ],
+     [
+      "X-Stainless-Runtime-Version",
+      "v26.12.1"
+     ],
+     [
+      "X-Stainless-Timeout",
+      "600"
+     ],
+     [
+      "anthropic-beta",
+      "oauth-2025-04-20,interleaved-thinking-2025-05-14,context-management-2025-06-27,claude-code-20250219,per-turn-control-2026-07-01,mid-conversation-tool-changes-2026-07-01,thinking-token-count-2026-05-13,advanced-tool-use-2025-11-20,effort-2025-11-24,dangerous-tool-use-2026-09-03,thinking-display-updates-2026-08-18,afk-mode-2026-01-31,extended-cache-ttl-2025-04-11"
+     ],
+     [
+      "anthropic-dangerous-direct-browser-access",
+      "true"
+     ],
+     [
+      "anthropic-version",
+      "2023-06-01"
+     ],
+     [
+      "x-app",
+      "cli"
+     ],
+     [
+      "Connection",
+      "keep-alive"
+     ],
+     [
+      "Host",
+      "127.0.0.1:8765"
+     ],
+     [
+      "Accept-Encoding",
+      "gzip, deflate, br, zstd"
+     ],
+     [
+      "Content-Length",
+      "55858"
+     ]
+    ],
+    "billing_block": "x-anthropic-billing-header: cc_version=2.1.318.41c; cc_entrypoint=cli;",
+    "metadata_user_id_keys": [
+     "device_id",
+     "account_uuid",
+     "session_id"
+    ],
+    "body_top_keys": [
+     "model",
+     "messages",
+     "system",
+     "tools",
+     "metadata",
+     "max_tokens",
+     "thinking",
+     "context_management",
+     "safeguards",
+     "output_config",
+     "stream"
+    ],
+    "thinking": {
+     "type": "adaptive",
+     "display": "updates"
+    },
+    "output_config": {
+     "effort": "medium"
+    },
+    "context_management": {
+     "edits": [
+      {
+       "type": "clear_thinking_20251015",
+       "keep": "all"
+      }
+     ]
+    },
+    "max_tokens": 128000
+   }
+  ]
+ }
+}

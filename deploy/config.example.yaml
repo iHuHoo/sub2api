@@ -217,6 +217,14 @@ security:
 # 网关配置
 # =============================================================================
 gateway:
+  # Reviewed Claude Code client profile, loaded once at startup (#144). Every outbound
+  # Claude OAuth request takes its User-Agent, X-Stainless-* and cc_version from it.
+  # The server refuses to start if the file is missing or invalid.
+  # 启动时加载的 Claude Code 客户端配置（#144）；文件缺失或不合法时服务不启动。
+  claude_client_profile_file: "./resources/claude-client-profile/profile.json"
+  # Log redacted inbound/outbound Claude request headers (event claude.headers).
+  # 记录脱敏后的 Claude 入站/出站请求头（事件 claude.headers）。
+  log_claude_headers: true
   # Minimum max_output_tokens when converting Chat Completions or Anthropic requests to Responses (minimum 16, default 128)
   # Chat Completions 或 Anthropic 请求转换为 Responses 时的最小 max_output_tokens（最小 16，默认 128）
   min_output_tokens: 128

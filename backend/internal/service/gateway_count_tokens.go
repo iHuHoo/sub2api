@@ -460,14 +460,14 @@ func (s *GatewayService) buildCountTokensRequestAnthropicAPIKeyPassthrough(
 		req.Header.Set("content-type", "application/json")
 	}
 	if req.Header.Get("anthropic-version") == "" {
-		req.Header.Set("anthropic-version", "2023-06-01")
+		req.Header.Set("anthropic-version", claude.ActiveClientProfile().AnthropicVersion)
 	}
 
 	// 账号级请求头覆写（最终生效，覆盖上面所有来源的同名头）
 	account.ApplyHeaderOverrides(req.Header)
 	filterSonnet55ToolsetBetaHeader(req.Header, body, gjson.GetBytes(body, "model").String())
 
-	return req, nil
+	return markClaudeOutbound(c, req, account, "count_tokens_passthrough"), nil
 }
 
 // buildCountTokensRequest 构建 count_tokens 上游请求
@@ -593,7 +593,7 @@ func (s *GatewayService) buildCountTokensRequest(ctx context.Context, c *gin.Con
 		setHeaderRaw(req.Header, "content-type", "application/json")
 	}
 	if getHeaderRaw(req.Header, "anthropic-version") == "" {
-		setHeaderRaw(req.Header, "anthropic-version", "2023-06-01")
+		setHeaderRaw(req.Header, "anthropic-version", claude.ActiveClientProfile().AnthropicVersion)
 	}
 	if tokenType == "oauth" {
 		applyClaudeOAuthHeaderDefaults(req)
@@ -630,7 +630,7 @@ func (s *GatewayService) buildCountTokensRequest(ctx context.Context, c *gin.Con
 		logClaudeMimicDebug(req, body, account, tokenType, mimicClaudeCode)
 	}
 
-	return req, body, nil
+	return markClaudeOutbound(c, req, account, "count_tokens"), body, nil
 }
 
 func sanitizeCountTokensRequestBody(body []byte) []byte {

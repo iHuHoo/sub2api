@@ -201,7 +201,7 @@ func (s *GatewayService) buildUpstreamRequest(ctx context.Context, c *gin.Contex
 		setHeaderRaw(req.Header, "content-type", "application/json")
 	}
 	if getHeaderRaw(req.Header, "anthropic-version") == "" {
-		setHeaderRaw(req.Header, "anthropic-version", "2023-06-01")
+		setHeaderRaw(req.Header, "anthropic-version", claude.ActiveClientProfile().AnthropicVersion)
 	}
 	if tokenType == "oauth" {
 		applyClaudeOAuthHeaderDefaults(req)
@@ -254,7 +254,7 @@ func (s *GatewayService) buildUpstreamRequest(ctx context.Context, c *gin.Contex
 		logClaudeMimicDebug(req, body, account, tokenType, mimicClaudeCode)
 	}
 
-	return req, body, nil
+	return markClaudeOutbound(c, req, account, "messages"), body, nil
 }
 
 func getAnthropicGatewayBaseURL(account *Account) string {

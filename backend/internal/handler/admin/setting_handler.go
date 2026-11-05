@@ -307,6 +307,7 @@ func (h *SettingHandler) GetSettings(c *gin.Context) {
 		ClaudeCodeClientVersion:                                settings.ClaudeCodeClientVersion,
 		ClaudeCodeClientVersionSynced:                          settings.ClaudeCodeClientVersionSynced,
 		ClaudeCodeVersionAutoSyncEnabled:                       settings.ClaudeCodeVersionAutoSyncEnabled,
+		ClaudeClientProfile:                                    dto.ActiveClaudeClientProfileSummary(),
 		MinCodexVersion:                                        settings.MinCodexVersion,
 		MaxCodexVersion:                                        settings.MaxCodexVersion,
 		CodexCLIOnlyBlacklist:                                  settings.CodexCLIOnlyBlacklist,

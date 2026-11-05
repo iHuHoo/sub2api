@@ -270,26 +270,10 @@ func shortSessionHash(sessionHash string) string {
 	return sessionHash[:8]
 }
 
-func redactAuthHeaderValue(v string) string {
-	v = strings.TrimSpace(v)
-	if v == "" {
-		return ""
-	}
-	// Keep scheme for debugging, redact secret.
-	if strings.HasPrefix(strings.ToLower(v), "bearer ") {
-		return "Bearer [redacted]"
-	}
-	return "[redacted]"
-}
-
+// safeHeaderValueForLog uses the shared credential rule (#144), so the env-gated debug
+// dump redacts the same headers, including cookies, as the claude.headers events.
 func safeHeaderValueForLog(key string, v string) string {
-	key = strings.ToLower(strings.TrimSpace(key))
-	switch key {
-	case "authorization", "x-api-key":
-		return redactAuthHeaderValue(v)
-	default:
-		return strings.TrimSpace(v)
-	}
+	return redactHeaderValueForLog(key, v)
 }
 
 func extractSystemPreviewFromBody(body []byte) string {

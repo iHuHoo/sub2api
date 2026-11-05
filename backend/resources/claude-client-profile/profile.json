@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "revision": "2026-11-05.1",
+  "cli_version": "2.1.318",
+  "user_agent": "claude-cli/2.1.318 (external, cli)",
+  "anthropic_version": "2023-06-01",
+  "x_stainless_lang": "js",
+  "x_stainless_package_version": "0.128.0",
+  "x_stainless_os": "Linux",
+  "x_stainless_arch": "arm64",
+  "x_stainless_runtime": "node",
+  "x_stainless_runtime_version": "v26.12.1",
+  "x_stainless_timeout": "600",
+  "x_app": "cli",
+  "anthropic_dangerous_direct_browser_access": "true",
+  "source": {
+    "artifact": "npm @anthropic-ai/claude-code@2.1.318 (native linux-arm64 binary, sha512-OTJgLxcvWefv8IdTsq5n90Z2IxEhLwKqHUBhwZYE4odXzKA/Tb6p2Zb5Iy9Vq7JIVcNZzn9cPxW5sb42wLF95Q==)",
+    "artifact_digest": "53a0d7e219d7b0804ecba5dbc002745e89f786cc946d2de85a6470d5b2d1fb06",
+    "capture_mode": "interactive OAuth (CLAUDE_CODE_OAUTH_TOKEN synthetic), linux/arm64 docker --network none, local receiver via ANTHROPIC_BASE_URL",
+    "captured_at": "2026-11-05",
+    "evidence_sha256": "b3a9f73417d0dd57b0fd9dc6aa24024cc7f8fac8d8de1105170d9e8f3ecd7283",
+    "reviewed_by": "pending codex review (#144)"
+  }
+}

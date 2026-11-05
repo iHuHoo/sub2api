@@ -1147,7 +1147,7 @@ func (s *AccountTestService) buildAnthropicUpstreamModelsRequest(ctx context.Con
 		req.Header.Set(key, value)
 	}
 	req.Header.Set("Accept", "application/json")
-	req.Header.Set("anthropic-version", "2023-06-01")
+	req.Header.Set("anthropic-version", claude.ActiveClientProfile().AnthropicVersion)
 	req.Header.Set("anthropic-beta", betaHeader)
 	if authHeaderName != "" {
 		req.Header.Set(authHeaderName, authHeaderValue)
@@ -1195,7 +1195,7 @@ func (s *AccountTestService) buildAntigravityAPIKeyModelsRequest(ctx context.Con
 		req.Header.Set(key, value)
 	}
 	req.Header.Set("Accept", "application/json")
-	req.Header.Set("anthropic-version", "2023-06-01")
+	req.Header.Set("anthropic-version", claude.ActiveClientProfile().AnthropicVersion)
 	req.Header.Set("anthropic-beta", claude.APIKeyBetaHeader)
 	req.Header.Set("x-api-key", apiKey)
 	return req, nil
@@ -1397,6 +1397,9 @@ func (s *AccountTestService) fetchAntigravityOAuthUpstreamModels(ctx context.Con
 }
 
 func (s *AccountTestService) doUpstreamModelsRequest(req *http.Request, proxyURL string, account *Account) (*http.Response, error) {
+	if account.Platform == PlatformAnthropic {
+		req = markClaudeOutbound(nil, req, account, "models")
+	}
 	if s.tlsFPProfileService == nil {
 		return s.httpUpstream.DoWithTLS(req, proxyURL, account.ID, account.Concurrency, nil)
 	}

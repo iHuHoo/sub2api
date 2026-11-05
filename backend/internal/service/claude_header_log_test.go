@@ -1,0 +1,141 @@
+package service
+
+import (
+	"context"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+
+	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/tlsfingerprint"
+	"github.com/gin-gonic/gin"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
+)
+
+type recordingUpstream struct{ calls int }
+
+func (u *recordingUpstream) Do(*http.Request, string, int64, int) (*http.Response, error) {
+	u.calls++
+	return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader("{}"))}, nil
+}
+
+func (u *recordingUpstream) DoWithTLS(r *http.Request, p string, a int64, c int, _ *tlsfingerprint.Profile) (*http.Response, error) {
+	return u.Do(r, p, a, c)
+}
+
+func TestRedactHeaderValueForLog(t *testing.T) {
+	oauth := "sk-ant-oat01-" + strings.Repeat("A", 60) + "TAIL1234"
+	got := redactHeaderValueForLog("Authorization", "Bearer "+oauth)
+	require.True(t, strings.HasPrefix(got, "Bearer …TAIL1234 (len=81 sha256="), got)
+	require.NotContains(t, got, oauth[:20])
+	require.Equal(t, "[redacted len=6]", redactHeaderValueForLog("x-api-key", "short1"), "short secrets show length only")
+	require.Equal(t, "Basic [redacted len=8]", redactHeaderValueForLog("Proxy-Authorization", "Basic dXNlcjpw"[:14]))
+	require.Contains(t, redactHeaderValueForLog("X-Api-Key", "sk-ant-api03-"+strings.Repeat("b", 40)), "…bbbbbbbb (len=53")
+	require.Equal(t, "claude-cli/2.1.318 (external, cli)", redactHeaderValueForLog("User-Agent", "claude-cli/2.1.318 (external, cli)"))
+	require.Contains(t, redactHeaderValueForLog("X-Custom-Token", strings.Repeat("z", 30)), "…zzzzzzzz")
+
+	cookie := redactHeaderValueForLog("Cookie", "sid="+strings.Repeat("s", 40)+"; theme=dark; csrf=abc")
+	require.Contains(t, cookie, "sid=…ssssssss (len=40")
+	require.Contains(t, cookie, "theme=[redacted len=4]")
+	require.Contains(t, cookie, "csrf=[redacted len=3]")
+	require.NotContains(t, cookie, "dark")
+	require.Equal(t, "[redacted cookie len=10]", redactHeaderValueForLog("Cookie", "notacookie"))
+	// The legacy debug dump shares the rule.
+	require.Equal(t, redactHeaderValueForLog("Cookie", "a=b"), safeHeaderValueForLog("cookie", "a=b"))
+}
+
+func claudeHeaderEvents(sink *inMemoryLogSink) []map[string]any {
+	sink.mu.Lock()
+	defer sink.mu.Unlock()
+	var out []map[string]any
+	for _, ev := range sink.events {
+		if ev != nil && ev.Message == claudeHeaderLogMessage {
+			out = append(out, ev.Fields)
+		}
+	}
+	return out
+}
+
+// Inbound once, every outbound attempt numbered, both joined by client_request_id;
+// background calls get an operation id; untagged requests are not logged.
+func TestClaudeHeaderLogPairsInboundAndOutbound(t *testing.T) {
+	sink, restore := captureStructuredLog(t)
+	defer restore()
+	secret := "sk-ant-oat01-" + strings.Repeat("Q", 70)
+
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+	c.Request = c.Request.WithContext(logger.IntoContext(c.Request.Context(), logger.L().With(zap.String("client_request_id", "cr-1"))))
+	c.Request.Header.Set("User-Agent", "claude-cli/2.1.400 (external, cli)")
+	c.Request.Header.Set("X-Api-Key", "sk-gateway-"+strings.Repeat("k", 30))
+	inner := &recordingUpstream{}
+	up := WithClaudeHeaderLog(inner)
+	account := &Account{ID: 42, Platform: PlatformAnthropic}
+	for i := 0; i < 2; i++ {
+		req, _ := http.NewRequestWithContext(c.Request.Context(), http.MethodPost, "https://api.anthropic.com/v1/messages", nil)
+		req.Header.Set("Authorization", "Bearer "+secret)
+		req.Header.Add("anthropic-beta", "a")
+		req.Header.Add("anthropic-beta", "b")
+		_, err := up.Do(markClaudeOutbound(c, req, account, "messages"), "", 42, 1)
+		require.NoError(t, err)
+	}
+	plain, _ := http.NewRequest(http.MethodPost, "https://example.com/x", nil)
+	_, _ = up.Do(plain, "", 1, 1)
+	bg, _ := http.NewRequest(http.MethodGet, "https://api.anthropic.com/v1/models", nil)
+	_, _ = up.Do(markClaudeOutbound(nil, bg, account, "models"), "", 42, 1)
+	require.Equal(t, 4, inner.calls, "logging never blocks a send")
+
+	evs := claudeHeaderEvents(sink)
+	require.Len(t, evs, 4, "1 inbound + 2 outbound + 1 background; the untagged request is silent")
+	require.Equal(t, "inbound", evs[0]["direction"])
+	for i, ev := range evs[:3] {
+		require.Equal(t, "cr-1", ev["client_request_id"], i)
+	}
+	require.EqualValues(t, 1, evs[1]["attempt"])
+	require.EqualValues(t, 2, evs[2]["attempt"])
+	require.EqualValues(t, 42, evs[1]["account_id"])
+	require.Equal(t, "prepared", evs[1]["snapshot"])
+	require.Equal(t, "models", evs[3]["operation"])
+	require.NotEmpty(t, evs[3]["operation_id"])
+	_, hasInbound := evs[3]["client_request_id"]
+	require.False(t, hasInbound, "background calls have no client request")
+
+	all := ""
+	for _, ev := range evs {
+		hs, ok := ev["headers"].([]any)
+		require.True(t, ok)
+		for _, h := range hs {
+			line, ok := h.(string)
+			require.True(t, ok)
+			all += line + "\n"
+		}
+	}
+	require.Contains(t, all, "Anthropic-Beta: a\n")
+	require.Contains(t, all, "Anthropic-Beta: b\n", "multi-valued headers keep every value")
+	require.Contains(t, all, "User-Agent: claude-cli/2.1.400 (external, cli)")
+	require.NotContains(t, all, secret)
+	require.NotContains(t, all, strings.Repeat("k", 30))
+
+	SetClaudeHeaderLogEnabled(false)
+	defer SetClaudeHeaderLogEnabled(true)
+	off, _ := http.NewRequestWithContext(context.Background(), http.MethodPost, "https://api.anthropic.com/v1/messages", nil)
+	_, _ = up.Do(markClaudeOutbound(nil, off, account, "messages"), "", 42, 1)
+	require.Len(t, claudeHeaderEvents(sink), 4, "the switch turns the events off")
+}
+
+func TestClaudeHeaderSnapshotIsBounded(t *testing.T) {
+	h := http.Header{}
+	h.Set("X-Big", strings.Repeat("v", claudeHeaderLogMaxValueBytes+10))
+	lines, truncated := claudeHeaderSnapshot(h)
+	require.True(t, truncated)
+	require.Contains(t, lines[0], "[truncated len=")
+	for i := 0; i < claudeHeaderLogMaxHeaders+5; i++ {
+		h.Add("X-Many", "1")
+	}
+	lines, truncated = claudeHeaderSnapshot(h)
+	require.True(t, truncated)
+	require.LessOrEqual(t, len(lines), claudeHeaderLogMaxHeaders)
+}

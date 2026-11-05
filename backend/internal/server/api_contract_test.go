@@ -957,6 +957,19 @@ func TestAPIContracts(t *testing.T) {
 					"claude_code_client_version": "",
 					"claude_code_client_version_synced": "",
 					"claude_code_version_auto_sync_enabled": true,
+					"claude_client_profile": {
+						"revision": "2026-11-05.1",
+						"cli_version": "2.1.318",
+						"user_agent": "claude-cli/2.1.318 (external, cli)",
+						"x_stainless_package_version": "0.128.0",
+						"x_stainless_runtime": "node",
+						"x_stainless_runtime_version": "v26.12.1",
+						"x_stainless_os": "Linux",
+						"x_stainless_arch": "arm64",
+						"anthropic_version": "2023-06-01",
+						"source_artifact": "npm @anthropic-ai/claude-code@2.1.318 (native linux-arm64 binary, sha512-OTJgLxcvWefv8IdTsq5n90Z2IxEhLwKqHUBhwZYE4odXzKA/Tb6p2Zb5Iy9Vq7JIVcNZzn9cPxW5sb42wLF95Q==)",
+						"captured_at": "2026-11-05"
+					},
 					"openai_fast_policy_settings": {
 						"rules": []
 					},
@@ -1281,6 +1294,19 @@ func TestAPIContracts(t *testing.T) {
 					"claude_code_client_version": "",
 					"claude_code_client_version_synced": "",
 					"claude_code_version_auto_sync_enabled": true,
+					"claude_client_profile": {
+						"revision": "2026-11-05.1",
+						"cli_version": "2.1.318",
+						"user_agent": "claude-cli/2.1.318 (external, cli)",
+						"x_stainless_package_version": "0.128.0",
+						"x_stainless_runtime": "node",
+						"x_stainless_runtime_version": "v26.12.1",
+						"x_stainless_os": "Linux",
+						"x_stainless_arch": "arm64",
+						"anthropic_version": "2023-06-01",
+						"source_artifact": "npm @anthropic-ai/claude-code@2.1.318 (native linux-arm64 binary, sha512-OTJgLxcvWefv8IdTsq5n90Z2IxEhLwKqHUBhwZYE4odXzKA/Tb6p2Zb5Iy9Vq7JIVcNZzn9cPxW5sb42wLF95Q==)",
+						"captured_at": "2026-11-05"
+					},
 					"openai_fast_policy_settings": {
 						"rules": []
 					},
