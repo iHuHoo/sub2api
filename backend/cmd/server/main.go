@@ -20,6 +20,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/handler"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
 	"github.com/Wei-Shaw/sub2api/internal/server/middleware"
+	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/Wei-Shaw/sub2api/internal/setup"
 	"github.com/Wei-Shaw/sub2api/internal/web"
 
@@ -139,6 +140,10 @@ func runMainServer() {
 	if err := logger.Init(logger.OptionsFromConfig(cfg.Log)); err != nil {
 		log.Fatalf("Failed to initialize logger: %v", err)
 	}
+	if err := loadClaudeClientProfile(cfg.Gateway.ClaudeClientProfileFile); err != nil {
+		log.Fatalf("Failed to load Claude client profile: %v", err)
+	}
+	service.SetClaudeHeaderLogEnabled(cfg.Gateway.LogClaudeHeaders)
 	if cfg.RunMode == config.RunModeSimple {
 		log.Println("⚠️  WARNING: Running in SIMPLE mode - billing and quota checks are DISABLED")
 	}

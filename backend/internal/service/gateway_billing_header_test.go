@@ -116,7 +116,7 @@ func TestBuildOAuthRequest_BillingMatchesWireUserAgent(t *testing.T) {
 			{name: "mimic_overrides_cached_version", mimic: true, identity: true},
 			{name: "mimic_without_identity", mimic: true},
 			{name: "mimic_with_fingerprint_disabled", mimic: true, identity: true, disableFP: true},
-			{name: "passthrough_uses_cached_version", identity: true},
+			{name: "native_uses_profile_not_cache", identity: true},
 		} {
 			t.Run(endpoint+"/"+tc.name, func(t *testing.T) {
 				resetGatewayForwardingSettingsCacheForTest(t)
@@ -153,18 +153,15 @@ func TestBuildOAuthRequest_BillingMatchesWireUserAgent(t *testing.T) {
 				}
 				require.NoError(t, err)
 				defer func() { require.NoError(t, req.Body.Close()) }()
-				wantUA := cachedUA
-				if tc.mimic {
-					wantUA = claude.DefaultHeaders()["User-Agent"]
-				}
+				// #144: mimic and native OAuth both take the client profile, never the cache.
+				wantUA := claude.DefaultHeaders()["User-Agent"]
 				require.Equal(t, wantUA, getHeaderRaw(req.Header, "User-Agent"))
 				version := ExtractCLIVersion(wantUA)
 				require.Contains(t, gjson.GetBytes(wireBody, "system.0.text").String(),
 					"cc_version="+version+"."+computeClaudeCodeFingerprint(wireBody, version)+";")
-				if !tc.mimic {
-					// Independently calculated with Node.js for the cached 2.9.0 UA.
-					require.Contains(t, gjson.GetBytes(wireBody, "system.0.text").String(), "cc_version=2.9.0.ac8;")
-				}
+				require.NotContains(t, gjson.GetBytes(wireBody, "system.0.text").String(), "2.9.0", "cached version never reaches the wire")
+				// Algorithm cross-check, independently calculated with Node.js for version 2.9.0.
+				require.Equal(t, "ac8", computeClaudeCodeFingerprint(wireBody, "2.9.0"))
 				actualBody, err := io.ReadAll(req.Body)
 				require.NoError(t, err)
 				require.Equal(t, wireBody, actualBody)

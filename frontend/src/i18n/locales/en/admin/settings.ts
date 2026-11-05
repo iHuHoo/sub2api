@@ -556,11 +556,8 @@ export default {
         openaiCodexVersionAutoSync: 'Auto-sync Codex version',
         openaiCodexVersionAutoSyncHint: 'Fetches the latest stable client version from the official repository every 6 hours, so you never need to upgrade this service just to keep the version current. When disabled, only the version above or the built-in default is used.',
         openaiCodexVersionSyncedValue: 'Currently synced: {version}',
-        claudeCodeClientVersion: 'Claude Code client version',
-        claudeCodeClientVersionHint: "The client version this gateway declares upstream when impersonating the official Claude Code CLI. Leave empty to use the auto-synced latest official release; setting a value pins it and stops following auto-sync. The SUB2API_CLAUDE_CLI_VERSION environment variable or built-in version is used only when neither the manual nor synced value is valid.",
-        claudeCodeVersionAutoSync: 'Auto-sync Claude Code version',
-        claudeCodeVersionAutoSyncHint: 'Fetches the latest Claude Code client version from the official release channel every hour, so you never need to upgrade this service just to keep the version current. When disabled, fetching stops but the previously synced version remains available. The manual version above always takes priority.',
-        claudeCodeVersionSyncedValue: 'Currently synced: {version}',
+        claudeClientProfile: 'Claude client profile (read-only)',
+        claudeClientProfileHint: 'When impersonating Claude Code, every client identity field in headers and body comes from the profile file loaded at startup (gateway.claude_client_profile_file). The version is no longer auto-synced and cannot be changed here; update the file and restart to change it.',
         codexHardeningTitle: "Codex Settings",
         codexClientRestrictionTitle: "Codex client restriction",
         codexHardeningDesc:

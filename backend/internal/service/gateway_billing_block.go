@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"strings"
 	"unicode/utf16"
 
 	"github.com/tidwall/gjson"
@@ -26,7 +27,7 @@ const fingerprintSalt = "59cf53e54c78"
 // 算法来自 Parrot src/transform/cc_mimicry.py:compute_fingerprint，与官方 CLI 字节对齐。
 // 任何偏差都会导致 cc_version=X.Y.Z.{fp} 在上游侧与真实 CLI 不一致。
 func computeClaudeCodeFingerprint(body []byte, version string) string {
-	firstText := extractFirstUserText(body)
+	firstText := extractFingerprintUserText(body)
 	indices := [...]int{4, 7, 20}
 	// Only the prefix through index 20 is needed, even for very long prompts.
 	textUnits := make([]uint16, 0, 22)
@@ -79,6 +80,37 @@ func extractFirstUserText(body []byte) string {
 			return false
 		}
 		return false
+	})
+	return first
+}
+
+// extractFingerprintUserText returns the text Claude Code 2.1.318 fingerprints: the first
+// text block of the first user message that is not a client-injected <system-reminder>
+// (verified against captured cc_version suffixes, #144 evidence). Falls back to the first
+// text block when every block is a reminder. Only the cc_version suffix uses it; session
+// seeds keep extractFirstUserText so existing session ids do not change.
+func extractFingerprintUserText(body []byte) string {
+	content := gjson.GetBytes(body, `messages.#(role=="user").content`)
+	if content.Type == gjson.String {
+		return content.String()
+	}
+	if !content.IsArray() {
+		return ""
+	}
+	first, found := "", false
+	content.ForEach(func(_, block gjson.Result) bool {
+		if block.Get("type").String() != "text" {
+			return true
+		}
+		text := block.Get("text").String()
+		if !found {
+			first, found = text, true
+		}
+		if !strings.HasPrefix(text, "<system-reminder>") {
+			first = text
+			return false
+		}
+		return true
 	})
 	return first
 }

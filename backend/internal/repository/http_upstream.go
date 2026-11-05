@@ -183,6 +183,12 @@ func NewHTTPUpstream(cfg *config.Config) service.HTTPUpstream {
 	}
 }
 
+// ProvideHTTPUpstream is the server's shared upstream: NewHTTPUpstream wrapped with the
+// Claude header evidence log (#144), which only logs requests tagged by Anthropic builders.
+func ProvideHTTPUpstream(cfg *config.Config) service.HTTPUpstream {
+	return service.WithClaudeHeaderLog(NewHTTPUpstream(cfg))
+}
+
 // Do 执行 HTTP 请求
 // 根据隔离策略获取或创建客户端，并跟踪请求生命周期
 //

@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/pkg/claude"
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/httpclient"
 )
@@ -92,6 +93,8 @@ func NewClaudeResetCreditService(accounts AccountRepository, tokens *ClaudeToken
 		// Never forward OAuth credentials across redirects, even to another public host.
 		isolated := *client
 		isolated.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+		req = markClaudeOutbound(nil, req, nil, "reset_credits")
+		logClaudeOutbound(req, 0) // own client, not the shared upstream
 		return isolated.Do(req)
 	}
 	return s
@@ -135,7 +138,7 @@ func (s *ClaudeResetCreditService) headers(ctx context.Context, req *http.Reques
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("anthropic-beta", "oauth-2025-04-20")
 	req.Header.Set("x-app", "cli")
-	req.Header.Set("User-Agent", "claude-cli/"+s.settings.GetClaudeCodeClientVersion(ctx)+" (external, cli)")
+	req.Header.Set("User-Agent", claude.DefaultUserAgent())
 }
 
 func (s *ClaudeResetCreditService) query(ctx context.Context, id int64) (*ClaudeResetCredits, error) {

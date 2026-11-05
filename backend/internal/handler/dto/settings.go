@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"strings"
 
+	"github.com/Wei-Shaw/sub2api/internal/pkg/claude"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 )
 
@@ -220,6 +221,9 @@ type SystemSettings struct {
 	ClaudeCodeClientVersion                string `json:"claude_code_client_version"`
 	ClaudeCodeClientVersionSynced          string `json:"claude_code_client_version_synced"`
 	ClaudeCodeVersionAutoSyncEnabled       bool   `json:"claude_code_version_auto_sync_enabled"`
+	// ClaudeClientProfile is the read-only startup client profile that owns outbound
+	// Claude identity (#144); the three legacy claude_code_* fields above no longer apply.
+	ClaudeClientProfile ClaudeClientProfileSummary `json:"claude_client_profile"`
 
 	// codex_cli_only 加固
 	MinCodexVersion                      string `json:"min_codex_version"`
@@ -630,4 +634,30 @@ func ParseCustomEndpoints(raw string) []CustomEndpoint {
 		return []CustomEndpoint{}
 	}
 	return items
+}
+
+// ClaudeClientProfileSummary is the admin view of the active Claude client profile.
+type ClaudeClientProfileSummary struct {
+	Revision         string `json:"revision"`
+	CLIVersion       string `json:"cli_version"`
+	UserAgent        string `json:"user_agent"`
+	PackageVersion   string `json:"x_stainless_package_version"`
+	Runtime          string `json:"x_stainless_runtime"`
+	RuntimeVersion   string `json:"x_stainless_runtime_version"`
+	OS               string `json:"x_stainless_os"`
+	Arch             string `json:"x_stainless_arch"`
+	AnthropicVersion string `json:"anthropic_version"`
+	SourceArtifact   string `json:"source_artifact"`
+	CapturedAt       string `json:"captured_at"`
+}
+
+// ActiveClaudeClientProfileSummary reads the profile installed at startup.
+func ActiveClaudeClientProfileSummary() ClaudeClientProfileSummary {
+	p := claude.ActiveClientProfile()
+	return ClaudeClientProfileSummary{
+		Revision: p.Revision, CLIVersion: p.CLIVersion, UserAgent: p.UserAgent,
+		PackageVersion: p.StainlessPackageVersion, Runtime: p.StainlessRuntime, RuntimeVersion: p.StainlessRuntimeVersion,
+		OS: p.StainlessOS, Arch: p.StainlessArch, AnthropicVersion: p.AnthropicVersion,
+		SourceArtifact: p.Source.Artifact, CapturedAt: p.Source.CapturedAt,
+	}
 }

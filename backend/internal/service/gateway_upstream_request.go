@@ -122,7 +122,7 @@ func (s *GatewayService) buildUpstreamRequest(ctx context.Context, c *gin.Contex
 	mimicUserAgent := claude.DefaultUserAgent()
 
 	// Mimicry may override the cached User-Agent later, even without a fingerprint.
-	if billingUA := effectiveBillingUserAgent(mimicUserAgent, tokenType, mimicClaudeCode, fingerprint); billingUA != "" {
+	if billingUA := effectiveBillingUserAgent(mimicUserAgent, tokenType); billingUA != "" {
 		body = syncBillingHeaderVersion(body, billingUA)
 	}
 
@@ -191,17 +191,12 @@ func (s *GatewayService) buildUpstreamRequest(ctx context.Context, c *gin.Contex
 		}
 	}
 
-	// OAuth账号：应用缓存的指纹到请求头（覆盖白名单透传的头）
-	if fingerprint != nil {
-		s.identityService.ApplyFingerprint(req, fingerprint)
-	}
-
 	// 确保必要的headers存在（保持原始大小写）
 	if getHeaderRaw(req.Header, "content-type") == "" {
 		setHeaderRaw(req.Header, "content-type", "application/json")
 	}
 	if getHeaderRaw(req.Header, "anthropic-version") == "" {
-		setHeaderRaw(req.Header, "anthropic-version", "2023-06-01")
+		setHeaderRaw(req.Header, "anthropic-version", claude.ActiveClientProfile().AnthropicVersion)
 	}
 	if tokenType == "oauth" {
 		applyClaudeOAuthHeaderDefaults(req)
@@ -230,6 +225,12 @@ func (s *GatewayService) buildUpstreamRequest(ctx context.Context, c *gin.Contex
 		}
 	}
 
+	// Every OAuth request carries the complete client profile (#144), whatever the client,
+	// the cached fingerprint or the fingerprint-unification switch say.
+	if tokenType == "oauth" {
+		applyClaudeClientProfileHeaders(req)
+	}
+
 	// 账号级请求头覆写（仅 anthropic/openai api_key 账号启用时生效；OAuth 路径 no-op）。
 	// 放在所有 header 逻辑之后，确保配置值对同名头拥有最终决定权。
 	account.ApplyHeaderOverrides(req.Header)
@@ -254,7 +255,7 @@ func (s *GatewayService) buildUpstreamRequest(ctx context.Context, c *gin.Contex
 		logClaudeMimicDebug(req, body, account, tokenType, mimicClaudeCode)
 	}
 
-	return req, body, nil
+	return markClaudeOutbound(c, req, account, "messages"), body, nil
 }
 
 func getAnthropicGatewayBaseURL(account *Account) string {
@@ -983,6 +984,33 @@ func applyClaudeCodeMimicHeaders(req *http.Request, isStream bool, mimicUserAgen
 	// 上游会以此作为会话/请求指纹的一部分，缺失或重复都可能触发第三方判定。
 	if getHeaderRaw(req.Header, "x-client-request-id") == "" {
 		setHeaderRaw(req.Header, "x-client-request-id", uuid.NewString())
+	}
+}
+
+// claudeClientProfileHeaderNames are the static software fields the profile owns. Dynamic
+// fields (retry count, request/session ids, betas, Accept) keep their existing owners.
+var claudeClientProfileHeaderNames = []string{
+	"User-Agent", "X-Stainless-Lang", "X-Stainless-Package-Version", "X-Stainless-OS", "X-Stainless-Arch",
+	"X-Stainless-Runtime", "X-Stainless-Runtime-Version", "X-Stainless-Timeout", "X-App",
+	"Anthropic-Dangerous-Direct-Browser-Access", "anthropic-version",
+}
+
+// applyClaudeClientProfileHeaders replaces every profile-owned header, in any casing, with
+// the active profile's value.
+func applyClaudeClientProfileHeaders(req *http.Request) {
+	if req == nil {
+		return
+	}
+	p := claude.ActiveClientProfile()
+	values := map[string]string{
+		"User-Agent": p.UserAgent, "X-Stainless-Lang": p.StainlessLang, "X-Stainless-Package-Version": p.StainlessPackageVersion,
+		"X-Stainless-OS": p.StainlessOS, "X-Stainless-Arch": p.StainlessArch, "X-Stainless-Runtime": p.StainlessRuntime,
+		"X-Stainless-Runtime-Version": p.StainlessRuntimeVersion, "X-Stainless-Timeout": p.StainlessTimeout, "X-App": p.XApp,
+		"Anthropic-Dangerous-Direct-Browser-Access": p.DangerousDirectBrowserAccess, "anthropic-version": p.AnthropicVersion,
+	}
+	for _, name := range claudeClientProfileHeaderNames {
+		deleteHeaderAllForms(req.Header, name)
+		setHeaderRaw(req.Header, resolveWireCasing(name), values[name])
 	}
 }
 

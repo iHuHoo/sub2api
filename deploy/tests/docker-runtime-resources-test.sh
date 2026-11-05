@@ -25,6 +25,8 @@ assert_count() {
 
 test -s backend/resources/model-pricing/model_prices_and_context_window.json || \
   fail 'fallback pricing data is missing or empty'
+test -s backend/resources/claude-client-profile/profile.json || \
+  fail 'Claude client profile is missing or empty'
 
 assert_line Dockerfile.goreleaser 'COPY --chown=sub2api:sub2api backend/resources /app/resources'
 assert_line deploy/Dockerfile 'COPY --from=backend-builder --chown=sub2api:sub2api /app/backend/resources /app/resources'

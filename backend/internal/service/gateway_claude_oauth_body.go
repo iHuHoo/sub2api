@@ -773,7 +773,7 @@ func expandClaudeOAuthSystemPromptTextTemplate(body []byte, text string, expansi
 	expansionPrompt = defaultClaudeOAuthExpansionPrompt(expansionPrompt)
 	// 同一次展开内只取一次版本号，billing attribution / 指纹 / 占位符三处共用，
 	// 避免运行期版本翻转瞬间取到不同值。
-	cliVersion := claude.EffectiveCLIVersion()
+	cliVersion := claude.CLIVersion()
 	billingText, err := buildBillingAttributionText(body, cliVersion)
 	if err != nil {
 		return "", err

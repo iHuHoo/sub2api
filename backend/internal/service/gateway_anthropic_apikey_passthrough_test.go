@@ -906,7 +906,7 @@ func TestGatewayService_AnthropicOAuthMimic_RewritesSystemWithBillingBlock(t *te
 
 			billingText := arr[0].Get("text").String()
 			require.Contains(t, billingText, "x-anthropic-billing-header:")
-			require.Contains(t, billingText, "cc_version="+claude.CLICurrentVersion+".")
+			require.Contains(t, billingText, "cc_version="+claude.CLIVersion()+".")
 			require.Contains(t, billingText, "cc_entrypoint=cli;")
 
 			require.Equal(t, claudeCodeSystemPrompt, arr[1].Get("text").String())
@@ -941,7 +941,7 @@ func TestGatewayService_AnthropicOAuthRealClaudeCodeHaiku_PreservesClientHeaders
 		"a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
 		"550e8400-e29b-41d4-a716-446655440000",
 		"123e4567-e89b-42d3-a456-426614174000",
-		claude.CLICurrentVersion,
+		claude.CLIVersion(),
 	)
 	body := []byte(`{"model":"claude-haiku-4-5-20251001","metadata":{"user_id":` + strconvQuote(metadataUserID) + `},"system":[{"type":"text","text":"Client-owned Claude Code system","cache_control":{"type":"ephemeral"}}],"context_management":{"edits":[{"type":"clear_thinking_20251015","keep":"all"}]},"messages":[{"role":"user","content":[{"type":"text","text":"hello"}]}]}`)
 	parsed, err := ParseGatewayRequest(NewRequestBodyRef(body), PlatformAnthropic)
@@ -950,7 +950,7 @@ func TestGatewayService_AnthropicOAuthRealClaudeCodeHaiku_PreservesClientHeaders
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
-	c.Request.Header.Set("User-Agent", "claude-cli/"+claude.CLICurrentVersion+" (external, cli)")
+	c.Request.Header.Set("User-Agent", "claude-cli/"+claude.CLIVersion()+" (external, cli)")
 	c.Request.Header.Set("X-Stainless-Package-Version", "real-client-package")
 	clientBeta := strings.Join([]string{
 		claude.BetaClaudeCode,
@@ -982,8 +982,10 @@ func TestGatewayService_AnthropicOAuthRealClaudeCodeHaiku_PreservesClientHeaders
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	require.NotNil(t, upstream.lastReq)
-	require.Equal(t, c.Request.Header.Get("User-Agent"), getHeaderRaw(upstream.lastReq.Header, "User-Agent"))
-	require.Equal(t, "real-client-package", getHeaderRaw(upstream.lastReq.Header, "X-Stainless-Package-Version"))
+	// #144: software headers always come from the client profile; betas, body and
+	// metadata of a real Claude Code client still pass through untouched.
+	require.Equal(t, claude.DefaultUserAgent(), getHeaderRaw(upstream.lastReq.Header, "User-Agent"))
+	require.Equal(t, claude.ActiveClientProfile().StainlessPackageVersion, getHeaderRaw(upstream.lastReq.Header, "X-Stainless-Package-Version"))
 	require.Equal(t, clientBeta, getHeaderRaw(upstream.lastReq.Header, "anthropic-beta"))
 	require.Empty(t, getHeaderRaw(upstream.lastReq.Header, "x-client-request-id"), "真实 CC 不应被强制写入 mimic request id")
 	require.Equal(t, gjson.GetBytes(body, "system").Raw, gjson.GetBytes(upstream.lastBody, "system").Raw)

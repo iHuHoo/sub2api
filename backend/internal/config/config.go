@@ -14,6 +14,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/pkg/claude"
 	"github.com/spf13/viper"
 	"golang.org/x/net/http/httpguts"
 )
@@ -981,6 +982,11 @@ const (
 
 // GatewayConfig API网关相关配置
 type GatewayConfig struct {
+	// ClaudeClientProfileFile is the reviewed Claude Code client profile (#144), read once
+	// at startup; a missing or invalid file stops the server.
+	ClaudeClientProfileFile string `mapstructure:"claude_client_profile_file"`
+	// LogClaudeHeaders logs redacted inbound/outbound Claude headers (#144); default on.
+	LogClaudeHeaders bool `mapstructure:"log_claude_headers"`
 	// MinOutputTokens is the minimum max_output_tokens used when
 	// converting Chat Completions or Anthropic requests to Responses.
 	MinOutputTokens int `mapstructure:"min_output_tokens"`
@@ -2564,6 +2570,8 @@ func setDefaults() {
 	viper.SetDefault("gateway.image_stream_keepalive_interval", 10)
 	viper.SetDefault("gateway.image_nonstream_keepalive_interval", 0)
 	viper.SetDefault("gateway.max_line_size", 500*1024*1024)
+	viper.SetDefault("gateway.claude_client_profile_file", claude.DefaultClientProfileFile)
+	viper.SetDefault("gateway.log_claude_headers", true)
 	viper.SetDefault("gateway.scheduling.sticky_session_max_waiting", 3)
 	viper.SetDefault("gateway.scheduling.sticky_session_wait_timeout", 120*time.Second)
 	viper.SetDefault("gateway.scheduling.fallback_wait_timeout", 30*time.Second)

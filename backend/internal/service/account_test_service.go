@@ -577,7 +577,7 @@ func (s *AccountTestService) testClaudeAccountConnection(c *gin.Context, account
 
 	// Set common headers
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("anthropic-version", "2023-06-01")
+	req.Header.Set("anthropic-version", claude.ActiveClientProfile().AnthropicVersion)
 
 	// Apply Claude Code client headers
 	for key, value := range claude.DefaultHeaders() {
@@ -604,6 +604,7 @@ func (s *AccountTestService) testClaudeAccountConnection(c *gin.Context, account
 		proxyURL = account.Proxy.URL()
 	}
 
+	req = markClaudeOutbound(nil, req, account, "account_test") // admin request headers are not client evidence
 	resp, err := s.httpUpstream.DoWithTLS(req, proxyURL, account.ID, account.Concurrency, s.tlsFPProfileService.ResolveTLSProfile(account))
 	if err != nil {
 		return s.sendErrorAndEnd(c, fmt.Sprintf("Request failed: %s", err.Error()))

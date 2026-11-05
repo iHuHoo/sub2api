@@ -43,6 +43,10 @@ archives:
       - LICENSE*
       - README*
       - deploy/*
+      # Required at startup (#144); installed next to the binary as ./resources/...
+      - src: backend/resources/claude-client-profile/profile.json
+        dst: resources/claude-client-profile
+        strip_parent: true
 
 checksum:
   name_template: 'checksums.txt'

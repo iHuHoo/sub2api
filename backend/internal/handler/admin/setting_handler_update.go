@@ -1462,15 +1462,17 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		}
 		req.OpenAICodexClientVersion = &normalized
 	}
-	if req.ClaudeCodeClientVersion != nil {
-		// 该值会被拼进出站 User-Agent 与 billing attribution，必须是合法版本号；空串表示跟随自动同步。
-		normalized := strings.TrimSpace(*req.ClaudeCodeClientVersion)
-		if normalized != "" && service.NormalizeClaudeCodeClientVersion(normalized) == "" {
-			response.Error(c, http.StatusBadRequest, "claude_code_client_version must be empty or a valid version (e.g. 2.1.258)")
-			return
-		}
-		req.ClaudeCodeClientVersion = &normalized
+	// Claude client identity comes from the startup profile (#144). The legacy fields are
+	// tolerated when unchanged, so full-settings saves keep working, and rejected when changed.
+	if req.ClaudeCodeClientVersion != nil && strings.TrimSpace(*req.ClaudeCodeClientVersion) != previousSettings.ClaudeCodeClientVersion {
+		response.Error(c, http.StatusBadRequest, "claude_code_client_version is deprecated: Claude client identity comes from the startup client profile (gateway.claude_client_profile_file)")
+		return
 	}
+	if req.ClaudeCodeVersionAutoSyncEnabled != nil && *req.ClaudeCodeVersionAutoSyncEnabled != previousSettings.ClaudeCodeVersionAutoSyncEnabled {
+		response.Error(c, http.StatusBadRequest, "claude_code_version_auto_sync_enabled is deprecated: Claude client versions are no longer synced automatically")
+		return
+	}
+	req.ClaudeCodeClientVersion, req.ClaudeCodeVersionAutoSyncEnabled = nil, nil
 
 	// codex_cli_only 加固：最低/最高 Codex 版本（空=禁用，或合法 semver；max>=min）
 	if req.MinCodexVersion != "" && !semverPattern.MatchString(req.MinCodexVersion) {
@@ -2360,6 +2362,7 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		ClaudeCodeClientVersion:                                updatedSettings.ClaudeCodeClientVersion,
 		ClaudeCodeClientVersionSynced:                          updatedSettings.ClaudeCodeClientVersionSynced,
 		ClaudeCodeVersionAutoSyncEnabled:                       updatedSettings.ClaudeCodeVersionAutoSyncEnabled,
+		ClaudeClientProfile:                                    dto.ActiveClaudeClientProfileSummary(),
 		MinCodexVersion:                                        updatedSettings.MinCodexVersion,
 		MaxCodexVersion:                                        updatedSettings.MaxCodexVersion,
 		CodexCLIOnlyBlacklist:                                  updatedSettings.CodexCLIOnlyBlacklist,
