@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/claude"
 	"github.com/stretchr/testify/require"
 )
 
@@ -59,7 +60,9 @@ func TestCalibrationIdentityIsReadOnly(t *testing.T) {
 	require.NoError(t, err)
 	req, err := k.buildCountRequest(context.Background(), account, "claude-sonnet-4-6", wire)
 	require.NoError(t, err)
-	require.Equal(t, "claude-cli/2.1.258 (external, cli)", getHeaderRaw(req.Header, "User-Agent"), "the stored fingerprint is applied")
+	// #144: software fields come from the client profile; the stored fingerprint supplies the ClientID.
+	require.Equal(t, claude.DefaultUserAgent(), getHeaderRaw(req.Header, "User-Agent"))
+	require.Contains(t, string(wire), "client-id-from-production", "the stored ClientID is used")
 	require.Zero(t, stored.writes, "nothing is written to the production cache")
 }
 
