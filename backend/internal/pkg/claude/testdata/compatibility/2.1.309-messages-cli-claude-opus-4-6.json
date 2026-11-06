@@ -1,0 +1,705 @@
+{
+ "version": "2.1.309",
+ "endpoint": "messages",
+ "entrypoint": "cli",
+ "model": "claude-opus-4-6",
+ "url": "/v1/messages?beta=true",
+ "headers": [
+  [
+   "Accept",
+   "application/json"
+  ],
+  [
+   "Content-Type",
+   "application/json"
+  ],
+  [
+   "User-Agent",
+   "claude-cli/2.1.309 (external, cli)"
+  ],
+  [
+   "X-Stainless-Arch",
+   "arm64"
+  ],
+  [
+   "X-Stainless-Lang",
+   "js"
+  ],
+  [
+   "X-Stainless-OS",
+   "Linux"
+  ],
+  [
+   "X-Stainless-Package-Version",
+   "0.128.0"
+  ],
+  [
+   "X-Stainless-Retry-Count",
+   "0"
+  ],
+  [
+   "X-Stainless-Runtime",
+   "node"
+  ],
+  [
+   "X-Stainless-Runtime-Version",
+   "v26.3.0"
+  ],
+  [
+   "X-Stainless-Timeout",
+   "600"
+  ],
+  [
+   "anthropic-beta",
+   "claude-code-20250219,oauth-2025-04-20,interleaved-thinking-2025-05-14,thinking-token-count-2026-05-13,context-management-2025-06-27,advanced-tool-use-2025-11-20,effort-2025-11-24,dangerous-tool-use-2026-09-03,thinking-display-updates-2026-08-18,afk-mode-2026-01-31,extended-cache-ttl-2025-04-11"
+  ],
+  [
+   "anthropic-dangerous-direct-browser-access",
+   "true"
+  ],
+  [
+   "anthropic-version",
+   "2023-06-01"
+  ],
+  [
+   "x-app",
+   "cli"
+  ]
+ ],
+ "body": {
+  "model": "claude-opus-4-6",
+  "messages": [
+   {
+    "role": "user",
+    "content": [
+     {
+      "type": "text",
+      "text": "synthetic"
+     },
+     {
+      "type": "text",
+      "text": "synthetic"
+     },
+     {
+      "type": "text",
+      "text": "synthetic"
+     },
+     {
+      "type": "text",
+      "text": "synthetic"
+     },
+     {
+      "type": "text",
+      "text": "synthetic"
+     },
+     {
+      "type": "text",
+      "text": "synthetic"
+     },
+     {
+      "type": "text",
+      "text": "synthetic"
+     },
+     {
+      "type": "text",
+      "text": "synthetic"
+     },
+     {
+      "type": "text",
+      "text": "synthetic"
+     },
+     {
+      "type": "text",
+      "text": "synthetic",
+      "cache_control": {
+       "type": "ephemeral",
+       "ttl": "1h"
+      }
+     }
+    ]
+   }
+  ],
+  "system": [
+   {
+    "type": "text",
+    "text": "x-anthropic-billing-header: cc_version=2.1.309.b01; cc_entrypoint=cli;"
+   },
+   {
+    "type": "text",
+    "text": "synthetic",
+    "cache_control": {
+     "type": "ephemeral",
+     "ttl": "1h"
+    }
+   },
+   {
+    "type": "text",
+    "text": "synthetic",
+    "cache_control": {
+     "type": "ephemeral",
+     "ttl": "1h"
+    }
+   }
+  ],
+  "tools": [
+   {
+    "name": "Agent",
+    "description": "synthetic",
+    "input_schema": {
+     "$schema": "https://json-schema.org/draft/2020-12/schema",
+     "type": "object",
+     "properties": {
+      "description": {
+       "description": "synthetic",
+       "type": "string"
+      },
+      "prompt": {
+       "description": "synthetic",
+       "type": "string"
+      },
+      "subagent_type": {
+       "description": "synthetic",
+       "type": "string"
+      },
+      "model": {
+       "description": "synthetic",
+       "type": "string",
+       "enum": [
+        "sonnet",
+        "opus",
+        "haiku",
+        "fable"
+       ]
+      },
+      "effort": {
+       "description": "synthetic",
+       "type": "string",
+       "enum": [
+        "low",
+        "medium",
+        "high",
+        "xhigh",
+        "max"
+       ]
+      },
+      "isolation": {
+       "description": "synthetic",
+       "type": "string",
+       "enum": [
+        "worktree",
+        "remote"
+       ]
+      }
+     },
+     "required": [
+      "description",
+      "prompt"
+     ],
+     "additionalProperties": false
+    }
+   },
+   {
+    "name": "AskUserQuestion",
+    "description": "synthetic",
+    "input_schema": {
+     "$schema": "https://json-schema.org/draft/2020-12/schema",
+     "type": "object",
+     "properties": {
+      "questions": {
+       "description": "synthetic",
+       "minItems": 1,
+       "maxItems": 4,
+       "type": "array",
+       "items": {
+        "type": "object",
+        "properties": {
+         "question": {
+          "description": "synthetic",
+          "type": "string"
+         },
+         "header": {
+          "description": "synthetic",
+          "type": "string"
+         },
+         "options": {
+          "description": "synthetic",
+          "minItems": 2,
+          "maxItems": 4,
+          "type": "array",
+          "items": {
+           "type": "object",
+           "properties": {
+            "label": {
+             "description": "synthetic",
+             "type": "string"
+            },
+            "description": {
+             "description": "synthetic",
+             "type": "string"
+            },
+            "preview": {
+             "description": "synthetic",
+             "type": "string"
+            }
+           },
+           "required": [
+            "label",
+            "description"
+           ],
+           "additionalProperties": false
+          }
+         },
+         "multiSelect": {
+          "description": "synthetic",
+          "default": false,
+          "type": "boolean"
+         }
+        },
+        "required": [
+         "question",
+         "header",
+         "options",
+         "multiSelect"
+        ],
+        "additionalProperties": false
+       }
+      },
+      "answers": {
+       "description": "synthetic",
+       "type": "object",
+       "propertyNames": {
+        "type": "string"
+       },
+       "additionalProperties": {
+        "type": "string"
+       }
+      },
+      "annotations": {
+       "description": "synthetic",
+       "type": "object",
+       "propertyNames": {
+        "type": "string"
+       },
+       "additionalProperties": {
+        "type": "object",
+        "properties": {
+         "preview": {
+          "description": "synthetic",
+          "type": "string"
+         },
+         "notes": {
+          "description": "synthetic",
+          "type": "string"
+         }
+        },
+        "additionalProperties": false
+       }
+      },
+      "metadata": {
+       "description": "synthetic",
+       "type": "object",
+       "properties": {
+        "source": {
+         "description": "synthetic",
+         "type": "string"
+        }
+       },
+       "additionalProperties": false
+      }
+     },
+     "required": [
+      "questions"
+     ],
+     "additionalProperties": false
+    }
+   },
+   {
+    "name": "Bash",
+    "description": "synthetic",
+    "input_schema": {
+     "$schema": "https://json-schema.org/draft/2020-12/schema",
+     "type": "object",
+     "properties": {
+      "command": {
+       "description": "synthetic",
+       "type": "string"
+      },
+      "timeout": {
+       "description": "synthetic",
+       "type": "number"
+      },
+      "description": {
+       "description": "synthetic",
+       "type": "string"
+      },
+      "run_in_background": {
+       "description": "synthetic",
+       "type": "boolean"
+      },
+      "dangerouslyDisableSandbox": {
+       "description": "synthetic",
+       "type": "boolean"
+      }
+     },
+     "required": [
+      "command"
+     ],
+     "additionalProperties": false
+    }
+   },
+   {
+    "name": "Edit",
+    "description": "synthetic",
+    "input_schema": {
+     "$schema": "https://json-schema.org/draft/2020-12/schema",
+     "type": "object",
+     "properties": {
+      "file_path": {
+       "description": "synthetic",
+       "type": "string"
+      },
+      "old_string": {
+       "description": "synthetic",
+       "type": "string"
+      },
+      "new_string": {
+       "description": "synthetic",
+       "type": "string"
+      },
+      "replace_all": {
+       "description": "synthetic",
+       "default": false,
+       "type": "boolean"
+      }
+     },
+     "required": [
+      "file_path",
+      "old_string",
+      "new_string"
+     ],
+     "additionalProperties": false
+    }
+   },
+   {
+    "name": "ListAgents",
+    "description": "synthetic",
+    "input_schema": {
+     "$schema": "https://json-schema.org/draft/2020-12/schema",
+     "type": "object",
+     "properties": {
+      "channel": {
+       "description": "synthetic",
+       "type": "string",
+       "maxLength": 256
+      },
+      "q": {
+       "description": "synthetic",
+       "type": "string",
+       "maxLength": 256
+      }
+     },
+     "additionalProperties": false
+    }
+   },
+   {
+    "name": "Read",
+    "description": "synthetic",
+    "input_schema": {
+     "$schema": "https://json-schema.org/draft/2020-12/schema",
+     "type": "object",
+     "properties": {
+      "file_path": {
+       "description": "synthetic",
+       "type": "string"
+      },
+      "offset": {
+       "description": "synthetic",
+       "type": "integer",
+       "minimum": 0,
+       "maximum": 9007199254740991
+      },
+      "limit": {
+       "description": "synthetic",
+       "type": "integer",
+       "exclusiveMinimum": 0,
+       "maximum": 9007199254740991
+      },
+      "pages": {
+       "description": "synthetic",
+       "type": "string"
+      },
+      "allow_large": {
+       "description": "synthetic",
+       "type": "boolean"
+      }
+     },
+     "required": [
+      "file_path"
+     ],
+     "additionalProperties": false
+    }
+   },
+   {
+    "name": "ReportFindings",
+    "description": "synthetic",
+    "input_schema": {
+     "$schema": "https://json-schema.org/draft/2020-12/schema",
+     "type": "object",
+     "properties": {
+      "level": {
+       "description": "synthetic",
+       "type": "string",
+       "enum": [
+        "low",
+        "medium",
+        "high",
+        "xhigh",
+        "max"
+       ]
+      },
+      "findings": {
+       "description": "synthetic",
+       "maxItems": 32,
+       "type": "array",
+       "items": {
+        "type": "object",
+        "properties": {
+         "file": {
+          "description": "synthetic",
+          "type": "string"
+         },
+         "line": {
+          "description": "synthetic",
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+         },
+         "summary": {
+          "description": "synthetic",
+          "type": "string"
+         },
+         "short_summary": {
+          "description": "synthetic",
+          "type": "string",
+          "maxLength": 60
+         },
+         "failure_scenario": {
+          "description": "synthetic",
+          "type": "string"
+         },
+         "category": {
+          "description": "synthetic",
+          "type": "string",
+          "maxLength": 40
+         },
+         "verdict": {
+          "description": "synthetic",
+          "type": "string",
+          "enum": [
+           "CONFIRMED",
+           "PLAUSIBLE"
+          ]
+         },
+         "outcome": {
+          "description": "synthetic",
+          "type": "string",
+          "enum": [
+           "fixed",
+           "skipped",
+           "no_change_needed"
+          ]
+         }
+        },
+        "required": [
+         "file",
+         "summary",
+         "failure_scenario"
+        ],
+        "additionalProperties": false
+       }
+      }
+     },
+     "required": [
+      "findings"
+     ],
+     "additionalProperties": false
+    }
+   },
+   {
+    "name": "ScheduleWakeup",
+    "description": "synthetic",
+    "input_schema": {
+     "$schema": "https://json-schema.org/draft/2020-12/schema",
+     "type": "object",
+     "properties": {
+      "delaySeconds": {
+       "description": "synthetic",
+       "type": "number"
+      },
+      "reason": {
+       "description": "synthetic",
+       "type": "string"
+      },
+      "prompt": {
+       "description": "synthetic",
+       "type": "string"
+      },
+      "stop": {
+       "description": "synthetic",
+       "type": "boolean"
+      },
+      "noop": {
+       "description": "synthetic",
+       "type": "boolean"
+      }
+     },
+     "additionalProperties": false
+    }
+   },
+   {
+    "name": "Skill",
+    "description": "synthetic",
+    "input_schema": {
+     "$schema": "https://json-schema.org/draft/2020-12/schema",
+     "type": "object",
+     "properties": {
+      "skill": {
+       "description": "synthetic",
+       "type": "string"
+      },
+      "args": {
+       "description": "synthetic",
+       "type": "string"
+      }
+     },
+     "required": [
+      "skill"
+     ],
+     "additionalProperties": false
+    }
+   },
+   {
+    "name": "ToolSearch",
+    "description": "synthetic",
+    "input_schema": {
+     "$schema": "https://json-schema.org/draft/2020-12/schema",
+     "type": "object",
+     "properties": {
+      "query": {
+       "description": "synthetic",
+       "type": "string"
+      },
+      "max_results": {
+       "description": "synthetic",
+       "default": 5,
+       "type": "number"
+      }
+     },
+     "required": [
+      "query",
+      "max_results"
+     ],
+     "additionalProperties": false
+    }
+   },
+   {
+    "name": "Workflow",
+    "description": "synthetic",
+    "input_schema": {
+     "$schema": "https://json-schema.org/draft/2020-12/schema",
+     "type": "object",
+     "properties": {
+      "script": {
+       "description": "synthetic",
+       "type": "string",
+       "maxLength": 524288
+      },
+      "name": {
+       "description": "synthetic",
+       "type": "string"
+      },
+      "description": {
+       "description": "synthetic",
+       "type": "string"
+      },
+      "title": {
+       "description": "synthetic",
+       "type": "string"
+      },
+      "args": {
+       "description": "synthetic"
+      },
+      "scriptPath": {
+       "description": "synthetic",
+       "type": "string"
+      },
+      "resumeFromRunId": {
+       "description": "synthetic",
+       "type": "string",
+       "pattern": "^wf_[a-z0-9-]{6,}$"
+      }
+     },
+     "additionalProperties": false
+    }
+   },
+   {
+    "name": "DeferredToolPlaceholder",
+    "defer_loading": true,
+    "description": "synthetic",
+    "input_schema": {
+     "type": "object",
+     "properties": {}
+    }
+   },
+   {
+    "name": "Write",
+    "description": "synthetic",
+    "input_schema": {
+     "$schema": "https://json-schema.org/draft/2020-12/schema",
+     "type": "object",
+     "properties": {
+      "file_path": {
+       "description": "synthetic",
+       "type": "string"
+      },
+      "content": {
+       "description": "synthetic",
+       "type": "string"
+      }
+     },
+     "required": [
+      "file_path",
+      "content"
+     ],
+     "additionalProperties": false
+    }
+   }
+  ],
+  "metadata": {
+   "user_id": "synthetic"
+  },
+  "max_tokens": 64000,
+  "thinking": {
+   "type": "adaptive",
+   "display": "updates"
+  },
+  "context_management": {
+   "edits": [
+    {
+     "type": "clear_thinking_20251015",
+     "keep": "all"
+    }
+   ]
+  },
+  "safeguards": [
+   {
+    "type": "dangerous_tool_use",
+    "classifier_context": "synthetic"
+   }
+  ],
+  "output_config": {
+   "effort": "high"
+  },
+  "stream": true
+ }
+}

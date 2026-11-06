@@ -33,7 +33,13 @@ func loadClaudeClientProfile(path string) error {
 	if _, set := os.LookupEnv(legacyClaudeCLIVersionEnv); set {
 		slog.Warn("ignoring legacy Claude CLI version override; the client profile owns the version", "env", legacyClaudeCLIVersionEnv)
 	}
+	if !p.HasCompatibility() {
+		slog.Warn("claude client profile has no compatibility table (schema_version 1); it loads unchanged, and the version/model/beta table needs the schema_version 2 file", "path", path)
+	}
+	// compatibility_enforced stays false until native enforcement exists (#153): the table is
+	// validated at startup but no request is checked against it.
 	slog.Info("claude client profile loaded", "path", path, "revision", p.Revision, "cli_version", p.CLIVersion,
-		"package_version", p.StainlessPackageVersion, "runtime_version", p.StainlessRuntimeVersion, "os", p.StainlessOS, "arch", p.StainlessArch)
+		"package_version", p.StainlessPackageVersion, "runtime_version", p.StainlessRuntimeVersion, "os", p.StainlessOS, "arch", p.StainlessArch,
+		"schema_version", p.SchemaVersion, "compatibility_rows", p.CompatibilityRowCount(), "compatibility_enforced", false)
 	return nil
 }

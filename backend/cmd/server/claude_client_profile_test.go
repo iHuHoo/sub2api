@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bytes"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"testing"
@@ -27,6 +29,33 @@ func TestLoadClaudeClientProfileAtStartup(t *testing.T) {
 	require.Error(t, loadClaudeClientProfile(write("partial.json", good[:len(good)/2])))
 	require.Error(t, loadClaudeClientProfile(write("bad.json", []byte(`{"schema_version":1}`))))
 	require.Error(t, loadClaudeClientProfile(""))
+}
+
+// A schema 1 file (the #144 release file or an operator's copy) still starts the server,
+// with no compatibility table and a warning; the shipped schema 2 file carries the table.
+func TestLoadClaudeClientProfileAcceptsLegacySchema(t *testing.T) {
+	legacy, err := os.ReadFile("../../internal/pkg/claude/testdata/profile-schema1.json")
+	require.NoError(t, err)
+	dir := t.TempDir()
+	path := filepath.Join(dir, "profile.json")
+	require.NoError(t, os.WriteFile(path, legacy, 0o600))
+
+	var logs bytes.Buffer
+	prev := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&logs, nil)))
+	t.Cleanup(func() { slog.SetDefault(prev) })
+
+	require.NoError(t, loadClaudeClientProfile(path))
+	require.Equal(t, 1, claude.ActiveClientProfile().SchemaVersion)
+	require.False(t, claude.ActiveClientProfile().HasCompatibility())
+	require.Contains(t, logs.String(), "no compatibility table")
+	require.Contains(t, logs.String(), "compatibility_enforced=false")
+
+	logs.Reset()
+	require.NoError(t, loadClaudeClientProfile("../../resources/claude-client-profile/profile.json"))
+	require.True(t, claude.ActiveClientProfile().HasCompatibility())
+	require.NotContains(t, logs.String(), "no compatibility table")
+	require.Contains(t, logs.String(), "compatibility_enforced=false")
 }
 
 // An extracted release or /opt/sub2api install: the default relative path resolves from a

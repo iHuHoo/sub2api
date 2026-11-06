@@ -312,7 +312,7 @@ func (s *UpdateService) applyReleaseAssets(ctx context.Context, releaseAssets []
 	return nil
 }
 
-const maxClientProfileBytes = 64 << 10
+const maxClientProfileBytes = claude.MaxClientProfileBytes
 
 // extractClientProfileFromArchive returns the validated shipped profile, or nil when the
 // archive has none (releases before #144, which do not need it).

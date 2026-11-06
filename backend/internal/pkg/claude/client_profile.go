@@ -19,7 +19,8 @@ import (
 // ClientProfile is one complete, reviewed Claude Code client software identity (#144).
 // It is loaded once at startup from a JSON file and every outbound Claude OAuth request
 // takes all of its software fields from the same profile, so a CLI version is never paired
-// with another release's SDK/runtime values. Betas stay in code (#147).
+// with another release's SDK/runtime values. Betas stay in code (#147); schema_version 2
+// adds the captured version/model/beta table (#153), which is loaded but not enforced yet.
 type ClientProfile struct {
 	SchemaVersion                int                 `json:"schema_version"`
 	Revision                     string              `json:"revision"`
@@ -36,6 +37,10 @@ type ClientProfile struct {
 	XApp                         string              `json:"x_app"`
 	DangerousDirectBrowserAccess string              `json:"anthropic_dangerous_direct_browser_access"`
 	Source                       ClientProfileSource `json:"source"`
+
+	// compat is built by ParseClientProfile and never mutated, so value copies of the
+	// profile can share it; it is reached only through copy-returning lookups.
+	compat *compatibilityTable
 }
 
 // ClientProfileSource records where the values came from; it never contains credentials.
@@ -48,7 +53,14 @@ type ClientProfileSource struct {
 	ReviewedBy     string `json:"reviewed_by"`
 }
 
-const clientProfileSchemaVersion = 1
+// Schema 1 is the #144 identity alone; schema 2 adds the compatibility table.
+const (
+	clientProfileSchemaVersionLegacy = 1
+	clientProfileSchemaVersion       = 2
+)
+
+// MaxClientProfileBytes bounds the profile file on disk and in release archives.
+const MaxClientProfileBytes = 64 << 10
 
 var (
 	anthropicVersionRe = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}$`)
@@ -121,18 +133,38 @@ func LoadClientProfileFile(path string) (ClientProfile, error) {
 }
 
 // ParseClientProfile decodes exactly one JSON object with no unknown or duplicate keys.
+// A schema 1 file loads without a compatibility table; schema 2 requires one.
 func ParseClientProfile(raw []byte) (ClientProfile, error) {
+	if len(raw) > MaxClientProfileBytes {
+		return ClientProfile{}, fmt.Errorf("profile is larger than %d bytes", MaxClientProfileBytes)
+	}
 	if err := rejectDuplicateJSONKeys(raw); err != nil {
 		return ClientProfile{}, err
 	}
 	dec := json.NewDecoder(bytes.NewReader(raw))
 	dec.DisallowUnknownFields()
-	var p ClientProfile
-	if err := dec.Decode(&p); err != nil {
+	var doc struct {
+		ClientProfile
+		Compatibility *compatibilityDoc `json:"compatibility"`
+	}
+	if err := dec.Decode(&doc); err != nil {
 		return ClientProfile{}, fmt.Errorf("decode: %w", err)
 	}
 	if _, err := dec.Token(); !errors.Is(err, io.EOF) {
 		return ClientProfile{}, errors.New("decode: trailing data after the profile object")
+	}
+	p := doc.ClientProfile
+	switch {
+	case p.SchemaVersion == clientProfileSchemaVersionLegacy && doc.Compatibility != nil:
+		return ClientProfile{}, errors.New("compatibility requires schema_version 2")
+	case p.SchemaVersion == clientProfileSchemaVersion && doc.Compatibility == nil:
+		return ClientProfile{}, errors.New("schema_version 2 requires compatibility")
+	case doc.Compatibility != nil:
+		t, err := buildCompatibilityTable(doc.Compatibility)
+		if err != nil {
+			return ClientProfile{}, err
+		}
+		p.compat = t
 	}
 	if err := p.Validate(); err != nil {
 		return ClientProfile{}, err
@@ -142,8 +174,17 @@ func ParseClientProfile(raw []byte) (ClientProfile, error) {
 
 // Validate rejects incomplete or inconsistent profiles; messages name the field only.
 func (p ClientProfile) Validate() error {
-	if p.SchemaVersion != clientProfileSchemaVersion {
-		return fmt.Errorf("schema_version must be %d", clientProfileSchemaVersion)
+	switch p.SchemaVersion {
+	case clientProfileSchemaVersionLegacy:
+		if p.compat != nil {
+			return errors.New("compatibility requires schema_version 2")
+		}
+	case clientProfileSchemaVersion:
+		if p.compat == nil {
+			return errors.New("schema_version 2 requires compatibility")
+		}
+	default:
+		return fmt.Errorf("schema_version must be %d or %d", clientProfileSchemaVersionLegacy, clientProfileSchemaVersion)
 	}
 	fields := []struct{ name, value string }{
 		{"revision", p.Revision}, {"cli_version", p.CLIVersion}, {"user_agent", p.UserAgent},
@@ -163,9 +204,13 @@ func (p ClientProfile) Validate() error {
 			return fmt.Errorf("%s contains surrounding whitespace or control characters", f.name)
 		}
 	}
-	canonical := "v" + p.CLIVersion
-	if !semver.IsValid(canonical) || semver.Canonical(canonical) != canonical || semver.Prerelease(canonical) != "" {
+	if !isStrictReleaseVersion(p.CLIVersion) {
 		return errors.New("cli_version must be a strict three-part release version")
+	}
+	if p.compat != nil {
+		if _, ok := p.compat.versions[p.CLIVersion]; !ok {
+			return errors.New("compatibility has no rows for cli_version")
+		}
 	}
 	if p.UserAgent != "claude-cli/"+p.CLIVersion+" (external, cli)" {
 		return errors.New("user_agent must be claude-cli/<cli_version> (external, cli)")
@@ -180,6 +225,12 @@ func (p ClientProfile) Validate() error {
 		return errors.New("source.evidence_sha256 must be a lowercase sha256 hex digest")
 	}
 	return nil
+}
+
+// isStrictReleaseVersion accepts X.Y.Z only: no "v" prefix, leading zeros or prerelease.
+func isStrictReleaseVersion(v string) bool {
+	canonical := "v" + v
+	return semver.IsValid(canonical) && semver.Canonical(canonical) == canonical && semver.Prerelease(canonical) == "" && semver.Build(canonical) == ""
 }
 
 // rejectDuplicateJSONKeys walks the document and fails on a repeated key in any object.

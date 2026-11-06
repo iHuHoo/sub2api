@@ -103,7 +103,7 @@ func TestParseClientProfileRejectsBadInput(t *testing.T) {
 		"ua mismatch":        {mutate(func(m map[string]any) { m["user_agent"] = "claude-cli/2.1.300 (external, cli)" }), "user_agent must be"},
 		"bad version":        {mutate(func(m map[string]any) { m["cli_version"] = "2.1"; m["user_agent"] = "claude-cli/2.1 (external, cli)" }), "cli_version"},
 		"header injection":   {mutate(func(m map[string]any) { m["x_app"] = "cli\r\nX-Evil: 1" }), "control characters"},
-		"schema":             {mutate(func(m map[string]any) { m["schema_version"] = 2 }), "schema_version"},
+		"schema":             {mutate(func(m map[string]any) { m["schema_version"] = 3 }), "schema_version"},
 		"bad digest":         {mutate(func(m map[string]any) { source(m)["artifact_digest"] = "abc" }), "artifact_digest"},
 		"duplicate key":      {[]byte(`{"schema_version":1,"schema_version":1}`), "duplicate key"},
 		"trailing data":      {append(append([]byte{}, good...), []byte(" {}")...), "trailing data"},
