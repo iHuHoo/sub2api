@@ -492,6 +492,11 @@ func (s *GatewayService) admitLongContext(ctx context.Context, c *gin.Context, a
 		return newLongContextLocalStop(GatewayFailureReasonLongContextPolicyUnavailable, http.StatusServiceUnavailable, longContextPolicyTransientText)
 	}
 	obs.Action = resolveLongContextAction(settings, a.Account, a.Model)
+	if obs.Action == BetaPolicyActionPass && isNoCreditOAuthAccount(a.Account) {
+		// Subscription OAuth has no credits (#147): a pass rule, a whitelist or a narrow scope
+		// does not open 1M here; the standard-window admission still runs.
+		obs.Action = BetaPolicyActionFilter
+	}
 	if obs.Action == BetaPolicyActionPass {
 		obs.Decision = "policy_pass"
 		return nil

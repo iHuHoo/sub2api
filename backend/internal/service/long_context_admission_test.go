@@ -33,6 +33,7 @@ type longContextUpstream struct {
 	countDelay  time.Duration
 	countCalls  int
 	inferCalls  int
+	inferBetas  []string // anthropic-beta of each inference call
 	countBodies [][]byte
 	countURLs   []string
 	countSeq    []string         // per-call input_tokens, overrides countBody
@@ -70,6 +71,7 @@ func (u *longContextUpstream) DoWithTLS(req *http.Request, _ string, _ int64, _ 
 		return &http.Response{StatusCode: u.countStatus, Header: http.Header{"Content-Type": {"application/json"}}, Body: io.NopCloser(strings.NewReader(u.countBody))}, nil
 	}
 	u.inferCalls++
+	u.inferBetas = append(u.inferBetas, getHeaderRaw(req.Header, "anthropic-beta"))
 	if i := u.inferCalls - 1; i < len(u.inferResps) {
 		return u.inferResps[i], nil
 	}
@@ -306,7 +308,7 @@ func TestLongContextAdmission_PassAndOutOfScopeSkipTheGate(t *testing.T) {
 		name, policy string
 		account      *Account
 	}{
-		{"pass opt-in", policyPassAll, newAnthropicOAuthAccountForPartialUsageTest()},
+		{"pass opt-in", policyPassAll, apiKey}, // subscription OAuth cannot opt in (#147)
 		{"oauth-only block does not cover api key", policyBlockOAuth, apiKey},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
