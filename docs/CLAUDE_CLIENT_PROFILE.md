@@ -24,7 +24,15 @@ The old mechanisms no longer apply: the hourly GitHub release sync is removed, t
 
 The `cc_version` suffix is computed from the first user text that is not a client-injected `<system-reminder>`, matching captured 2.1.318 traffic. Session ids still derive from the first text block, so existing sessions keep their ids.
 
-Betas are not part of the profile; their composition stays in code. Captured 2.1.318 betas differ from the gateway's per model and are tracked in #147.
+Betas are not taken from the profile; their composition stays in code. Captured 2.1.318 betas differ from the gateway's per model and are tracked in #147.
+
+## Compatibility table (schema_version 2, not enforced yet)
+
+Since #153 the shipped file is `schema_version: 2` and adds `compatibility`: for each captured Claude Code version, the betas it sends in wire order, per endpoint (`messages`, `count_tokens`), entrypoint (`cli` interactive, `sdk` for `-p`) and exact model. The shipped table lists only what was captured offline: 2.1.309 and 2.1.318, the nine `cli` messages models, and three models (`claude-sonnet-4-6`, `claude-opus-4-7`, `claude-sonnet-5-5`) for `sdk` messages and `cli` count_tokens. Anything else has no row. There are no wildcards or nearest-version lookups; dated aliases must be listed explicitly under `aliases`.
+
+The table is validated at startup (unknown keys, duplicate rows or betas, unknown body contracts or `requires` conditions, bad versions or model ids, dangling aliases, no rows for `cli_version`, files over 64 KB all stop the server), but **no request is checked against it yet**: requests are forwarded exactly as before, and the startup log says `compatibility_enforced=false`. Enforcement (rewrite older clients, filter newer ones, reject unknown combinations) is a later step of #153.
+
+A `schema_version: 1` file, such as the #144 release file or an operator's copy at a custom path, still loads unchanged, without a table, and logs a warning at startup. To get the table, replace it with the shipped schema 2 file. A schema 1 file must not contain `compatibility`, and a schema 2 file must.
 
 ## Changing the profile
 

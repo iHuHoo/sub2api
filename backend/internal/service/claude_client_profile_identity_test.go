@@ -2,14 +2,17 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/claude"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/claude/claudetest"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
@@ -59,9 +62,21 @@ func headersWithUA(ua string) http.Header {
 func withTestClientProfile(t *testing.T) claude.ClientProfile {
 	t.Helper()
 	prev := claude.ActiveClientProfile()
-	p := prev
-	p.Revision, p.CLIVersion, p.UserAgent = "test.1", "2.1.999", "claude-cli/2.1.999 (external, cli)"
-	p.StainlessPackageVersion, p.StainlessRuntimeVersion = "0.777.0", "v99.1.2"
+	raw, err := os.ReadFile(claudetest.ProfilePath())
+	require.NoError(t, err)
+	var m map[string]any
+	require.NoError(t, json.Unmarshal(raw, &m))
+	m["revision"], m["cli_version"], m["user_agent"] = "test.1", "2.1.999", "claude-cli/2.1.999 (external, cli)"
+	m["x_stainless_package_version"], m["x_stainless_runtime_version"] = "0.777.0", "v99.1.2"
+	// The compatibility table must list the active version; relabel the target rows.
+	compat, _ := m["compatibility"].(map[string]any)
+	versions, _ := compat["versions"].([]any)
+	target, _ := versions[0].(map[string]any)
+	target["version"] = "2.1.999"
+	raw, err = json.Marshal(m)
+	require.NoError(t, err)
+	p, err := claude.ParseClientProfile(raw)
+	require.NoError(t, err)
 	require.NoError(t, claude.SetActiveClientProfile(p))
 	t.Cleanup(func() { require.NoError(t, claude.SetActiveClientProfile(prev)) })
 	return p
