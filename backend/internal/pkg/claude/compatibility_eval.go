@@ -16,7 +16,8 @@ const (
 	CompatibilityIncompatible    = "incompatible_client_features"   // the target version cannot carry the source's features
 )
 
-// CompatibilityError is a bounded reason: it never quotes header values, prompts or payload.
+// CompatibilityError is a bounded reason: fixed text plus profile values only. It never
+// quotes request headers, models, field names, prompts or payload.
 type CompatibilityError struct {
 	Class  string
 	Reason string
@@ -24,6 +25,7 @@ type CompatibilityError struct {
 
 func (e *CompatibilityError) Error() string { return e.Class + ": " + e.Reason }
 
+// compatErr formats only profile-owned values (cli_version); callers never pass request data.
 func compatErr(class, format string, a ...any) error {
 	return &CompatibilityError{Class: class, Reason: fmt.Sprintf(format, a...)}
 }
@@ -52,8 +54,8 @@ type CompatibilityResult struct {
 var noCreditDroppedBetas = []string{BetaFastMode, BetaContext1M}
 
 // EvaluateNativeCompatibility maps a native request onto the profile's configured target
-// version (cli_version): the source must equal a captured source variant, and the target
-// betas are the target row's captured list for the same structural case and the same token
+// version (cli_version): the source must equal a reviewed source variant, and the target
+// betas are the target row's reviewed list for the same structural case and the same token
 // set. targetModel is the model the gateway will send (after routing). It never adds a
 // token, drops one (beyond the no-credit filter) or edits the body.
 func (p ClientProfile) EvaluateNativeCompatibility(src CompatibilitySource, targetModel string, noCredit bool) (CompatibilityResult, error) {
@@ -67,14 +69,14 @@ func (p ClientProfile) EvaluateNativeCompatibility(src CompatibilitySource, targ
 	if err := checkEndpointEntrypoint(src.Endpoint, src.Entrypoint); err != nil {
 		return CompatibilityResult{}, err
 	}
-	if !modelIDRe.MatchString(targetModel) {
+	if !isModelID(targetModel) {
 		return CompatibilityResult{}, compatErr(CompatibilityInvalidModel, "target model is not a model id")
 	}
 	tokens, err := parseBetaHeaders(src.BetaHeaders, true)
 	if err != nil {
 		return CompatibilityResult{}, err
 	}
-	model, sel, err := bodySelector(src.Endpoint, src.Body)
+	model, sel, err := bodySelector(src.Endpoint, src.Body, "")
 	if err != nil {
 		return CompatibilityResult{}, err
 	}
@@ -83,42 +85,51 @@ func (p ClientProfile) EvaluateNativeCompatibility(src CompatibilitySource, targ
 	}
 	srcVocab, ok := t.versions[src.Version]
 	if !ok {
-		return CompatibilityResult{}, compatErr(CompatibilityUnsupported, "version %s is not reviewed", src.Version)
+		return CompatibilityResult{}, compatErr(CompatibilityUnsupported, "source version is not in the reviewed table")
 	}
 	for _, b := range tokens {
 		if _, ok := srcVocab[b]; !ok {
-			return CompatibilityResult{}, compatErr(CompatibilityUnsupported, "beta %s was never captured from %s", b, src.Version)
+			return CompatibilityResult{}, compatErr(CompatibilityUnsupported, "a source beta is not in the reviewed table for the source version")
 		}
 	}
 	srcRow, ok := t.rows[compatibilityKey{src.Version, src.Endpoint, src.Entrypoint, model}]
 	if !ok {
-		return CompatibilityResult{}, compatErr(CompatibilityUnsupported, "no %s %s %s row for model %s", src.Version, src.Endpoint, src.Entrypoint, model)
+		return CompatibilityResult{}, compatErr(CompatibilityUnsupported, "the source model has no reviewed row for this version, endpoint and entrypoint")
 	}
 	if findSet(srcRow.cells[sel], tokens) == nil {
-		return CompatibilityResult{}, compatErr(CompatibilityUnsupported, "%s never sent this beta combination for this request shape", src.Version)
+		return CompatibilityResult{}, compatErr(CompatibilityUnsupported, "the source beta combination is not in the reviewed table for this request shape")
 	}
 
-	target := compatibilityKey{p.CLIVersion, src.Endpoint, src.Entrypoint, targetModel}
-	dstRow, ok := t.rows[target]
-	if !ok {
-		return CompatibilityResult{}, compatErr(CompatibilityUnsupported, "no %s %s %s row for target model %s", target.version, target.endpoint, target.entrypoint, target.model)
-	}
-	// Incompatible only when the target version sends the token nowhere at all; a token it
-	// sends elsewhere but not for this model or shape is missing evidence, not proven loss.
+	// Reviewed loss: the source carries a token whose semantics the target cannot carry.
 	for _, b := range tokens {
-		if _, ok := t.versions[p.CLIVersion][b]; !ok {
-			return CompatibilityResult{}, compatErr(CompatibilityIncompatible, "%s never sends %s", p.CLIVersion, b)
+		if _, ok := t.versions[p.CLIVersion][b]; !ok && slices.Contains(reviewedUntranslatableBetas, b) {
+			return CompatibilityResult{}, compatErr(CompatibilityIncompatible, "the source uses a reviewed feature the target version %s cannot carry", p.CLIVersion)
+		}
+	}
+	dstRow, ok := t.rows[compatibilityKey{p.CLIVersion, src.Endpoint, src.Entrypoint, targetModel}]
+	if !ok {
+		return CompatibilityResult{}, compatErr(CompatibilityUnsupported, "the target model has no reviewed row for %s on this endpoint and entrypoint", p.CLIVersion)
+	}
+	// Model-dependent values (effort levels) must also hold for the mapped target model; the
+	// body bytes are never rewritten.
+	if targetModel != model {
+		if _, _, err := bodySelector(src.Endpoint, src.Body, targetModel); err != nil {
+			return CompatibilityResult{}, err
 		}
 	}
 	out := findSet(dstRow.cells[sel], tokens)
 	if out == nil {
-		return CompatibilityResult{}, compatErr(CompatibilityUnsupported, "%s never sent this beta combination for this request shape", p.CLIVersion)
+		return CompatibilityResult{}, compatErr(CompatibilityUnsupported, "the beta combination is not in the reviewed table for %s and this request shape", p.CLIVersion)
 	}
 	return CompatibilityResult{
 		Version: p.CLIVersion, Endpoint: src.Endpoint, Entrypoint: src.Entrypoint, Model: targetModel,
 		Betas: slices.Clone(out), Selector: sel,
 	}, nil
 }
+
+// reviewedUntranslatableBetas are tokens reviewed as carrying semantics a target version
+// without them cannot preserve (#153: 2.1.280 messages). Any other gap is missing evidence.
+var reviewedUntranslatableBetas = []string{BetaPromptCachingScope, BetaMidConversationSystem}
 
 // ValidateTargetCompatibility checks an already-built outbound request (native or mimic)
 // against the configured target version: its betas must be exactly, in order, a list the
@@ -135,16 +146,16 @@ func (p ClientProfile) ValidateTargetCompatibility(endpoint, entrypoint string, 
 	if err != nil {
 		return err
 	}
-	model, sel, err := bodySelector(endpoint, body)
+	model, sel, err := bodySelector(endpoint, body, "")
 	if err != nil {
 		return err
 	}
 	row, ok := t.rows[compatibilityKey{p.CLIVersion, endpoint, entrypoint, model}]
 	if !ok {
-		return compatErr(CompatibilityUnsupported, "no %s %s %s row for model %s", p.CLIVersion, endpoint, entrypoint, model)
+		return compatErr(CompatibilityUnsupported, "the model has no reviewed row for %s on this endpoint and entrypoint", p.CLIVersion)
 	}
 	if !slices.ContainsFunc(row.cells[sel], func(s []string) bool { return slices.Equal(s, tokens) }) {
-		return compatErr(CompatibilityUnsupported, "%s never sent these betas in this order for this request shape", p.CLIVersion)
+		return compatErr(CompatibilityUnsupported, "the betas are not, in this order, in the reviewed table for %s and this request shape", p.CLIVersion)
 	}
 	return nil
 }
@@ -166,12 +177,12 @@ func parseBetaHeaders(values []string, dedupe bool) ([]string, error) {
 	for _, v := range values {
 		for _, raw := range strings.Split(v, ",") {
 			b := strings.TrimSpace(raw)
-			if !betaTokenRe.MatchString(b) {
+			if len(b) > 128 || !betaTokenRe.MatchString(b) {
 				return nil, compatErr(CompatibilityInvalidBeta, "anthropic-beta holds a malformed token")
 			}
 			if slices.Contains(out, b) {
 				if !dedupe {
-					return nil, compatErr(CompatibilityInvalidBeta, "anthropic-beta repeats %s", b)
+					return nil, compatErr(CompatibilityInvalidBeta, "anthropic-beta repeats a token")
 				}
 				continue
 			}
@@ -180,6 +191,9 @@ func parseBetaHeaders(values []string, dedupe bool) ([]string, error) {
 	}
 	return out, nil
 }
+
+// isModelID bounds model ids so a reason or lookup never carries request-sized input.
+func isModelID(m string) bool { return len(m) <= 128 && modelIDRe.MatchString(m) }
 
 func findSet(sets [][]string, tokens []string) []string {
 	for _, s := range sets {

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"slices"
+	"strings"
 )
 
 // The reviewed request-body grammar for native Claude Code requests (#153). It checks the
@@ -34,7 +35,9 @@ func bodyInvalid(format string, a ...any) error {
 }
 
 // bodySelector validates body for endpoint and returns its model and structural selector.
-func bodySelector(endpoint string, body []byte) (string, CompatibilitySelector, error) {
+// A non-empty targetModel must also accept every model-dependent value (effort levels): a
+// level the body model accepts but the target does not is incompatible.
+func bodySelector(endpoint string, body []byte, targetModel string) (string, CompatibilitySelector, error) {
 	dec := json.NewDecoder(bytes.NewReader(body))
 	dec.UseNumber()
 	var b bodyFields
@@ -52,16 +55,16 @@ func bodySelector(endpoint string, body []byte) (string, CompatibilitySelector, 
 		return "", CompatibilitySelector{}, err
 	}
 	model, ok := b["model"].(string)
-	if !ok || !modelIDRe.MatchString(model) {
+	if !ok || !isModelID(model) {
 		return "", CompatibilitySelector{}, &CompatibilityError{Class: CompatibilityInvalidModel, Reason: "body model is not a model id"}
 	}
-	v := &bodyCheck{model: model}
+	v := &bodyCheck{model: model, target: targetModel}
 	sel := CompatibilitySelector{Cache: "none", Thinking: "absent"}
 	var err error
 	if sel.Thinking, err = v.thinking(b); err != nil {
 		return "", sel, err
 	}
-	if err := v.messages(b["messages"]); err != nil {
+	if sel.MessageEffort, err = v.messages(b["messages"]); err != nil {
 		return "", sel, err
 	}
 	if sel.Tools, sel.DeferredTools, err = v.tools(b); err != nil {
@@ -84,17 +87,8 @@ func bodySelector(endpoint string, body []byte) (string, CompatibilitySelector, 
 		sel.ContextManagement = true
 	}
 	if sg, has := b["safeguards"]; has {
-		// shortcut: safeguards is the client's own classifier config; only its outer shape
-		// is checked, upgrade if a reviewed contract for its contents is ever needed.
-		list, ok := sg.([]any)
-		if !ok || len(list) == 0 {
-			return "", sel, bodyInvalid("safeguards must be a non-empty array")
-		}
-		for _, x := range list {
-			o, ok := x.(bodyFields)
-			if _, typed := o["type"].(string); !ok || !typed {
-				return "", sel, bodyInvalid("safeguards entries must be objects with a type")
-			}
+		if err := safeguards(sg); err != nil {
+			return "", sel, err
 		}
 		sel.Safeguards = true
 	}
@@ -128,7 +122,7 @@ func bodySelector(endpoint string, body []byte) (string, CompatibilitySelector, 
 }
 
 type bodyCheck struct {
-	model             string
+	model, target     string
 	cache, cacheTTL1h bool
 }
 
@@ -188,7 +182,7 @@ func (v *bodyCheck) thinking(b bodyFields) (string, error) {
 	case "disabled":
 		keys = []string{"type"}
 	default:
-		return "", bodyUnsupported("thinking.type %q is not reviewed", typ)
+		return "", bodyUnsupported("thinking.type is not reviewed")
 	}
 	if err := onlyKeys(th, "thinking.", keys); err != nil {
 		return "", err
@@ -204,16 +198,18 @@ func (v *bodyCheck) thinking(b bodyFields) (string, error) {
 	return typ + "/" + ds, nil
 }
 
-func (v *bodyCheck) messages(raw any) error {
+// messages validates every message and reports whether any system message carries its own
+// output_config.effort (2.1.280/309/318 send it mid-conversation; it is a selector field).
+func (v *bodyCheck) messages(raw any) (messageEffort bool, err error) {
 	list, ok := raw.([]any)
 	if !ok || len(list) == 0 {
-		return bodyInvalid("messages must be a non-empty array")
+		return false, bodyInvalid("messages must be a non-empty array")
 	}
 	for i, x := range list {
 		where := fmt.Sprintf("messages[%d]", i)
 		m, ok := x.(bodyFields)
 		if !ok {
-			return bodyInvalid("%s must be an object", where)
+			return false, bodyInvalid("%s must be an object", where)
 		}
 		role, _ := m["role"].(string)
 		keys := []string{"role", "content"}
@@ -227,21 +223,23 @@ func (v *bodyCheck) messages(raw any) error {
 			blocks = []string{"text"}
 			keys = append(keys, "output_config")
 		default:
-			return bodyUnsupported("%s.role %q is not reviewed", where, role)
+			return false, bodyUnsupported("%s.role is not reviewed", where)
 		}
 		if err := onlyKeys(m, where+".", keys); err != nil {
-			return err
+			return false, err
 		}
 		if oc, has := m["output_config"]; has {
-			if _, _, err := v.outputConfig(where+".output_config", oc, false); err != nil {
-				return err
+			effort, _, err := v.outputConfig(where+".output_config", oc, false)
+			if err != nil {
+				return false, err
 			}
+			messageEffort = messageEffort || effort
 		}
 		if err := v.content(where, m["content"], blocks); err != nil {
-			return err
+			return false, err
 		}
 	}
-	return nil
+	return messageEffort, nil
 }
 
 func (v *bodyCheck) content(where string, raw any, blocks []string) error {
@@ -260,7 +258,7 @@ func (v *bodyCheck) content(where string, raw any, blocks []string) error {
 		}
 		typ, _ := blk["type"].(string)
 		if !slices.Contains(blocks, typ) {
-			return bodyUnsupported("%s.type %q is not reviewed here", bw, typ)
+			return bodyUnsupported("%s.type is not reviewed here", bw)
 		}
 		if err := v.block(bw, typ, blk); err != nil {
 			return err
@@ -346,7 +344,7 @@ func (v *bodyCheck) block(where, typ string, blk bodyFields) error {
 		}
 		return nil
 	}
-	return bodyUnsupported("%s.type %q is not reviewed", where, typ)
+	return bodyUnsupported("%s.type is not reviewed", where)
 }
 
 func (v *bodyCheck) tools(b bodyFields) (present, deferred bool, err error) {
@@ -429,6 +427,9 @@ func (v *bodyCheck) outputConfig(where string, raw any, formatAllowed bool) (eff
 		if !slices.Contains(EffortLevelsForModel(v.model), s) {
 			return false, false, bodyUnsupported("%s.effort is not a level of the model", where)
 		}
+		if v.target != "" && !slices.Contains(EffortLevelsForModel(v.target), s) {
+			return false, false, &CompatibilityError{Class: CompatibilityIncompatible, Reason: "body " + where + ".effort is not a level of the target model"}
+		}
 		effort = true
 	}
 	if f, has := oc["format"]; has {
@@ -472,10 +473,40 @@ func contextManagement(raw any) error {
 	return nil
 }
 
+// onlyKeys rejects unreviewed fields; the reason names the reviewed parent, never the key.
 func onlyKeys(o bodyFields, prefix string, allowed []string) error {
 	for k := range o {
 		if !slices.Contains(allowed, k) {
-			return bodyUnsupported("field %s%s is not reviewed", prefix, k)
+			return bodyUnsupported("has an unreviewed field under %q", strings.TrimSuffix(prefix, "."))
+		}
+	}
+	return nil
+}
+
+// safeguardTypes are the reviewed safeguards entry types; classifier_context is the client's
+// own classifier configuration (paths, rules, identity) and stays opaque payload.
+var safeguardTypes = []string{"dangerous_tool_use"}
+
+func safeguards(raw any) error {
+	list, ok := raw.([]any)
+	if !ok || len(list) == 0 {
+		return bodyInvalid("safeguards must be a non-empty array")
+	}
+	for i, x := range list {
+		where := fmt.Sprintf("safeguards[%d]", i)
+		o, ok := x.(bodyFields)
+		if !ok {
+			return bodyInvalid("%s must be an object", where)
+		}
+		if err := onlyKeys(o, where+".", []string{"type", "classifier_context"}); err != nil {
+			return err
+		}
+		typ, _ := o["type"].(string)
+		if !slices.Contains(safeguardTypes, typ) {
+			return bodyUnsupported("%s.type is not reviewed", where)
+		}
+		if _, ok := o["classifier_context"].(bodyFields); !ok {
+			return bodyInvalid("%s.classifier_context must be an object", where)
 		}
 	}
 	return nil

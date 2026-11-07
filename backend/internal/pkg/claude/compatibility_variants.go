@@ -16,14 +16,15 @@ import (
 // CompatibilitySelector is the structural case of a request body. Every field is part of
 // the key: there are no wildcards.
 type CompatibilitySelector struct {
-	Cache             string // ttl1h | default | none
-	Thinking          string // e.g. adaptive/updates, enabled/omitted, adaptive, disabled, absent
-	ContextManagement bool
-	Effort            bool // top-level output_config.effort
-	OutputFormat      bool // top-level output_config.format
-	DeferredTools     bool // at least one tool with defer_loading=true
-	Safeguards        bool
-	Tools             bool // a non-empty tools array
+	Cache             string `json:"cache"`    // ttl1h | default | none
+	Thinking          string `json:"thinking"` // e.g. adaptive/updates, enabled/omitted, adaptive, disabled, absent
+	ContextManagement bool   `json:"context_management"`
+	Effort            bool   `json:"effort"`         // top-level output_config.effort
+	MessageEffort     bool   `json:"message_effort"` // output_config.effort on a system message
+	OutputFormat      bool   `json:"output_format"`  // top-level output_config.format
+	DeferredTools     bool   `json:"deferred_tools"` // at least one tool with defer_loading=true
+	Safeguards        bool   `json:"safeguards"`
+	Tools             bool   `json:"tools"` // a non-empty tools array
 }
 
 var (
@@ -38,7 +39,7 @@ var (
 type variantDoc struct {
 	Versions []variantVersionDoc `json:"versions"`
 	// Aliases must be absent or empty: schema 3 lists dated model ids as plain models.
-	Aliases []json.RawMessage `json:"aliases"`
+	Aliases []json.RawMessage `json:"aliases,omitempty"`
 }
 
 type variantVersionDoc struct {
@@ -64,6 +65,7 @@ type variantSelectorDoc struct {
 	Thinking          *string `json:"thinking"`
 	ContextManagement *bool   `json:"context_management"`
 	Effort            *bool   `json:"effort"`
+	MessageEffort     *bool   `json:"message_effort"`
 	OutputFormat      *bool   `json:"output_format"`
 	DeferredTools     *bool   `json:"deferred_tools"`
 	Safeguards        *bool   `json:"safeguards"`
@@ -177,7 +179,7 @@ func addVariantRow(t *variantTable, version string, r variantRowDoc) error {
 }
 
 func (d variantSelectorDoc) selector() (CompatibilitySelector, error) {
-	if d.Cache == nil || d.Thinking == nil || d.ContextManagement == nil || d.Effort == nil ||
+	if d.Cache == nil || d.Thinking == nil || d.ContextManagement == nil || d.Effort == nil || d.MessageEffort == nil ||
 		d.OutputFormat == nil || d.DeferredTools == nil || d.Safeguards == nil || d.Tools == nil {
 		return CompatibilitySelector{}, errors.New("every selector field must be set")
 	}
@@ -188,7 +190,7 @@ func (d variantSelectorDoc) selector() (CompatibilitySelector, error) {
 		return CompatibilitySelector{}, fmt.Errorf("thinking %q is not a known form", *d.Thinking)
 	}
 	return CompatibilitySelector{
-		Cache: *d.Cache, Thinking: *d.Thinking, ContextManagement: *d.ContextManagement, Effort: *d.Effort,
+		Cache: *d.Cache, Thinking: *d.Thinking, ContextManagement: *d.ContextManagement, Effort: *d.Effort, MessageEffort: *d.MessageEffort,
 		OutputFormat: *d.OutputFormat, DeferredTools: *d.DeferredTools, Safeguards: *d.Safeguards, Tools: *d.Tools,
 	}, nil
 }

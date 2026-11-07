@@ -26,6 +26,7 @@ const (
 
 	// 新增（对齐官方 CLI 2.1.9x 以来的流量）
 	BetaPromptCachingScope          = "prompt-caching-scope-2026-01-05"
+	BetaMidConversationSystem       = "mid-conversation-system-2026-04-07"
 	BetaEffort                      = "effort-2025-11-24"
 	BetaRedactThinking              = "redact-thinking-2026-02-12"
 	BetaContextManagement           = "context-management-2025-06-27"

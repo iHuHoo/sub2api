@@ -52,7 +52,7 @@ When enforcement ships it will require a complete schema 3 file; a schema 1 or 2
       "models": ["claude-opus-4-7"],
       "variants": [{
         "selector": {"cache": "ttl1h", "thinking": "adaptive/updates", "context_management": true,
-                     "effort": true, "output_format": false, "deferred_tools": true,
+                     "effort": true, "message_effort": false, "output_format": false, "deferred_tools": true,
                      "safeguards": true, "tools": true},
         "beta_sets": [["claude-code-20250219", "oauth-2025-04-20", "..."]]
       }]
@@ -62,17 +62,40 @@ When enforcement ships it will require a complete schema 3 file; a schema 1 or 2
 ```
 
 - A row is one exact version, endpoint (`messages` | `count_tokens`), entrypoint (`cli` | `sdk`) and model. There is no nearest-version, model-family or alias fallback.
-- A variant is one structural request case. All eight selector fields are required; none is a wildcard.
+- A variant is one structural request case. All nine selector fields are required; none is a wildcard.
   - `cache`: `ttl1h` when any cache_control has `ttl: "1h"`, `default` when cache_control appears without it, otherwise `none`.
   - `thinking`: `type/display` (`adaptive/updates`, `enabled/omitted`, …), a bare type when there is no display, or `absent`.
-  - The rest are booleans: `context_management`, top-level `output_config.effort` / `output_config.format`, at least one tool with `defer_loading: true`, `safeguards`, and a non-empty `tools` array.
+  - The rest are booleans:
+    - `context_management`;
+    - top-level `output_config.effort` / `output_config.format`;
+    - `message_effort`: a system message carries its own `output_config.effort`, as Claude Code sends mid-conversation;
+    - at least one tool with `defer_loading: true`;
+    - `safeguards`;
+    - a non-empty `tools` array.
 - `beta_sets` lists every exact beta list captured for that case, in wire order. One case can have more than one list: 2.1.309 sends its title request with and without `dangerous-tool-use`.
 - The target version is `cli_version`. Upgrading Claude Code means capturing the new version and adding its rows. A `cli_version` without rows is rejected at startup.
+- Effort levels are checked against the model catalog of both the source model and the model the gateway sends.
+- Only the reviewed 2.1.280 features (`prompt-caching-scope-2026-01-05`, `mid-conversation-system-2026-04-07`) count as incompatible with a target that lacks them. Any other gap counts as missing evidence: `unsupported_client_combination`.
+
+### Regenerating the table
+
+The table is generated, never hand-edited:
+
+1. Capture the new Claude Code version offline, as in "Changing the profile" below. The receiver writes one JSON object per request: `{"url": "/v1/messages?beta=true", "rawHeaders": ["Name", "value", …], "body": "<request body>"}`. Cover the interactive and `-p` entrypoints, every offered model, and the request kinds: turns with tools, compact, thinking off, `/context` (count_tokens), title generation and 1M.
+2. From `backend/`: `go run ./cmd/claude-compat-gen evidence -o internal/pkg/claude/testdata/compatibility3-evidence.json <capture files…>`.
+   - The step keeps only metadata: version and entrypoint from User-Agent, endpoint, model, structural selector and the beta list in wire order. Prompts, payload, signatures and credentials are dropped.
+   - The existing no-credit filter (fast-mode, context-1m) is applied first.
+   - The step fails when a captured request falls outside the reviewed body grammar, or when one beta set appears in two orders.
+   - Keep the earlier versions' capture files in the same run, so the evidence keeps their cells.
+3. `go run ./cmd/claude-compat-gen profile -evidence internal/pkg/claude/testdata/compatibility3-evidence.json -profile resources/claude-client-profile/profile.json`.
+   - This rewrites only `compatibility` and sets `schema_version` 3. Every identity field is kept, so bump `revision` and the identity fields first.
+   - Dated model ids are left out by the shipping policy.
+4. `TestShippedCompatibilityIsReproducible` fails if the shipped profile or the evidence file differs from what the generator produces.
 
 ### Migrating a custom schema 2 file
 
 1. Set `schema_version` to 3.
-2. Replace each row's `default_betas` / `optional_betas` / `requires` with `variants`. Copy only lists you captured from the real client, never a union or a subset of them.
+2. Replace each row's `default_betas` / `optional_betas` / `requires` with `variants`, preferably by regenerating with `claude-compat-gen` from your captures. Use only lists captured from the real client, never a union or a subset of them.
 3. Remove `body_contract`.
 4. `aliases` must be absent or empty. List each dated model id in the `models` of the rows where it was actually captured.
 
@@ -82,13 +105,14 @@ When enforcement ships it will require a complete schema 3 file; a schema 1 or 2
 - They come from offline captures of ordinary sessions, compact, thinking-off, title-generation and 1M runs. The captures used synthetic credentials with networking disabled, and only sanitized metadata is kept in the repository.
 - 2.1.280 rows exist as sources only:
   - Its `count_tokens` requests map onto 2.1.318.
-  - Its `messages` requests carry `prompt-caching-scope-2026-01-05`, which 2.1.318 never sends, so they are incompatible.
+  - Its `messages` requests carry `prompt-caching-scope-2026-01-05`, a reviewed feature that is not in the 2.1.318 table, so they are incompatible.
 - Dated model ids (`claude-sonnet-4-5-20250929`, `claude-haiku-4-5-20251001`) are captured but not shipped, because dated ids are not offered to customers by default. An operator who needs one adds it as an exact model in the rows where it was captured.
 
 ### What the table does not cover (unsupported once enforced)
 
 Requests outside the captured grammar would be rejected locally with `unsupported_client_combination`:
 - documents/PDF;
+- `safeguards` entries of any type other than `dangerous_tool_use`, or with fields other than `type` and `classifier_context` (its content is opaque payload);
 - images placed directly in a user message (images inside tool results are covered);
 - `redacted_thinking` blocks;
 - `tool_choice`, `stop_sequences`, `top_p`, `top_k`;
@@ -97,7 +121,7 @@ Requests outside the captured grammar would be rejected locally with `unsupporte
 - other `context_management` edits;
 - effort levels outside the model's catalog.
 
-2.1.318 interactive mode never sent a title-generation request offline. A 2.1.309 interactive title request therefore has no target, and once enforced those users would get no automatic session title. SDK title requests for sonnet-4-6 and haiku-4-5 are covered.
+2.1.318 interactive mode sent no title-generation request in the offline captures, so the table has no 2.1.318 cli title case. A 2.1.309 interactive title request therefore has no target, and once enforced those users would get no automatic session title. SDK title requests for sonnet-4-6 and haiku-4-5 are covered.
 
 ## Changing the profile
 

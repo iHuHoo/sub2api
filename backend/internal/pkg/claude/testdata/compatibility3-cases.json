@@ -1056,7 +1056,8 @@
    "temperature": 1,
    "safeguards": [
     {
-     "type": "dangerous_tool_use"
+     "type": "dangerous_tool_use",
+     "classifier_context": {}
     }
    ],
    "output_config": {
@@ -1336,7 +1337,8 @@
    },
    "safeguards": [
     {
-     "type": "dangerous_tool_use"
+     "type": "dangerous_tool_use",
+     "classifier_context": {}
     }
    ],
    "output_config": {
@@ -1552,7 +1554,8 @@
    },
    "safeguards": [
     {
-     "type": "dangerous_tool_use"
+     "type": "dangerous_tool_use",
+     "classifier_context": {}
     }
    ],
    "output_config": {
@@ -2607,7 +2610,8 @@
    "temperature": 1,
    "safeguards": [
     {
-     "type": "dangerous_tool_use"
+     "type": "dangerous_tool_use",
+     "classifier_context": {}
     }
    ],
    "output_config": {
@@ -2887,7 +2891,8 @@
    },
    "safeguards": [
     {
-     "type": "dangerous_tool_use"
+     "type": "dangerous_tool_use",
+     "classifier_context": {}
     }
    ],
    "output_config": {
@@ -3103,7 +3108,8 @@
    },
    "safeguards": [
     {
-     "type": "dangerous_tool_use"
+     "type": "dangerous_tool_use",
+     "classifier_context": {}
     }
    ],
    "output_config": {

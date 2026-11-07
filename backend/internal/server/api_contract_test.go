@@ -958,7 +958,7 @@ func TestAPIContracts(t *testing.T) {
 					"claude_code_client_version_synced": "",
 					"claude_code_version_auto_sync_enabled": true,
 					"claude_client_profile": {
-						"revision": "2026-11-06.1",
+						"revision": "2026-11-07.2",
 						"cli_version": "2.1.318",
 						"user_agent": "claude-cli/2.1.318 (external, cli)",
 						"x_stainless_package_version": "0.128.0",
@@ -1295,7 +1295,7 @@ func TestAPIContracts(t *testing.T) {
 					"claude_code_client_version_synced": "",
 					"claude_code_version_auto_sync_enabled": true,
 					"claude_client_profile": {
-						"revision": "2026-11-06.1",
+						"revision": "2026-11-07.2",
 						"cli_version": "2.1.318",
 						"user_agent": "claude-cli/2.1.318 (external, cli)",
 						"x_stainless_package_version": "0.128.0",

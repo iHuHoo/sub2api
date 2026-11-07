@@ -12,40 +12,15 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type evidenceCell struct {
-	Version    string          `json:"version"`
-	Endpoint   string          `json:"endpoint"`
-	Entrypoint string          `json:"entrypoint"`
-	Model      string          `json:"model"`
-	Selector   evidenceSelJSON `json:"selector"`
-	BetaSets   [][]string      `json:"beta_sets"`
-}
-
-type evidenceSelJSON struct {
-	Cache             string `json:"cache"`
-	Thinking          string `json:"thinking"`
-	ContextManagement bool   `json:"context_management"`
-	Effort            bool   `json:"effort"`
-	OutputFormat      bool   `json:"output_format"`
-	DeferredTools     bool   `json:"deferred_tools"`
-	Safeguards        bool   `json:"safeguards"`
-	Tools             bool   `json:"tools"`
-}
-
-func (s evidenceSelJSON) selector() CompatibilitySelector { return CompatibilitySelector(s) }
-
 var datedModelRe = regexp.MustCompile(`-\d{8}$`)
 
-func loadEvidenceCells(t *testing.T) []evidenceCell {
+func loadEvidenceCells(t *testing.T) []CompatibilityEvidenceCell {
 	t.Helper()
 	raw, err := os.ReadFile("testdata/compatibility3-evidence.json")
 	require.NoError(t, err)
-	var doc struct {
-		Cells []evidenceCell `json:"cells"`
-	}
-	require.NoError(t, json.Unmarshal(raw, &doc))
-	require.NotEmpty(t, doc.Cells)
-	return doc.Cells
+	cells, err := ParseCompatibilityEvidence(raw)
+	require.NoError(t, err)
+	return cells
 }
 
 // Every shipped beta list is a captured one, and every captured list is shipped, except
@@ -62,7 +37,7 @@ func TestShippedVariantsMatchEvidence(t *testing.T) {
 	}
 	want := 0
 	for _, c := range loadEvidenceCells(t) {
-		sets, ok := p.CompatibilityBetaSets(c.Version, c.Endpoint, c.Entrypoint, c.Model, c.Selector.selector())
+		sets, ok := p.CompatibilityBetaSets(c.Version, c.Endpoint, c.Entrypoint, c.Model, c.Selector)
 		if datedModelRe.MatchString(c.Model) {
 			require.False(t, ok, c.Model)
 			continue
@@ -104,7 +79,7 @@ func TestEvaluateNativeCompatibilityCases(t *testing.T) {
 	require.NotEmpty(t, cases)
 	p := ActiveClientProfile()
 	for _, tc := range cases {
-		model, _, err := bodySelector(tc.Endpoint, tc.Body)
+		model, _, err := bodySelector(tc.Endpoint, tc.Body, "")
 		require.NoError(t, err, tc.Name)
 		src := CompatibilitySource{Version: tc.Version, Endpoint: tc.Endpoint, Entrypoint: tc.Entrypoint, BetaHeaders: []string{tc.Beta}, Body: tc.Body}
 		got, err := p.EvaluateNativeCompatibility(src, model, tc.NoCredit)
@@ -178,7 +153,9 @@ func editBody(t *testing.T, body []byte, edit func(m map[string]any)) []byte {
 }
 
 // The target follows the configured cli_version, so upgrading the profile upgrades the rules.
-func TestEvaluateNativeCompatibilityTargetsConfiguredVersion(t *testing.T) {
+// Table selection only: changing cli_version and the UA alone does not certify a complete
+// 2.1.309 runtime/SDK identity.
+func TestEvaluateNativeCompatibilityTargetSelectionFollowsCLIVersion(t *testing.T) {
 	m := shippedProfileMap(t)
 	m["cli_version"], m["user_agent"] = "2.1.309", "claude-cli/2.1.309 (external, cli)"
 	p, err := ParseClientProfile(marshal(t, m))
@@ -263,7 +240,7 @@ func TestEvaluateNativeCompatibilityFallbackCredit(t *testing.T) {
 	require.NoError(t, err)
 	require.Contains(t, got.Betas, BetaFallbackCreditLegacy)
 	_, err = p.EvaluateNativeCompatibility(src, "claude-sonnet-4-6", true)
-	require.Equal(t, CompatibilityUnsupported, compatClass(t, err), "2.1.318 sends fallback-credit, never for 4.6: %v", err)
+	require.Equal(t, CompatibilityUnsupported, compatClass(t, err), "fallback-credit is in the reviewed 2.1.318 table, not for 4.6: %v", err)
 }
 
 // User payload is not part of the decision; unreviewed capability shapes are.
@@ -322,7 +299,7 @@ func TestCompatibilityBodyGrammar(t *testing.T) {
 		"tools not array":     {func(m map[string]any) { m["tools"] = map[string]any{} }, CompatibilityInvalidBody},
 		"no messages":         {func(m map[string]any) { m["messages"] = []any{} }, CompatibilityInvalidBody},
 		"bad model":           {func(m map[string]any) { m["model"] = 7 }, CompatibilityInvalidModel},
-		// Same token set, different structure: 318 never sent this pairing.
+		// Same token set, different structure: not in the reviewed 318 table.
 		"thinking off": {func(m map[string]any) {
 			m["thinking"] = map[string]any{"type": "disabled"}
 			delete(m, "context_management")
@@ -336,9 +313,9 @@ func TestCompatibilityBodyGrammar(t *testing.T) {
 		require.Equal(t, tc.class, compatClass(t, err), "%s: %v", name, err)
 	}
 
-	_, _, err = bodySelector("messages", []byte(`{"model":"claude-opus-4-7","messages":[{"role":"user","content":"x"}]} {}`))
+	_, _, err = bodySelector("messages", []byte(`{"model":"claude-opus-4-7","messages":[{"role":"user","content":"x"}]} {}`), "")
 	require.Equal(t, CompatibilityInvalidBody, compatClass(t, err))
-	_, _, err = bodySelector("count_tokens", []byte(`{"model":"claude-opus-4-7","messages":[{"role":"user","content":"x"}],"thinking":{"type":"disabled"}}`))
+	_, _, err = bodySelector("count_tokens", []byte(`{"model":"claude-opus-4-7","messages":[{"role":"user","content":"x"}],"thinking":{"type":"disabled"}}`), "")
 	require.Equal(t, CompatibilityUnsupported, compatClass(t, err), "count_tokens bodies carry model, messages and tools only")
 }
 
@@ -399,10 +376,10 @@ func TestParseVariantTableRejectsBadTables(t *testing.T) {
 func TestCompatibilityBetaSetsAreCopies(t *testing.T) {
 	p := ActiveClientProfile()
 	cells := loadEvidenceCells(t)
-	c := cells[slices.IndexFunc(cells, func(c evidenceCell) bool { return !datedModelRe.MatchString(c.Model) })]
-	a, ok := p.CompatibilityBetaSets(c.Version, c.Endpoint, c.Entrypoint, c.Model, c.Selector.selector())
+	c := cells[slices.IndexFunc(cells, func(c CompatibilityEvidenceCell) bool { return !datedModelRe.MatchString(c.Model) })]
+	a, ok := p.CompatibilityBetaSets(c.Version, c.Endpoint, c.Entrypoint, c.Model, c.Selector)
 	require.True(t, ok)
 	a[0][0] = "mutated"
-	b, _ := p.CompatibilityBetaSets(c.Version, c.Endpoint, c.Entrypoint, c.Model, c.Selector.selector())
+	b, _ := p.CompatibilityBetaSets(c.Version, c.Endpoint, c.Entrypoint, c.Model, c.Selector)
 	require.NotEqual(t, "mutated", b[0][0])
 }
