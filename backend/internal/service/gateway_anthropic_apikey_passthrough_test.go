@@ -726,7 +726,8 @@ func TestGatewayService_AnthropicAPIKeyPassthrough_CountTokens404PassthroughNotE
 				}
 				require.Equal(t, want, rec.Code)
 				if tt.statusCode == http.StatusBadRequest {
-					require.JSONEq(t, tt.respBody, rec.Body.String(), "the upstream 400 reaches the client unchanged")
+					// The upstream message reaches the client in the gateway's own envelope.
+					require.Contains(t, rec.Body.String(), gjson.Get(tt.respBody, "error.message").String())
 				}
 			}
 		})

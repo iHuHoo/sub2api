@@ -254,14 +254,7 @@ func (s *GatewayService) ForwardCountTokens(ctx context.Context, c *gin.Context,
 			writeAnthropicLongContextCreditsError(c)
 			return fmt.Errorf("upstream error: %d %s", resp.StatusCode, anthropicLongContextCreditsCode)
 		}
-		// Same client contract as messages: an upstream 400 is the request's own error and is
-		// passed through; everything else gets the shared status/type/message mapping.
-		if resp.StatusCode == http.StatusBadRequest {
-			c.Data(http.StatusBadRequest, "application/json", respBody)
-		} else {
-			status, errType, errMsg := AnthropicClientError(resp.StatusCode)
-			s.countTokensError(c, status, errType, errMsg)
-		}
+		s.countTokensUpstreamError(c, resp.StatusCode, upstreamMsg)
 		if upstreamMsg == "" {
 			return fmt.Errorf("upstream error: %d", resp.StatusCode)
 		}
@@ -375,14 +368,7 @@ func (s *GatewayService) forwardCountTokensAnthropicAPIKeyPassthrough(ctx contex
 			writeAnthropicLongContextCreditsError(c)
 			return fmt.Errorf("upstream error: %d %s", resp.StatusCode, anthropicLongContextCreditsCode)
 		}
-		// Same client contract as messages: an upstream 400 is the request's own error and is
-		// passed through; everything else gets the shared status/type/message mapping.
-		if resp.StatusCode == http.StatusBadRequest {
-			c.Data(http.StatusBadRequest, "application/json", respBody)
-		} else {
-			status, errType, errMsg := AnthropicClientError(resp.StatusCode)
-			s.countTokensError(c, status, errType, errMsg)
-		}
+		s.countTokensUpstreamError(c, resp.StatusCode, upstreamMsg)
 		if upstreamMsg == "" {
 			return fmt.Errorf("upstream error: %d", resp.StatusCode)
 		}
@@ -654,6 +640,29 @@ func sanitizeCountTokensRequestBody(body []byte) []byte {
 }
 
 // countTokensError 返回 count_tokens 错误响应
+// countTokensBadRequestFallback answers an upstream 400 whose body carries no usable message.
+const countTokensBadRequestFallback = "Upstream rejected the request"
+
+// countTokensMaxClientMessageBytes bounds the upstream message echoed to the client.
+const countTokensMaxClientMessageBytes = 1024
+
+// countTokensUpstreamError answers an upstream count_tokens error. A 400 is the request's own
+// error: it keeps status 400 with the upstream message, already sanitized by the caller and
+// bounded here, in the standard envelope; the raw body and other upstream fields never reach
+// the client. Every other status uses the shared client mapping.
+func (s *GatewayService) countTokensUpstreamError(c *gin.Context, upstreamStatus int, sanitizedMsg string) {
+	if upstreamStatus == http.StatusBadRequest {
+		msg := truncateString(strings.TrimSpace(sanitizedMsg), countTokensMaxClientMessageBytes)
+		if msg == "" {
+			msg = countTokensBadRequestFallback
+		}
+		s.countTokensError(c, http.StatusBadRequest, "invalid_request_error", msg)
+		return
+	}
+	status, errType, errMsg := AnthropicClientError(upstreamStatus)
+	s.countTokensError(c, status, errType, errMsg)
+}
+
 func (s *GatewayService) countTokensError(c *gin.Context, status int, errType, message string) {
 	c.JSON(status, gin.H{
 		"type": "error",
