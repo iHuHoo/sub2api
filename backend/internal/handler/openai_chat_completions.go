@@ -400,12 +400,15 @@ func (h *OpenAIGatewayHandler) ChatCompletions(c *gin.Context) {
 						wroteFallback = h.ensureForwardErrorResponse(c, streamStarted)
 					}
 				}
-				reqLog.Warn("openai_chat_completions.forward_failed",
+				ccFailedFields := []zap.Field{
 					zap.Int64("account_id", account.ID),
 					zap.Bool("fallback_error_response_written", wroteFallback),
 					zap.Bool("upstream_error_response_already_written", upstreamErrorAlreadyCommunicated),
 					zap.Error(err),
-				)
+				}
+				if !logLocalReject(reqLog, "openai_chat_completions.forward_failed", err, ccFailedFields...) {
+					reqLog.Warn("openai_chat_completions.forward_failed", ccFailedFields...)
+				}
 				submitChatUsage(result)
 				return
 			}

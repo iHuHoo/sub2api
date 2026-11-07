@@ -977,11 +977,14 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 					zap.Error(err),
 				}
 				submitResponsesUsage(result)
-				if _, local := service.LocalRejectReason(err); !local && shouldLogOpenAIForwardFailureAsWarn(c, wroteFallback) {
+				if logLocalReject(reqLog, "openai.forward_failed", err, fields...) {
+					return
+				}
+				if shouldLogOpenAIForwardFailureAsWarn(c, wroteFallback) {
 					reqLog.Warn("openai.forward_failed", fields...)
 					return
 				}
-				logForwardError(reqLog, "openai.forward_failed", err, fields...)
+				reqLog.Error("openai.forward_failed", fields...)
 				return
 			}
 		}

@@ -221,4 +221,33 @@ func TestNoCreditOAuth_OutboundLogRecordsStrippedBetas(t *testing.T) {
 		}
 		require.Equal(t, tc.want, got, "%s %s", tc.endpoint, tc.beta)
 	}
+
+	// One client request (one gin.Context): a retry on the OAuth account, a switch to an API
+	// key account, then back. Each attempt's field describes that attempt only.
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+	c.Request.Header.Set("anthropic-beta", noCreditClientBeta)
+	before := len(claudeHeaderEvents(sink))
+	for _, account := range []*Account{oauth, oauth, apiKey, oauth} {
+		token, tokenType := "tok", "oauth"
+		if account == apiKey {
+			token, tokenType = "k", "apikey"
+		}
+		req, _, err := svc.buildUpstreamRequest(context.Background(), c, account, body, token, tokenType, "claude-sonnet-4-6", false, false)
+		require.NoError(t, err)
+		_, err = up.Do(req, "", account.ID, 1)
+		require.NoError(t, err)
+	}
+	var outbound []map[string]any
+	for _, ev := range claudeHeaderEvents(sink)[before:] {
+		if ev["direction"] == "outbound" {
+			outbound = append(outbound, ev)
+		}
+	}
+	require.Len(t, outbound, 4)
+	for i, want := range []bool{true, true, false, true} {
+		_, has := outbound[i]["stripped_betas"]
+		require.Equal(t, want, has, "attempt %d", i+1)
+		require.EqualValues(t, i+1, outbound[i]["attempt"])
+	}
 }

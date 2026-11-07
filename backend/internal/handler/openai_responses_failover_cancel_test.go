@@ -75,6 +75,11 @@ func newOpenAIResponsesFailoverTestHandler(t *testing.T, upstream service.HTTPUp
 			Credentials: map[string]any{"access_token": "token-2"},
 		},
 	}
+	return newOpenAIFailoverTestHandlerWithAccounts(t, upstream, accounts)
+}
+
+func newOpenAIFailoverTestHandlerWithAccounts(t *testing.T, upstream service.HTTPUpstream, accounts []service.Account) *OpenAIGatewayHandler {
+	t.Helper()
 	accountRepo := openAIImagesFailoverAccountRepo{accounts: accounts}
 	cfg := &config.Config{RunMode: config.RunModeSimple}
 	gatewayService := service.NewOpenAIGatewayService(

@@ -436,11 +436,15 @@ type longContextObservation struct {
 	UpstreamStatus    int
 	UpstreamErrorType string
 	PromptTooLong     bool
-	// Attempt numbers the admissions within one Forward (internal retries), from 1.
+	// Attempt numbers the admissions of one client request (internal retries and account
+	// switches), from 1.
 	Attempt int
 }
 
-const longContextObservationKey = "longContextObservation"
+const (
+	longContextObservationKey = "longContextObservation"
+	longContextAttemptKey     = "longContextAttempt"
+)
 
 // longContextPreparationOnlyKey marks a context in which Forward only prepares a body and
 // sends it to a local capture, never upstream. Only the calibration harness (test and
@@ -484,16 +488,15 @@ func (s *GatewayService) admitLongContext(ctx context.Context, c *gin.Context, a
 		return nil
 	}
 	obs := &longContextObservation{Entry: a.Entry, Model: a.Model, Route: string(a.Route), Mimic: a.Mimic, AccountID: a.Account.ID,
-		BodyBytes: len(a.Body), MaxTokens: -1, Budget: -1, Lower: -1, Upper: -1, Estimate: -1, Attempt: 1}
+		BodyBytes: len(a.Body), MaxTokens: -1, Budget: -1, Lower: -1, Upper: -1, Estimate: -1}
 	if c != nil {
 		// An internal retry re-admits within one Forward: write out the attempt it replaces
 		// first, so a failed attempt followed by a successful retry keeps both outcomes.
-		if v, ok := c.Get(longContextObservationKey); ok {
-			if prev, _ := v.(*longContextObservation); prev != nil {
-				logLongContextObservation(c, prev, nil, nil, "superseded_by_retry")
-				obs.Attempt = prev.Attempt + 1
-			}
+		if prev := takeLongContextObservation(c); prev != nil {
+			logLongContextObservation(c, prev, nil, nil, "superseded_by_retry")
 		}
+		obs.Attempt = c.GetInt(longContextAttemptKey) + 1
+		c.Set(longContextAttemptKey, obs.Attempt)
 		c.Set(longContextObservationKey, obs)
 	}
 	settings, err := s.settingService.GetBetaPolicySettings(ctx)
@@ -628,16 +631,32 @@ func LogLongContextOutcome(c *gin.Context, result *ForwardResult, err error) {
 	if c == nil {
 		return
 	}
+	if obs := takeLongContextObservation(c); obs != nil {
+		logLongContextObservation(c, obs, result, err, "")
+	}
+}
+
+// endLongContextAttemptWithoutResponse writes the current attempt as a retry whose transport
+// failed, before an earlier attempt's response is restored for the client: that response
+// was already recorded on its own (superseded) line and must not be attributed to this one.
+func endLongContextAttemptWithoutResponse(c *gin.Context) {
+	if c == nil {
+		return
+	}
+	if obs := takeLongContextObservation(c); obs != nil {
+		logLongContextObservation(c, obs, nil, nil, "retry_transport_error")
+	}
+}
+
+// takeLongContextObservation removes and returns the attempt's pending observation.
+func takeLongContextObservation(c *gin.Context) *longContextObservation {
 	v, ok := c.Get(longContextObservationKey)
 	if !ok {
-		return
+		return nil
 	}
-	obs, _ := v.(*longContextObservation)
 	c.Set(longContextObservationKey, nil)
-	if obs == nil {
-		return
-	}
-	logLongContextObservation(c, obs, result, err, "")
+	obs, _ := v.(*longContextObservation)
+	return obs
 }
 
 // logLongContextObservation writes one observe line. outcome, when set, is a fixed outcome

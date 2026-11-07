@@ -545,6 +545,7 @@ func (s *GatewayService) Forward(ctx context.Context, c *gin.Context, account *A
 										if retryResp2 != nil && retryResp2.Body != nil {
 											_ = retryResp2.Body.Close()
 										}
+										endLongContextAttemptWithoutResponse(c) // the restored response belongs to an earlier attempt
 										appendOpsUpstreamError(c, OpsUpstreamErrorEvent{
 											ProxyID:            opsUpstreamProxyID(account),
 											ProxyName:          opsUpstreamProxyName(account),
@@ -575,6 +576,7 @@ func (s *GatewayService) Forward(ctx context.Context, c *gin.Context, account *A
 							_ = retryResp.Body.Close()
 						}
 						logger.LegacyPrintf("service.gateway", "Account %d: signature error retry failed: %v", account.ID, retryErr)
+						endLongContextAttemptWithoutResponse(c) // the restored response belongs to an earlier attempt
 					} else {
 						logger.LegacyPrintf("service.gateway", "Account %d: signature error retry build request failed: %v", account.ID, buildErr)
 					}
@@ -632,6 +634,7 @@ func (s *GatewayService) Forward(ctx context.Context, c *gin.Context, account *A
 							if budgetRetryResp != nil && budgetRetryResp.Body != nil {
 								_ = budgetRetryResp.Body.Close()
 							}
+							endLongContextAttemptWithoutResponse(c) // the restored response belongs to an earlier attempt
 							logger.LegacyPrintf("service.gateway", "Account %d: budget rectifier retry failed: %v", account.ID, retryErr)
 						} else {
 							logger.LegacyPrintf("service.gateway", "Account %d: budget rectifier retry build failed: %v", account.ID, buildErr)
@@ -662,6 +665,7 @@ func (s *GatewayService) Forward(ctx context.Context, c *gin.Context, account *A
 
 				respBody, _ := s.readUpstreamErrorBody(resp)
 				_ = resp.Body.Close()
+				noteLongContextUpstreamError(c, resp.StatusCode, respBody) // the attempt being retried
 				appendOpsUpstreamError(c, OpsUpstreamErrorEvent{
 					ProxyID:            opsUpstreamProxyID(account),
 					ProxyName:          opsUpstreamProxyName(account),
