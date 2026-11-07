@@ -150,6 +150,9 @@ func TestNoCreditOAuth_FastSpeedStoppedLocally(t *testing.T) {
 				require.Equal(t, http.StatusBadRequest, rec.Code)
 				require.Contains(t, rec.Body.String(), "fast mode requires usage credits")
 				require.Zero(t, upstream.countCalls)
+				reason, local := LocalRejectReason(err)
+				require.True(t, local)
+				require.Equal(t, LocalRejectNoCreditFastMode, reason)
 				return
 			}
 			require.NoError(t, err)
@@ -164,5 +167,58 @@ func TestNoCreditOAuth_ConvertedRequestHasNoSpeedField(t *testing.T) {
 	for i := 0; i < typ.NumField(); i++ {
 		name := strings.Split(typ.Field(i).Tag.Get("json"), ",")[0]
 		require.NotEqual(t, "speed", name)
+	}
+}
+
+// The outbound attempt log names exactly the no-credit constants removed from that attempt;
+// a later attempt without them, and API-key accounts, carry no field (#153 logging G1).
+func TestNoCreditOAuth_OutboundLogRecordsStrippedBetas(t *testing.T) {
+	withTestClientProfile(t)
+	sink, restore := captureStructuredLog(t)
+	defer restore()
+	body := []byte(`{"model":"claude-sonnet-4-6","max_tokens":1024,"messages":[{"role":"user","content":"hi"}]}`)
+	oauth := &Account{ID: 1, Platform: PlatformAnthropic, Type: AccountTypeOAuth}
+	apiKey := &Account{ID: 2, Platform: PlatformAnthropic, Type: AccountTypeAPIKey, Credentials: map[string]any{"api_key": "k"}}
+	up := WithClaudeHeaderLog(&recordingUpstream{})
+	svc := &GatewayService{cfg: &config.Config{}}
+	for _, tc := range []struct {
+		endpoint, beta string
+		account        *Account
+		want           []any
+	}{
+		{"messages", noCreditClientBeta, oauth, []any{claude.BetaFastMode, claude.BetaContext1M}},
+		{"count_tokens", noCreditClientBeta, oauth, []any{claude.BetaFastMode, claude.BetaContext1M}},
+		{"messages", "claude-code-20250219,context-1m-2025-08-07", oauth, []any{claude.BetaContext1M}},
+		{"messages", "claude-code-20250219", oauth, nil},
+		{"messages", noCreditClientBeta, apiKey, nil},
+	} {
+		resetGatewayForwardingSettingsCacheForTest(t)
+		before := len(claudeHeaderEvents(sink))
+		c, _ := gin.CreateTestContext(httptest.NewRecorder())
+		c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+		c.Request.Header.Set("anthropic-beta", tc.beta)
+		token, tokenType := "tok", "oauth"
+		if tc.account == apiKey {
+			token, tokenType = "k", "apikey"
+		}
+		var req *http.Request
+		var err error
+		if tc.endpoint == "messages" {
+			req, _, err = svc.buildUpstreamRequest(context.Background(), c, tc.account, body, token, tokenType, "claude-sonnet-4-6", false, false)
+		} else {
+			req, _, err = svc.buildCountTokensRequest(context.Background(), c, tc.account, body, token, tokenType, "claude-sonnet-4-6", false)
+		}
+		require.NoError(t, err)
+		_, err = up.Do(req, "", tc.account.ID, 1)
+		require.NoError(t, err)
+		evs := claudeHeaderEvents(sink)[before:]
+		out := evs[len(evs)-1]
+		require.Equal(t, "outbound", out["direction"], tc)
+		got, has := out["stripped_betas"]
+		if tc.want == nil {
+			require.False(t, has, "%s %s: %v", tc.endpoint, tc.beta, got)
+			continue
+		}
+		require.Equal(t, tc.want, got, "%s %s", tc.endpoint, tc.beta)
 	}
 }

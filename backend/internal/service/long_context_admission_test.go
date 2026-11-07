@@ -689,3 +689,42 @@ func observationBytes(line map[string]any) int64 {
 	}
 	return -1
 }
+
+// An internal retry keeps the replaced attempt's outcome: the failed first attempt is written
+// as superseded_by_retry with its upstream status, the successful retry carries the usage,
+// and the final record is written once (#153 logging G0).
+func TestLogLongContextOutcomeKeepsRetriedAttempt(t *testing.T) {
+	sink, restore := captureStructuredLog(t)
+	defer restore()
+	upstream := &longContextUpstream{countStatus: http.StatusOK, inferResps: []*http.Response{{
+		StatusCode: http.StatusBadRequest, Header: http.Header{"Content-Type": {"application/json"}},
+		Body: io.NopCloser(strings.NewReader(`{"type":"error","error":{"type":"invalid_request_error","message":"thinking.budget_tokens: Input should be greater than or equal to 1024"}}`)),
+	}}}
+	svc := newLongContextService(upstream, "", nil)
+	c, _ := longContextContext("/v1/messages", "")
+	body := `{"model":"claude-sonnet-4-5","max_tokens":1024,"thinking":{"type":"enabled","budget_tokens":2048},"messages":[{"role":"user","content":"hi"}]}`
+	res, err := forwardMessages(t, svc, c, newAnthropicOAuthAccountForPartialUsageTest(), body)
+	require.NoError(t, err)
+	require.Equal(t, 2, upstream.inferCalls, "the budget rectifier retried once")
+	res.Usage = ClaudeUsage{InputTokens: 12}
+	LogLongContextOutcome(c, res, nil)
+	LogLongContextOutcome(c, res, nil) // already logged: nothing more
+
+	var lines []map[string]any
+	sink.mu.Lock()
+	for _, ev := range sink.events {
+		if ev.Message == "long_context.observe" {
+			lines = append(lines, ev.Fields)
+		}
+	}
+	sink.mu.Unlock()
+	require.Len(t, lines, 2)
+	require.EqualValues(t, 1, lines[0]["attempt"])
+	require.Equal(t, "superseded_by_retry", lines[0]["outcome"])
+	require.EqualValues(t, 400, lines[0]["upstream_status"])
+	require.NotContains(t, lines[0], "input_tokens", "no usage is invented for the failed attempt")
+	require.EqualValues(t, 2, lines[1]["attempt"])
+	require.Equal(t, "inference", lines[1]["outcome"])
+	require.EqualValues(t, 12, lines[1]["input_tokens"])
+	require.NotContains(t, lines[1], "upstream_status")
+}

@@ -436,6 +436,8 @@ type longContextObservation struct {
 	UpstreamStatus    int
 	UpstreamErrorType string
 	PromptTooLong     bool
+	// Attempt numbers the admissions within one Forward (internal retries), from 1.
+	Attempt int
 }
 
 const longContextObservationKey = "longContextObservation"
@@ -482,8 +484,16 @@ func (s *GatewayService) admitLongContext(ctx context.Context, c *gin.Context, a
 		return nil
 	}
 	obs := &longContextObservation{Entry: a.Entry, Model: a.Model, Route: string(a.Route), Mimic: a.Mimic, AccountID: a.Account.ID,
-		BodyBytes: len(a.Body), MaxTokens: -1, Budget: -1, Lower: -1, Upper: -1, Estimate: -1}
+		BodyBytes: len(a.Body), MaxTokens: -1, Budget: -1, Lower: -1, Upper: -1, Estimate: -1, Attempt: 1}
 	if c != nil {
+		// An internal retry re-admits within one Forward: write out the attempt it replaces
+		// first, so a failed attempt followed by a successful retry keeps both outcomes.
+		if v, ok := c.Get(longContextObservationKey); ok {
+			if prev, _ := v.(*longContextObservation); prev != nil {
+				logLongContextObservation(c, prev, nil, nil, "superseded_by_retry")
+				obs.Attempt = prev.Attempt + 1
+			}
+		}
 		c.Set(longContextObservationKey, obs)
 	}
 	settings, err := s.settingService.GetBetaPolicySettings(ctx)
@@ -627,7 +637,13 @@ func LogLongContextOutcome(c *gin.Context, result *ForwardResult, err error) {
 	if obs == nil {
 		return
 	}
-	fields := []zap.Field{
+	logLongContextObservation(c, obs, result, err, "")
+}
+
+// logLongContextObservation writes one observe line. outcome, when set, is a fixed outcome
+// for an attempt that ended without a final result (no usage is reported for it).
+func logLongContextObservation(c *gin.Context, obs *longContextObservation, result *ForwardResult, err error, outcome string) {
+	fields := []zap.Field{zap.Int("attempt", obs.Attempt),
 		zap.String("entry", obs.Entry), zap.String("model", obs.Model), zap.String("route", obs.Route),
 		zap.Bool("mimic", obs.Mimic), zap.Int64("account_id", obs.AccountID), zap.String("action", obs.Action),
 		zap.String("eligibility", obs.Eligibility), zap.String("decision", obs.Decision),
@@ -635,7 +651,7 @@ func LogLongContextOutcome(c *gin.Context, result *ForwardResult, err error) {
 		zap.Int64("window", obs.Window), zap.String("window_source", obs.WindowSource), zap.Int64("input_budget", obs.Budget),
 		zap.Int64("profile_lower", obs.Lower), zap.Int64("profile_upper", obs.Upper), zap.Int64("estimate", obs.Estimate),
 	}
-	if result != nil {
+	if result != nil && outcome == "" {
 		u := result.Usage
 		total := int64(u.InputTokens + u.CacheCreationInputTokens + u.CacheReadInputTokens)
 		fields = append(fields, zap.String("outcome", "inference"),
@@ -644,17 +660,19 @@ func LogLongContextOutcome(c *gin.Context, result *ForwardResult, err error) {
 		if obs.Budget >= 0 {
 			fields = append(fields, zap.Bool("actual_over_budget", total > obs.Budget))
 		}
-	} else if err != nil {
+	} else if err != nil || outcome != "" {
 		if obs.UpstreamStatus != 0 {
 			fields = append(fields, zap.Int("upstream_status", obs.UpstreamStatus),
 				zap.String("upstream_error_type", obs.UpstreamErrorType), zap.Bool("prompt_too_long", obs.PromptTooLong))
 		}
 		var stop *UpstreamFailoverError
-		reason := "error"
-		if errors.As(err, &stop) && stop.Reason != "" {
-			reason = string(stop.Reason)
+		if outcome == "" {
+			outcome = "error"
+			if errors.As(err, &stop) && stop.Reason != "" {
+				outcome = string(stop.Reason)
+			}
 		}
-		fields = append(fields, zap.String("outcome", reason))
+		fields = append(fields, zap.String("outcome", outcome))
 	}
 	log := logger.L()
 	if c.Request != nil {

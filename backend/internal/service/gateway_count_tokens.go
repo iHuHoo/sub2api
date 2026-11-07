@@ -615,7 +615,7 @@ func (s *GatewayService) buildCountTokensRequest(ctx context.Context, c *gin.Con
 	// 账号级请求头覆写（仅 anthropic/openai api_key 账号启用时生效；OAuth 路径 no-op）
 	account.ApplyHeaderOverrides(req.Header)
 	filterSonnet55ToolsetBetaHeader(req.Header, body, modelID)
-	stripNoCreditOAuthBetaHeader(account, req.Header)
+	strippedBetas := stripNoCreditOAuthBetaHeader(account, req.Header)
 
 	if c != nil && tokenType == "oauth" {
 		c.Set(claudeMimicDebugInfoKey, buildClaudeMimicDebugLine(req, body, account, tokenType, mimicClaudeCode))
@@ -624,7 +624,7 @@ func (s *GatewayService) buildCountTokensRequest(ctx context.Context, c *gin.Con
 		logClaudeMimicDebug(req, body, account, tokenType, mimicClaudeCode)
 	}
 
-	return markClaudeOutbound(c, req, account, "count_tokens"), body, nil
+	return noteStrippedBetas(markClaudeOutbound(c, req, account, "count_tokens"), strippedBetas), body, nil
 }
 
 func sanitizeCountTokensRequestBody(body []byte) []byte {
