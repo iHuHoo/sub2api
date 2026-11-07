@@ -674,7 +674,7 @@
   "safeguards": [
    {
     "type": "dangerous_tool_use",
-    "classifier_context": "synthetic"
+    "classifier_context": {}
    }
   ],
   "output_config": {

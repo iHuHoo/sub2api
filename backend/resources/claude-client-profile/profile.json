@@ -1,6 +1,6 @@
 {
-  "schema_version": 2,
-  "revision": "2026-11-06.1",
+  "schema_version": 3,
+  "revision": "2026-11-07.2",
   "cli_version": "2.1.318",
   "user_agent": "claude-cli/2.1.318 (external, cli)",
   "anthropic_version": "2023-06-01",
@@ -24,23 +24,117 @@
   "compatibility": {
     "versions": [
       {
-        "version": "2.1.318",
-        "body_contract": "cc-2.1.309",
+        "version": "2.1.280",
         "rows": [
           {
             "endpoint": "count_tokens",
             "entrypoint": "cli",
             "models": [
+              "claude-fable-5-1",
+              "claude-opus-4-6",
               "claude-opus-4-7",
+              "claude-opus-5-5",
+              "claude-sonnet-4-5",
               "claude-sonnet-4-6",
               "claude-sonnet-5-5"
             ],
-            "default_betas": [
-              "claude-code-20250219",
-              "oauth-2025-04-20",
-              "interleaved-thinking-2025-05-14",
-              "context-management-2025-06-27",
-              "token-counting-2024-11-01"
+            "variants": [
+              {
+                "selector": {
+                  "cache": "none",
+                  "thinking": "absent",
+                  "context_management": false,
+                  "effort": false,
+                  "message_effort": false,
+                  "output_format": false,
+                  "deferred_tools": false,
+                  "safeguards": false,
+                  "tools": false
+                },
+                "beta_sets": [
+                  [
+                    "claude-code-20250219",
+                    "oauth-2025-04-20",
+                    "interleaved-thinking-2025-05-14",
+                    "context-management-2025-06-27",
+                    "token-counting-2024-11-01"
+                  ]
+                ]
+              },
+              {
+                "selector": {
+                  "cache": "none",
+                  "thinking": "absent",
+                  "context_management": false,
+                  "effort": false,
+                  "message_effort": false,
+                  "output_format": false,
+                  "deferred_tools": false,
+                  "safeguards": false,
+                  "tools": true
+                },
+                "beta_sets": [
+                  [
+                    "claude-code-20250219",
+                    "oauth-2025-04-20",
+                    "interleaved-thinking-2025-05-14",
+                    "context-management-2025-06-27",
+                    "token-counting-2024-11-01"
+                  ]
+                ]
+              }
+            ]
+          },
+          {
+            "endpoint": "count_tokens",
+            "entrypoint": "cli",
+            "models": [
+              "claude-haiku-4-5",
+              "claude-haiku-5-5"
+            ],
+            "variants": [
+              {
+                "selector": {
+                  "cache": "none",
+                  "thinking": "absent",
+                  "context_management": false,
+                  "effort": false,
+                  "message_effort": false,
+                  "output_format": false,
+                  "deferred_tools": false,
+                  "safeguards": false,
+                  "tools": false
+                },
+                "beta_sets": [
+                  [
+                    "oauth-2025-04-20",
+                    "interleaved-thinking-2025-05-14",
+                    "context-management-2025-06-27",
+                    "token-counting-2024-11-01"
+                  ]
+                ]
+              },
+              {
+                "selector": {
+                  "cache": "none",
+                  "thinking": "absent",
+                  "context_management": false,
+                  "effort": false,
+                  "message_effort": false,
+                  "output_format": false,
+                  "deferred_tools": false,
+                  "safeguards": false,
+                  "tools": true
+                },
+                "beta_sets": [
+                  [
+                    "oauth-2025-04-20",
+                    "interleaved-thinking-2025-05-14",
+                    "context-management-2025-06-27",
+                    "token-counting-2024-11-01"
+                  ]
+                ]
+              }
             ]
           },
           {
@@ -48,27 +142,98 @@
             "entrypoint": "cli",
             "models": [
               "claude-fable-5-1",
-              "claude-opus-5-5",
-              "claude-sonnet-5-5"
+              "claude-opus-5-5"
             ],
-            "default_betas": [
-              "claude-code-20250219",
-              "oauth-2025-04-20",
-              "interleaved-thinking-2025-05-14",
-              "context-management-2025-06-27",
-              "per-turn-control-2026-07-01",
-              "mid-conversation-tool-changes-2026-07-01",
-              "thinking-token-count-2026-05-13",
-              "advanced-tool-use-2025-11-20",
-              "effort-2025-11-24",
-              "dangerous-tool-use-2026-09-03",
-              "thinking-display-updates-2026-08-18",
-              "afk-mode-2026-01-31",
-              "extended-cache-ttl-2025-04-11"
-            ],
-            "requires": [
-              "thinking_display_updates",
-              "context_management"
+            "variants": [
+              {
+                "selector": {
+                  "cache": "default",
+                  "thinking": "adaptive",
+                  "context_management": true,
+                  "effort": true,
+                  "message_effort": true,
+                  "output_format": false,
+                  "deferred_tools": false,
+                  "safeguards": false,
+                  "tools": true
+                },
+                "beta_sets": [
+                  [
+                    "claude-code-20250219",
+                    "oauth-2025-04-20",
+                    "interleaved-thinking-2025-05-14",
+                    "redact-thinking-2026-02-12",
+                    "thinking-token-count-2026-05-13",
+                    "context-management-2025-06-27",
+                    "prompt-caching-scope-2026-01-05",
+                    "mid-conversation-system-2026-04-07",
+                    "per-turn-control-2026-07-01",
+                    "mid-conversation-tool-changes-2026-07-01",
+                    "effort-2025-11-24",
+                    "fallback-credit-2026-06-01"
+                  ]
+                ]
+              },
+              {
+                "selector": {
+                  "cache": "none",
+                  "thinking": "absent",
+                  "context_management": false,
+                  "effort": true,
+                  "message_effort": false,
+                  "output_format": true,
+                  "deferred_tools": false,
+                  "safeguards": false,
+                  "tools": false
+                },
+                "beta_sets": [
+                  [
+                    "claude-code-20250219",
+                    "oauth-2025-04-20",
+                    "interleaved-thinking-2025-05-14",
+                    "redact-thinking-2026-02-12",
+                    "thinking-token-count-2026-05-13",
+                    "context-management-2025-06-27",
+                    "prompt-caching-scope-2026-01-05",
+                    "mid-conversation-system-2026-04-07",
+                    "per-turn-control-2026-07-01",
+                    "mid-conversation-tool-changes-2026-07-01",
+                    "effort-2025-11-24",
+                    "structured-outputs-2025-12-15",
+                    "fallback-credit-2026-06-01"
+                  ]
+                ]
+              },
+              {
+                "selector": {
+                  "cache": "ttl1h",
+                  "thinking": "adaptive",
+                  "context_management": true,
+                  "effort": true,
+                  "message_effort": true,
+                  "output_format": false,
+                  "deferred_tools": false,
+                  "safeguards": false,
+                  "tools": true
+                },
+                "beta_sets": [
+                  [
+                    "claude-code-20250219",
+                    "oauth-2025-04-20",
+                    "interleaved-thinking-2025-05-14",
+                    "redact-thinking-2026-02-12",
+                    "thinking-token-count-2026-05-13",
+                    "context-management-2025-06-27",
+                    "prompt-caching-scope-2026-01-05",
+                    "mid-conversation-system-2026-04-07",
+                    "per-turn-control-2026-07-01",
+                    "mid-conversation-tool-changes-2026-07-01",
+                    "effort-2025-11-24",
+                    "fallback-credit-2026-06-01",
+                    "extended-cache-ttl-2025-04-11"
+                  ]
+                ]
+              }
             ]
           },
           {
@@ -77,19 +242,79 @@
             "models": [
               "claude-haiku-4-5"
             ],
-            "default_betas": [
-              "oauth-2025-04-20",
-              "interleaved-thinking-2025-05-14",
-              "context-management-2025-06-27",
-              "claude-code-20250219",
-              "thinking-token-count-2026-05-13",
-              "advanced-tool-use-2025-11-20",
-              "thinking-display-updates-2026-08-18",
-              "extended-cache-ttl-2025-04-11"
-            ],
-            "requires": [
-              "thinking_display_updates",
-              "context_management"
+            "variants": [
+              {
+                "selector": {
+                  "cache": "default",
+                  "thinking": "enabled",
+                  "context_management": true,
+                  "effort": false,
+                  "message_effort": false,
+                  "output_format": false,
+                  "deferred_tools": false,
+                  "safeguards": false,
+                  "tools": true
+                },
+                "beta_sets": [
+                  [
+                    "oauth-2025-04-20",
+                    "interleaved-thinking-2025-05-14",
+                    "redact-thinking-2026-02-12",
+                    "thinking-token-count-2026-05-13",
+                    "context-management-2025-06-27",
+                    "prompt-caching-scope-2026-01-05"
+                  ]
+                ]
+              },
+              {
+                "selector": {
+                  "cache": "none",
+                  "thinking": "disabled",
+                  "context_management": false,
+                  "effort": false,
+                  "message_effort": false,
+                  "output_format": true,
+                  "deferred_tools": false,
+                  "safeguards": false,
+                  "tools": false
+                },
+                "beta_sets": [
+                  [
+                    "oauth-2025-04-20",
+                    "interleaved-thinking-2025-05-14",
+                    "redact-thinking-2026-02-12",
+                    "thinking-token-count-2026-05-13",
+                    "context-management-2025-06-27",
+                    "prompt-caching-scope-2026-01-05",
+                    "structured-outputs-2025-12-15"
+                  ]
+                ]
+              },
+              {
+                "selector": {
+                  "cache": "ttl1h",
+                  "thinking": "enabled",
+                  "context_management": true,
+                  "effort": false,
+                  "message_effort": false,
+                  "output_format": false,
+                  "deferred_tools": false,
+                  "safeguards": false,
+                  "tools": true
+                },
+                "beta_sets": [
+                  [
+                    "oauth-2025-04-20",
+                    "interleaved-thinking-2025-05-14",
+                    "redact-thinking-2026-02-12",
+                    "thinking-token-count-2026-05-13",
+                    "context-management-2025-06-27",
+                    "prompt-caching-scope-2026-01-05",
+                    "claude-code-20250219",
+                    "extended-cache-ttl-2025-04-11"
+                  ]
+                ]
+              }
             ]
           },
           {
@@ -98,24 +323,88 @@
             "models": [
               "claude-haiku-5-5"
             ],
-            "default_betas": [
-              "oauth-2025-04-20",
-              "interleaved-thinking-2025-05-14",
-              "context-management-2025-06-27",
-              "claude-code-20250219",
-              "per-turn-control-2026-07-01",
-              "mid-conversation-tool-changes-2026-07-01",
-              "thinking-token-count-2026-05-13",
-              "advanced-tool-use-2025-11-20",
-              "effort-2025-11-24",
-              "dangerous-tool-use-2026-09-03",
-              "thinking-display-updates-2026-08-18",
-              "afk-mode-2026-01-31",
-              "extended-cache-ttl-2025-04-11"
-            ],
-            "requires": [
-              "thinking_display_updates",
-              "context_management"
+            "variants": [
+              {
+                "selector": {
+                  "cache": "default",
+                  "thinking": "adaptive",
+                  "context_management": true,
+                  "effort": true,
+                  "message_effort": false,
+                  "output_format": false,
+                  "deferred_tools": false,
+                  "safeguards": false,
+                  "tools": true
+                },
+                "beta_sets": [
+                  [
+                    "oauth-2025-04-20",
+                    "interleaved-thinking-2025-05-14",
+                    "redact-thinking-2026-02-12",
+                    "thinking-token-count-2026-05-13",
+                    "context-management-2025-06-27",
+                    "prompt-caching-scope-2026-01-05",
+                    "mid-conversation-system-2026-04-07",
+                    "mid-conversation-tool-changes-2026-07-01",
+                    "effort-2025-11-24"
+                  ]
+                ]
+              },
+              {
+                "selector": {
+                  "cache": "none",
+                  "thinking": "absent",
+                  "context_management": false,
+                  "effort": true,
+                  "message_effort": false,
+                  "output_format": true,
+                  "deferred_tools": false,
+                  "safeguards": false,
+                  "tools": false
+                },
+                "beta_sets": [
+                  [
+                    "oauth-2025-04-20",
+                    "interleaved-thinking-2025-05-14",
+                    "redact-thinking-2026-02-12",
+                    "thinking-token-count-2026-05-13",
+                    "context-management-2025-06-27",
+                    "prompt-caching-scope-2026-01-05",
+                    "mid-conversation-system-2026-04-07",
+                    "mid-conversation-tool-changes-2026-07-01",
+                    "effort-2025-11-24",
+                    "structured-outputs-2025-12-15"
+                  ]
+                ]
+              },
+              {
+                "selector": {
+                  "cache": "ttl1h",
+                  "thinking": "adaptive",
+                  "context_management": true,
+                  "effort": true,
+                  "message_effort": false,
+                  "output_format": false,
+                  "deferred_tools": false,
+                  "safeguards": false,
+                  "tools": true
+                },
+                "beta_sets": [
+                  [
+                    "oauth-2025-04-20",
+                    "interleaved-thinking-2025-05-14",
+                    "redact-thinking-2026-02-12",
+                    "thinking-token-count-2026-05-13",
+                    "context-management-2025-06-27",
+                    "prompt-caching-scope-2026-01-05",
+                    "mid-conversation-system-2026-04-07",
+                    "claude-code-20250219",
+                    "mid-conversation-tool-changes-2026-07-01",
+                    "effort-2025-11-24",
+                    "extended-cache-ttl-2025-04-11"
+                  ]
+                ]
+              }
             ]
           },
           {
@@ -126,22 +415,84 @@
               "claude-opus-4-7",
               "claude-sonnet-4-6"
             ],
-            "default_betas": [
-              "claude-code-20250219",
-              "oauth-2025-04-20",
-              "interleaved-thinking-2025-05-14",
-              "context-management-2025-06-27",
-              "thinking-token-count-2026-05-13",
-              "advanced-tool-use-2025-11-20",
-              "effort-2025-11-24",
-              "dangerous-tool-use-2026-09-03",
-              "thinking-display-updates-2026-08-18",
-              "afk-mode-2026-01-31",
-              "extended-cache-ttl-2025-04-11"
-            ],
-            "requires": [
-              "thinking_display_updates",
-              "context_management"
+            "variants": [
+              {
+                "selector": {
+                  "cache": "default",
+                  "thinking": "adaptive",
+                  "context_management": true,
+                  "effort": true,
+                  "message_effort": false,
+                  "output_format": false,
+                  "deferred_tools": false,
+                  "safeguards": false,
+                  "tools": true
+                },
+                "beta_sets": [
+                  [
+                    "claude-code-20250219",
+                    "oauth-2025-04-20",
+                    "interleaved-thinking-2025-05-14",
+                    "redact-thinking-2026-02-12",
+                    "thinking-token-count-2026-05-13",
+                    "context-management-2025-06-27",
+                    "prompt-caching-scope-2026-01-05",
+                    "effort-2025-11-24"
+                  ]
+                ]
+              },
+              {
+                "selector": {
+                  "cache": "none",
+                  "thinking": "disabled",
+                  "context_management": false,
+                  "effort": true,
+                  "message_effort": false,
+                  "output_format": true,
+                  "deferred_tools": false,
+                  "safeguards": false,
+                  "tools": false
+                },
+                "beta_sets": [
+                  [
+                    "claude-code-20250219",
+                    "oauth-2025-04-20",
+                    "interleaved-thinking-2025-05-14",
+                    "redact-thinking-2026-02-12",
+                    "thinking-token-count-2026-05-13",
+                    "context-management-2025-06-27",
+                    "prompt-caching-scope-2026-01-05",
+                    "effort-2025-11-24",
+                    "structured-outputs-2025-12-15"
+                  ]
+                ]
+              },
+              {
+                "selector": {
+                  "cache": "ttl1h",
+                  "thinking": "adaptive",
+                  "context_management": true,
+                  "effort": true,
+                  "message_effort": false,
+                  "output_format": false,
+                  "deferred_tools": false,
+                  "safeguards": false,
+                  "tools": true
+                },
+                "beta_sets": [
+                  [
+                    "claude-code-20250219",
+                    "oauth-2025-04-20",
+                    "interleaved-thinking-2025-05-14",
+                    "redact-thinking-2026-02-12",
+                    "thinking-token-count-2026-05-13",
+                    "context-management-2025-06-27",
+                    "prompt-caching-scope-2026-01-05",
+                    "effort-2025-11-24",
+                    "extended-cache-ttl-2025-04-11"
+                  ]
+                ]
+              }
             ]
           },
           {
@@ -150,40 +501,350 @@
             "models": [
               "claude-sonnet-4-5"
             ],
-            "default_betas": [
-              "claude-code-20250219",
-              "oauth-2025-04-20",
-              "interleaved-thinking-2025-05-14",
-              "context-management-2025-06-27",
-              "thinking-token-count-2026-05-13",
-              "advanced-tool-use-2025-11-20",
-              "thinking-display-updates-2026-08-18",
-              "extended-cache-ttl-2025-04-11"
+            "variants": [
+              {
+                "selector": {
+                  "cache": "default",
+                  "thinking": "enabled",
+                  "context_management": true,
+                  "effort": false,
+                  "message_effort": false,
+                  "output_format": false,
+                  "deferred_tools": false,
+                  "safeguards": false,
+                  "tools": true
+                },
+                "beta_sets": [
+                  [
+                    "claude-code-20250219",
+                    "oauth-2025-04-20",
+                    "interleaved-thinking-2025-05-14",
+                    "redact-thinking-2026-02-12",
+                    "thinking-token-count-2026-05-13",
+                    "context-management-2025-06-27",
+                    "prompt-caching-scope-2026-01-05"
+                  ]
+                ]
+              },
+              {
+                "selector": {
+                  "cache": "none",
+                  "thinking": "disabled",
+                  "context_management": false,
+                  "effort": false,
+                  "message_effort": false,
+                  "output_format": true,
+                  "deferred_tools": false,
+                  "safeguards": false,
+                  "tools": false
+                },
+                "beta_sets": [
+                  [
+                    "claude-code-20250219",
+                    "oauth-2025-04-20",
+                    "interleaved-thinking-2025-05-14",
+                    "redact-thinking-2026-02-12",
+                    "thinking-token-count-2026-05-13",
+                    "context-management-2025-06-27",
+                    "prompt-caching-scope-2026-01-05",
+                    "structured-outputs-2025-12-15"
+                  ]
+                ]
+              },
+              {
+                "selector": {
+                  "cache": "ttl1h",
+                  "thinking": "enabled",
+                  "context_management": true,
+                  "effort": false,
+                  "message_effort": false,
+                  "output_format": false,
+                  "deferred_tools": false,
+                  "safeguards": false,
+                  "tools": true
+                },
+                "beta_sets": [
+                  [
+                    "claude-code-20250219",
+                    "oauth-2025-04-20",
+                    "interleaved-thinking-2025-05-14",
+                    "redact-thinking-2026-02-12",
+                    "thinking-token-count-2026-05-13",
+                    "context-management-2025-06-27",
+                    "prompt-caching-scope-2026-01-05",
+                    "extended-cache-ttl-2025-04-11"
+                  ]
+                ]
+              }
+            ]
+          },
+          {
+            "endpoint": "messages",
+            "entrypoint": "cli",
+            "models": [
+              "claude-sonnet-5-5"
             ],
-            "requires": [
-              "thinking_display_updates",
-              "context_management"
+            "variants": [
+              {
+                "selector": {
+                  "cache": "default",
+                  "thinking": "adaptive",
+                  "context_management": true,
+                  "effort": true,
+                  "message_effort": false,
+                  "output_format": false,
+                  "deferred_tools": false,
+                  "safeguards": false,
+                  "tools": true
+                },
+                "beta_sets": [
+                  [
+                    "claude-code-20250219",
+                    "oauth-2025-04-20",
+                    "interleaved-thinking-2025-05-14",
+                    "redact-thinking-2026-02-12",
+                    "thinking-token-count-2026-05-13",
+                    "context-management-2025-06-27",
+                    "prompt-caching-scope-2026-01-05",
+                    "mid-conversation-system-2026-04-07",
+                    "mid-conversation-tool-changes-2026-07-01",
+                    "effort-2025-11-24"
+                  ]
+                ]
+              },
+              {
+                "selector": {
+                  "cache": "none",
+                  "thinking": "absent",
+                  "context_management": false,
+                  "effort": true,
+                  "message_effort": false,
+                  "output_format": true,
+                  "deferred_tools": false,
+                  "safeguards": false,
+                  "tools": false
+                },
+                "beta_sets": [
+                  [
+                    "claude-code-20250219",
+                    "oauth-2025-04-20",
+                    "interleaved-thinking-2025-05-14",
+                    "redact-thinking-2026-02-12",
+                    "thinking-token-count-2026-05-13",
+                    "context-management-2025-06-27",
+                    "prompt-caching-scope-2026-01-05",
+                    "mid-conversation-system-2026-04-07",
+                    "mid-conversation-tool-changes-2026-07-01",
+                    "effort-2025-11-24",
+                    "structured-outputs-2025-12-15"
+                  ]
+                ]
+              },
+              {
+                "selector": {
+                  "cache": "ttl1h",
+                  "thinking": "adaptive",
+                  "context_management": true,
+                  "effort": true,
+                  "message_effort": false,
+                  "output_format": false,
+                  "deferred_tools": false,
+                  "safeguards": false,
+                  "tools": true
+                },
+                "beta_sets": [
+                  [
+                    "claude-code-20250219",
+                    "oauth-2025-04-20",
+                    "interleaved-thinking-2025-05-14",
+                    "redact-thinking-2026-02-12",
+                    "thinking-token-count-2026-05-13",
+                    "context-management-2025-06-27",
+                    "prompt-caching-scope-2026-01-05",
+                    "mid-conversation-system-2026-04-07",
+                    "mid-conversation-tool-changes-2026-07-01",
+                    "effort-2025-11-24",
+                    "extended-cache-ttl-2025-04-11"
+                  ]
+                ]
+              }
             ]
           },
           {
             "endpoint": "messages",
             "entrypoint": "sdk",
             "models": [
+              "claude-fable-5-1",
+              "claude-opus-5-5"
+            ],
+            "variants": [
+              {
+                "selector": {
+                  "cache": "ttl1h",
+                  "thinking": "adaptive/omitted",
+                  "context_management": true,
+                  "effort": true,
+                  "message_effort": true,
+                  "output_format": false,
+                  "deferred_tools": false,
+                  "safeguards": false,
+                  "tools": true
+                },
+                "beta_sets": [
+                  [
+                    "claude-code-20250219",
+                    "oauth-2025-04-20",
+                    "interleaved-thinking-2025-05-14",
+                    "thinking-token-count-2026-05-13",
+                    "context-management-2025-06-27",
+                    "prompt-caching-scope-2026-01-05",
+                    "mid-conversation-system-2026-04-07",
+                    "per-turn-control-2026-07-01",
+                    "mid-conversation-tool-changes-2026-07-01",
+                    "effort-2025-11-24",
+                    "fallback-credit-2026-06-01",
+                    "extended-cache-ttl-2025-04-11"
+                  ]
+                ]
+              }
+            ]
+          },
+          {
+            "endpoint": "messages",
+            "entrypoint": "sdk",
+            "models": [
+              "claude-haiku-4-5"
+            ],
+            "variants": [
+              {
+                "selector": {
+                  "cache": "ttl1h",
+                  "thinking": "enabled/omitted",
+                  "context_management": true,
+                  "effort": false,
+                  "message_effort": false,
+                  "output_format": false,
+                  "deferred_tools": false,
+                  "safeguards": false,
+                  "tools": true
+                },
+                "beta_sets": [
+                  [
+                    "oauth-2025-04-20",
+                    "interleaved-thinking-2025-05-14",
+                    "thinking-token-count-2026-05-13",
+                    "context-management-2025-06-27",
+                    "prompt-caching-scope-2026-01-05",
+                    "claude-code-20250219",
+                    "extended-cache-ttl-2025-04-11"
+                  ]
+                ]
+              }
+            ]
+          },
+          {
+            "endpoint": "messages",
+            "entrypoint": "sdk",
+            "models": [
+              "claude-haiku-5-5"
+            ],
+            "variants": [
+              {
+                "selector": {
+                  "cache": "ttl1h",
+                  "thinking": "adaptive/omitted",
+                  "context_management": true,
+                  "effort": true,
+                  "message_effort": false,
+                  "output_format": false,
+                  "deferred_tools": false,
+                  "safeguards": false,
+                  "tools": true
+                },
+                "beta_sets": [
+                  [
+                    "oauth-2025-04-20",
+                    "interleaved-thinking-2025-05-14",
+                    "thinking-token-count-2026-05-13",
+                    "context-management-2025-06-27",
+                    "prompt-caching-scope-2026-01-05",
+                    "mid-conversation-system-2026-04-07",
+                    "claude-code-20250219",
+                    "mid-conversation-tool-changes-2026-07-01",
+                    "effort-2025-11-24",
+                    "extended-cache-ttl-2025-04-11"
+                  ]
+                ]
+              }
+            ]
+          },
+          {
+            "endpoint": "messages",
+            "entrypoint": "sdk",
+            "models": [
+              "claude-opus-4-6",
               "claude-opus-4-7",
               "claude-sonnet-4-6"
             ],
-            "default_betas": [
-              "claude-code-20250219",
-              "oauth-2025-04-20",
-              "interleaved-thinking-2025-05-14",
-              "context-management-2025-06-27",
-              "thinking-token-count-2026-05-13",
-              "advanced-tool-use-2025-11-20",
-              "effort-2025-11-24",
-              "extended-cache-ttl-2025-04-11"
+            "variants": [
+              {
+                "selector": {
+                  "cache": "ttl1h",
+                  "thinking": "adaptive/omitted",
+                  "context_management": true,
+                  "effort": true,
+                  "message_effort": false,
+                  "output_format": false,
+                  "deferred_tools": false,
+                  "safeguards": false,
+                  "tools": true
+                },
+                "beta_sets": [
+                  [
+                    "claude-code-20250219",
+                    "oauth-2025-04-20",
+                    "interleaved-thinking-2025-05-14",
+                    "thinking-token-count-2026-05-13",
+                    "context-management-2025-06-27",
+                    "prompt-caching-scope-2026-01-05",
+                    "effort-2025-11-24",
+                    "extended-cache-ttl-2025-04-11"
+                  ]
+                ]
+              }
+            ]
+          },
+          {
+            "endpoint": "messages",
+            "entrypoint": "sdk",
+            "models": [
+              "claude-sonnet-4-5"
             ],
-            "requires": [
-              "context_management"
+            "variants": [
+              {
+                "selector": {
+                  "cache": "ttl1h",
+                  "thinking": "enabled/omitted",
+                  "context_management": true,
+                  "effort": false,
+                  "message_effort": false,
+                  "output_format": false,
+                  "deferred_tools": false,
+                  "safeguards": false,
+                  "tools": true
+                },
+                "beta_sets": [
+                  [
+                    "claude-code-20250219",
+                    "oauth-2025-04-20",
+                    "interleaved-thinking-2025-05-14",
+                    "thinking-token-count-2026-05-13",
+                    "context-management-2025-06-27",
+                    "prompt-caching-scope-2026-01-05",
+                    "extended-cache-ttl-2025-04-11"
+                  ]
+                ]
+              }
             ]
           },
           {
@@ -192,42 +853,150 @@
             "models": [
               "claude-sonnet-5-5"
             ],
-            "default_betas": [
-              "claude-code-20250219",
-              "oauth-2025-04-20",
-              "interleaved-thinking-2025-05-14",
-              "context-management-2025-06-27",
-              "per-turn-control-2026-07-01",
-              "mid-conversation-tool-changes-2026-07-01",
-              "thinking-token-count-2026-05-13",
-              "advanced-tool-use-2025-11-20",
-              "effort-2025-11-24",
-              "extended-cache-ttl-2025-04-11"
-            ],
-            "requires": [
-              "context_management"
+            "variants": [
+              {
+                "selector": {
+                  "cache": "ttl1h",
+                  "thinking": "adaptive/omitted",
+                  "context_management": true,
+                  "effort": true,
+                  "message_effort": false,
+                  "output_format": false,
+                  "deferred_tools": false,
+                  "safeguards": false,
+                  "tools": true
+                },
+                "beta_sets": [
+                  [
+                    "claude-code-20250219",
+                    "oauth-2025-04-20",
+                    "interleaved-thinking-2025-05-14",
+                    "thinking-token-count-2026-05-13",
+                    "context-management-2025-06-27",
+                    "prompt-caching-scope-2026-01-05",
+                    "mid-conversation-system-2026-04-07",
+                    "mid-conversation-tool-changes-2026-07-01",
+                    "effort-2025-11-24",
+                    "extended-cache-ttl-2025-04-11"
+                  ]
+                ]
+              }
             ]
           }
         ]
       },
       {
         "version": "2.1.309",
-        "body_contract": "cc-2.1.309",
         "rows": [
           {
             "endpoint": "count_tokens",
             "entrypoint": "cli",
             "models": [
+              "claude-fable-5-1",
+              "claude-opus-4-6",
               "claude-opus-4-7",
+              "claude-opus-5-5",
+              "claude-sonnet-4-5",
               "claude-sonnet-4-6",
               "claude-sonnet-5-5"
             ],
-            "default_betas": [
-              "claude-code-20250219",
-              "oauth-2025-04-20",
-              "interleaved-thinking-2025-05-14",
-              "context-management-2025-06-27",
-              "token-counting-2024-11-01"
+            "variants": [
+              {
+                "selector": {
+                  "cache": "none",
+                  "thinking": "absent",
+                  "context_management": false,
+                  "effort": false,
+                  "message_effort": false,
+                  "output_format": false,
+                  "deferred_tools": false,
+                  "safeguards": false,
+                  "tools": false
+                },
+                "beta_sets": [
+                  [
+                    "claude-code-20250219",
+                    "oauth-2025-04-20",
+                    "interleaved-thinking-2025-05-14",
+                    "context-management-2025-06-27",
+                    "token-counting-2024-11-01"
+                  ]
+                ]
+              },
+              {
+                "selector": {
+                  "cache": "none",
+                  "thinking": "absent",
+                  "context_management": false,
+                  "effort": false,
+                  "message_effort": false,
+                  "output_format": false,
+                  "deferred_tools": false,
+                  "safeguards": false,
+                  "tools": true
+                },
+                "beta_sets": [
+                  [
+                    "claude-code-20250219",
+                    "oauth-2025-04-20",
+                    "interleaved-thinking-2025-05-14",
+                    "context-management-2025-06-27",
+                    "token-counting-2024-11-01"
+                  ]
+                ]
+              }
+            ]
+          },
+          {
+            "endpoint": "count_tokens",
+            "entrypoint": "cli",
+            "models": [
+              "claude-haiku-4-5",
+              "claude-haiku-5-5"
+            ],
+            "variants": [
+              {
+                "selector": {
+                  "cache": "none",
+                  "thinking": "absent",
+                  "context_management": false,
+                  "effort": false,
+                  "message_effort": false,
+                  "output_format": false,
+                  "deferred_tools": false,
+                  "safeguards": false,
+                  "tools": false
+                },
+                "beta_sets": [
+                  [
+                    "oauth-2025-04-20",
+                    "interleaved-thinking-2025-05-14",
+                    "context-management-2025-06-27",
+                    "token-counting-2024-11-01"
+                  ]
+                ]
+              },
+              {
+                "selector": {
+                  "cache": "none",
+                  "thinking": "absent",
+                  "context_management": false,
+                  "effort": false,
+                  "message_effort": false,
+                  "output_format": false,
+                  "deferred_tools": false,
+                  "safeguards": false,
+                  "tools": true
+                },
+                "beta_sets": [
+                  [
+                    "oauth-2025-04-20",
+                    "interleaved-thinking-2025-05-14",
+                    "context-management-2025-06-27",
+                    "token-counting-2024-11-01"
+                  ]
+                ]
+              }
             ]
           },
           {
@@ -238,24 +1007,124 @@
               "claude-opus-5-5",
               "claude-sonnet-5-5"
             ],
-            "default_betas": [
-              "claude-code-20250219",
-              "oauth-2025-04-20",
-              "interleaved-thinking-2025-05-14",
-              "thinking-token-count-2026-05-13",
-              "context-management-2025-06-27",
-              "per-turn-control-2026-07-01",
-              "mid-conversation-tool-changes-2026-07-01",
-              "advanced-tool-use-2025-11-20",
-              "effort-2025-11-24",
-              "dangerous-tool-use-2026-09-03",
-              "thinking-display-updates-2026-08-18",
-              "afk-mode-2026-01-31",
-              "extended-cache-ttl-2025-04-11"
-            ],
-            "requires": [
-              "thinking_display_updates",
-              "context_management"
+            "variants": [
+              {
+                "selector": {
+                  "cache": "default",
+                  "thinking": "adaptive/updates",
+                  "context_management": true,
+                  "effort": true,
+                  "message_effort": true,
+                  "output_format": false,
+                  "deferred_tools": true,
+                  "safeguards": false,
+                  "tools": true
+                },
+                "beta_sets": [
+                  [
+                    "claude-code-20250219",
+                    "oauth-2025-04-20",
+                    "interleaved-thinking-2025-05-14",
+                    "thinking-token-count-2026-05-13",
+                    "context-management-2025-06-27",
+                    "per-turn-control-2026-07-01",
+                    "mid-conversation-tool-changes-2026-07-01",
+                    "advanced-tool-use-2025-11-20",
+                    "effort-2025-11-24",
+                    "fallback-credit-2026-06-01",
+                    "dangerous-tool-use-2026-09-03",
+                    "thinking-display-updates-2026-08-18"
+                  ]
+                ]
+              },
+              {
+                "selector": {
+                  "cache": "none",
+                  "thinking": "absent",
+                  "context_management": false,
+                  "effort": true,
+                  "message_effort": false,
+                  "output_format": true,
+                  "deferred_tools": false,
+                  "safeguards": false,
+                  "tools": false
+                },
+                "beta_sets": [
+                  [
+                    "claude-code-20250219",
+                    "oauth-2025-04-20",
+                    "interleaved-thinking-2025-05-14",
+                    "redact-thinking-2026-02-12",
+                    "thinking-token-count-2026-05-13",
+                    "context-management-2025-06-27",
+                    "per-turn-control-2026-07-01",
+                    "mid-conversation-tool-changes-2026-07-01",
+                    "effort-2025-11-24",
+                    "structured-outputs-2025-12-15",
+                    "dangerous-tool-use-2026-09-03"
+                  ]
+                ]
+              },
+              {
+                "selector": {
+                  "cache": "ttl1h",
+                  "thinking": "adaptive/updates",
+                  "context_management": true,
+                  "effort": true,
+                  "message_effort": true,
+                  "output_format": false,
+                  "deferred_tools": true,
+                  "safeguards": false,
+                  "tools": true
+                },
+                "beta_sets": [
+                  [
+                    "claude-code-20250219",
+                    "oauth-2025-04-20",
+                    "interleaved-thinking-2025-05-14",
+                    "thinking-token-count-2026-05-13",
+                    "context-management-2025-06-27",
+                    "per-turn-control-2026-07-01",
+                    "mid-conversation-tool-changes-2026-07-01",
+                    "advanced-tool-use-2025-11-20",
+                    "effort-2025-11-24",
+                    "dangerous-tool-use-2026-09-03",
+                    "thinking-display-updates-2026-08-18",
+                    "afk-mode-2026-01-31",
+                    "extended-cache-ttl-2025-04-11"
+                  ]
+                ]
+              },
+              {
+                "selector": {
+                  "cache": "ttl1h",
+                  "thinking": "adaptive/updates",
+                  "context_management": true,
+                  "effort": true,
+                  "message_effort": true,
+                  "output_format": false,
+                  "deferred_tools": true,
+                  "safeguards": true,
+                  "tools": true
+                },
+                "beta_sets": [
+                  [
+                    "claude-code-20250219",
+                    "oauth-2025-04-20",
+                    "interleaved-thinking-2025-05-14",
+                    "thinking-token-count-2026-05-13",
+                    "context-management-2025-06-27",
+                    "per-turn-control-2026-07-01",
+                    "mid-conversation-tool-changes-2026-07-01",
+                    "advanced-tool-use-2025-11-20",
+                    "effort-2025-11-24",
+                    "dangerous-tool-use-2026-09-03",
+                    "thinking-display-updates-2026-08-18",
+                    "afk-mode-2026-01-31",
+                    "extended-cache-ttl-2025-04-11"
+                  ]
+                ]
+              }
             ]
           },
           {
@@ -264,19 +1133,126 @@
             "models": [
               "claude-haiku-4-5"
             ],
-            "default_betas": [
-              "oauth-2025-04-20",
-              "interleaved-thinking-2025-05-14",
-              "thinking-token-count-2026-05-13",
-              "context-management-2025-06-27",
-              "claude-code-20250219",
-              "advanced-tool-use-2025-11-20",
-              "thinking-display-updates-2026-08-18",
-              "extended-cache-ttl-2025-04-11"
-            ],
-            "requires": [
-              "thinking_display_updates",
-              "context_management"
+            "variants": [
+              {
+                "selector": {
+                  "cache": "default",
+                  "thinking": "disabled",
+                  "context_management": false,
+                  "effort": false,
+                  "message_effort": false,
+                  "output_format": false,
+                  "deferred_tools": true,
+                  "safeguards": false,
+                  "tools": true
+                },
+                "beta_sets": [
+                  [
+                    "oauth-2025-04-20",
+                    "interleaved-thinking-2025-05-14",
+                    "redact-thinking-2026-02-12",
+                    "thinking-token-count-2026-05-13",
+                    "context-management-2025-06-27",
+                    "advanced-tool-use-2025-11-20"
+                  ]
+                ]
+              },
+              {
+                "selector": {
+                  "cache": "default",
+                  "thinking": "enabled/updates",
+                  "context_management": true,
+                  "effort": false,
+                  "message_effort": false,
+                  "output_format": false,
+                  "deferred_tools": true,
+                  "safeguards": false,
+                  "tools": true
+                },
+                "beta_sets": [
+                  [
+                    "oauth-2025-04-20",
+                    "interleaved-thinking-2025-05-14",
+                    "thinking-token-count-2026-05-13",
+                    "context-management-2025-06-27",
+                    "advanced-tool-use-2025-11-20",
+                    "thinking-display-updates-2026-08-18"
+                  ]
+                ]
+              },
+              {
+                "selector": {
+                  "cache": "none",
+                  "thinking": "disabled",
+                  "context_management": false,
+                  "effort": false,
+                  "message_effort": false,
+                  "output_format": true,
+                  "deferred_tools": false,
+                  "safeguards": false,
+                  "tools": false
+                },
+                "beta_sets": [
+                  [
+                    "oauth-2025-04-20",
+                    "interleaved-thinking-2025-05-14",
+                    "redact-thinking-2026-02-12",
+                    "thinking-token-count-2026-05-13",
+                    "context-management-2025-06-27",
+                    "structured-outputs-2025-12-15"
+                  ]
+                ]
+              },
+              {
+                "selector": {
+                  "cache": "ttl1h",
+                  "thinking": "disabled",
+                  "context_management": false,
+                  "effort": false,
+                  "message_effort": false,
+                  "output_format": false,
+                  "deferred_tools": true,
+                  "safeguards": false,
+                  "tools": true
+                },
+                "beta_sets": [
+                  [
+                    "oauth-2025-04-20",
+                    "interleaved-thinking-2025-05-14",
+                    "redact-thinking-2026-02-12",
+                    "thinking-token-count-2026-05-13",
+                    "context-management-2025-06-27",
+                    "claude-code-20250219",
+                    "advanced-tool-use-2025-11-20",
+                    "extended-cache-ttl-2025-04-11"
+                  ]
+                ]
+              },
+              {
+                "selector": {
+                  "cache": "ttl1h",
+                  "thinking": "enabled/updates",
+                  "context_management": true,
+                  "effort": false,
+                  "message_effort": false,
+                  "output_format": false,
+                  "deferred_tools": true,
+                  "safeguards": false,
+                  "tools": true
+                },
+                "beta_sets": [
+                  [
+                    "oauth-2025-04-20",
+                    "interleaved-thinking-2025-05-14",
+                    "thinking-token-count-2026-05-13",
+                    "context-management-2025-06-27",
+                    "claude-code-20250219",
+                    "advanced-tool-use-2025-11-20",
+                    "thinking-display-updates-2026-08-18",
+                    "extended-cache-ttl-2025-04-11"
+                  ]
+                ]
+              }
             ]
           },
           {
@@ -285,24 +1261,1333 @@
             "models": [
               "claude-haiku-5-5"
             ],
-            "default_betas": [
-              "oauth-2025-04-20",
-              "interleaved-thinking-2025-05-14",
-              "thinking-token-count-2026-05-13",
-              "context-management-2025-06-27",
-              "claude-code-20250219",
-              "per-turn-control-2026-07-01",
-              "mid-conversation-tool-changes-2026-07-01",
-              "advanced-tool-use-2025-11-20",
-              "effort-2025-11-24",
-              "dangerous-tool-use-2026-09-03",
-              "thinking-display-updates-2026-08-18",
-              "afk-mode-2026-01-31",
-              "extended-cache-ttl-2025-04-11"
+            "variants": [
+              {
+                "selector": {
+                  "cache": "default",
+                  "thinking": "adaptive/updates",
+                  "context_management": true,
+                  "effort": true,
+                  "message_effort": true,
+                  "output_format": false,
+                  "deferred_tools": true,
+                  "safeguards": false,
+                  "tools": true
+                },
+                "beta_sets": [
+                  [
+                    "oauth-2025-04-20",
+                    "interleaved-thinking-2025-05-14",
+                    "thinking-token-count-2026-05-13",
+                    "context-management-2025-06-27",
+                    "per-turn-control-2026-07-01",
+                    "mid-conversation-tool-changes-2026-07-01",
+                    "advanced-tool-use-2025-11-20",
+                    "effort-2025-11-24",
+                    "dangerous-tool-use-2026-09-03",
+                    "thinking-display-updates-2026-08-18"
+                  ]
+                ]
+              },
+              {
+                "selector": {
+                  "cache": "none",
+                  "thinking": "absent",
+                  "context_management": false,
+                  "effort": true,
+                  "message_effort": false,
+                  "output_format": true,
+                  "deferred_tools": false,
+                  "safeguards": false,
+                  "tools": false
+                },
+                "beta_sets": [
+                  [
+                    "oauth-2025-04-20",
+                    "interleaved-thinking-2025-05-14",
+                    "redact-thinking-2026-02-12",
+                    "thinking-token-count-2026-05-13",
+                    "context-management-2025-06-27",
+                    "per-turn-control-2026-07-01",
+                    "mid-conversation-tool-changes-2026-07-01",
+                    "effort-2025-11-24",
+                    "structured-outputs-2025-12-15",
+                    "dangerous-tool-use-2026-09-03"
+                  ]
+                ]
+              },
+              {
+                "selector": {
+                  "cache": "ttl1h",
+                  "thinking": "adaptive/updates",
+                  "context_management": true,
+                  "effort": true,
+                  "message_effort": true,
+                  "output_format": false,
+                  "deferred_tools": true,
+                  "safeguards": false,
+                  "tools": true
+                },
+                "beta_sets": [
+                  [
+                    "oauth-2025-04-20",
+                    "interleaved-thinking-2025-05-14",
+                    "thinking-token-count-2026-05-13",
+                    "context-management-2025-06-27",
+                    "claude-code-20250219",
+                    "per-turn-control-2026-07-01",
+                    "mid-conversation-tool-changes-2026-07-01",
+                    "advanced-tool-use-2025-11-20",
+                    "effort-2025-11-24",
+                    "dangerous-tool-use-2026-09-03",
+                    "thinking-display-updates-2026-08-18",
+                    "afk-mode-2026-01-31",
+                    "extended-cache-ttl-2025-04-11"
+                  ]
+                ]
+              },
+              {
+                "selector": {
+                  "cache": "ttl1h",
+                  "thinking": "adaptive/updates",
+                  "context_management": true,
+                  "effort": true,
+                  "message_effort": true,
+                  "output_format": false,
+                  "deferred_tools": true,
+                  "safeguards": true,
+                  "tools": true
+                },
+                "beta_sets": [
+                  [
+                    "oauth-2025-04-20",
+                    "interleaved-thinking-2025-05-14",
+                    "thinking-token-count-2026-05-13",
+                    "context-management-2025-06-27",
+                    "claude-code-20250219",
+                    "per-turn-control-2026-07-01",
+                    "mid-conversation-tool-changes-2026-07-01",
+                    "advanced-tool-use-2025-11-20",
+                    "effort-2025-11-24",
+                    "dangerous-tool-use-2026-09-03",
+                    "thinking-display-updates-2026-08-18",
+                    "afk-mode-2026-01-31",
+                    "extended-cache-ttl-2025-04-11"
+                  ]
+                ]
+              }
+            ]
+          },
+          {
+            "endpoint": "messages",
+            "entrypoint": "cli",
+            "models": [
+              "claude-opus-4-6",
+              "claude-opus-4-7"
             ],
-            "requires": [
-              "thinking_display_updates",
-              "context_management"
+            "variants": [
+              {
+                "selector": {
+                  "cache": "default",
+                  "thinking": "adaptive/updates",
+                  "context_management": true,
+                  "effort": true,
+                  "message_effort": false,
+                  "output_format": false,
+                  "deferred_tools": true,
+                  "safeguards": false,
+                  "tools": true
+                },
+                "beta_sets": [
+                  [
+                    "claude-code-20250219",
+                    "oauth-2025-04-20",
+                    "interleaved-thinking-2025-05-14",
+                    "thinking-token-count-2026-05-13",
+                    "context-management-2025-06-27",
+                    "advanced-tool-use-2025-11-20",
+                    "effort-2025-11-24",
+                    "dangerous-tool-use-2026-09-03",
+                    "thinking-display-updates-2026-08-18"
+                  ]
+                ]
+              },
+              {
+                "selector": {
+                  "cache": "default",
+                  "thinking": "disabled",
+                  "context_management": false,
+                  "effort": true,
+                  "message_effort": false,
+                  "output_format": false,
+                  "deferred_tools": true,
+                  "safeguards": false,
+                  "tools": true
+                },
+                "beta_sets": [
+                  [
+                    "claude-code-20250219",
+                    "oauth-2025-04-20",
+                    "interleaved-thinking-2025-05-14",
+                    "redact-thinking-2026-02-12",
+                    "thinking-token-count-2026-05-13",
+                    "context-management-2025-06-27",
+                    "advanced-tool-use-2025-11-20",
+                    "effort-2025-11-24",
+                    "dangerous-tool-use-2026-09-03"
+                  ]
+                ]
+              },
+              {
+                "selector": {
+                  "cache": "none",
+                  "thinking": "disabled",
+                  "context_management": false,
+                  "effort": true,
+                  "message_effort": false,
+                  "output_format": true,
+                  "deferred_tools": false,
+                  "safeguards": false,
+                  "tools": false
+                },
+                "beta_sets": [
+                  [
+                    "claude-code-20250219",
+                    "oauth-2025-04-20",
+                    "interleaved-thinking-2025-05-14",
+                    "redact-thinking-2026-02-12",
+                    "thinking-token-count-2026-05-13",
+                    "context-management-2025-06-27",
+                    "effort-2025-11-24",
+                    "structured-outputs-2025-12-15",
+                    "dangerous-tool-use-2026-09-03"
+                  ]
+                ]
+              },
+              {
+                "selector": {
+                  "cache": "ttl1h",
+                  "thinking": "adaptive/updates",
+                  "context_management": true,
+                  "effort": true,
+                  "message_effort": false,
+                  "output_format": false,
+                  "deferred_tools": true,
+                  "safeguards": false,
+                  "tools": true
+                },
+                "beta_sets": [
+                  [
+                    "claude-code-20250219",
+                    "oauth-2025-04-20",
+                    "interleaved-thinking-2025-05-14",
+                    "thinking-token-count-2026-05-13",
+                    "context-management-2025-06-27",
+                    "advanced-tool-use-2025-11-20",
+                    "effort-2025-11-24",
+                    "dangerous-tool-use-2026-09-03",
+                    "thinking-display-updates-2026-08-18",
+                    "afk-mode-2026-01-31",
+                    "extended-cache-ttl-2025-04-11"
+                  ]
+                ]
+              },
+              {
+                "selector": {
+                  "cache": "ttl1h",
+                  "thinking": "adaptive/updates",
+                  "context_management": true,
+                  "effort": true,
+                  "message_effort": false,
+                  "output_format": false,
+                  "deferred_tools": true,
+                  "safeguards": true,
+                  "tools": true
+                },
+                "beta_sets": [
+                  [
+                    "claude-code-20250219",
+                    "oauth-2025-04-20",
+                    "interleaved-thinking-2025-05-14",
+                    "thinking-token-count-2026-05-13",
+                    "context-management-2025-06-27",
+                    "advanced-tool-use-2025-11-20",
+                    "effort-2025-11-24",
+                    "dangerous-tool-use-2026-09-03",
+                    "thinking-display-updates-2026-08-18",
+                    "afk-mode-2026-01-31",
+                    "extended-cache-ttl-2025-04-11"
+                  ]
+                ]
+              },
+              {
+                "selector": {
+                  "cache": "ttl1h",
+                  "thinking": "disabled",
+                  "context_management": false,
+                  "effort": true,
+                  "message_effort": false,
+                  "output_format": false,
+                  "deferred_tools": true,
+                  "safeguards": false,
+                  "tools": true
+                },
+                "beta_sets": [
+                  [
+                    "claude-code-20250219",
+                    "oauth-2025-04-20",
+                    "interleaved-thinking-2025-05-14",
+                    "redact-thinking-2026-02-12",
+                    "thinking-token-count-2026-05-13",
+                    "context-management-2025-06-27",
+                    "advanced-tool-use-2025-11-20",
+                    "effort-2025-11-24",
+                    "dangerous-tool-use-2026-09-03",
+                    "afk-mode-2026-01-31",
+                    "extended-cache-ttl-2025-04-11"
+                  ]
+                ]
+              },
+              {
+                "selector": {
+                  "cache": "ttl1h",
+                  "thinking": "disabled",
+                  "context_management": false,
+                  "effort": true,
+                  "message_effort": false,
+                  "output_format": false,
+                  "deferred_tools": true,
+                  "safeguards": true,
+                  "tools": true
+                },
+                "beta_sets": [
+                  [
+                    "claude-code-20250219",
+                    "oauth-2025-04-20",
+                    "interleaved-thinking-2025-05-14",
+                    "redact-thinking-2026-02-12",
+                    "thinking-token-count-2026-05-13",
+                    "context-management-2025-06-27",
+                    "advanced-tool-use-2025-11-20",
+                    "effort-2025-11-24",
+                    "dangerous-tool-use-2026-09-03",
+                    "afk-mode-2026-01-31",
+                    "extended-cache-ttl-2025-04-11"
+                  ]
+                ]
+              }
+            ]
+          },
+          {
+            "endpoint": "messages",
+            "entrypoint": "cli",
+            "models": [
+              "claude-sonnet-4-5"
+            ],
+            "variants": [
+              {
+                "selector": {
+                  "cache": "default",
+                  "thinking": "disabled",
+                  "context_management": false,
+                  "effort": false,
+                  "message_effort": false,
+                  "output_format": false,
+                  "deferred_tools": true,
+                  "safeguards": false,
+                  "tools": true
+                },
+                "beta_sets": [
+                  [
+                    "claude-code-20250219",
+                    "oauth-2025-04-20",
+                    "interleaved-thinking-2025-05-14",
+                    "redact-thinking-2026-02-12",
+                    "thinking-token-count-2026-05-13",
+                    "context-management-2025-06-27",
+                    "advanced-tool-use-2025-11-20"
+                  ]
+                ]
+              },
+              {
+                "selector": {
+                  "cache": "default",
+                  "thinking": "enabled/updates",
+                  "context_management": true,
+                  "effort": false,
+                  "message_effort": false,
+                  "output_format": false,
+                  "deferred_tools": true,
+                  "safeguards": false,
+                  "tools": true
+                },
+                "beta_sets": [
+                  [
+                    "claude-code-20250219",
+                    "oauth-2025-04-20",
+                    "interleaved-thinking-2025-05-14",
+                    "thinking-token-count-2026-05-13",
+                    "context-management-2025-06-27",
+                    "advanced-tool-use-2025-11-20",
+                    "thinking-display-updates-2026-08-18"
+                  ]
+                ]
+              },
+              {
+                "selector": {
+                  "cache": "none",
+                  "thinking": "disabled",
+                  "context_management": false,
+                  "effort": false,
+                  "message_effort": false,
+                  "output_format": true,
+                  "deferred_tools": false,
+                  "safeguards": false,
+                  "tools": false
+                },
+                "beta_sets": [
+                  [
+                    "claude-code-20250219",
+                    "oauth-2025-04-20",
+                    "interleaved-thinking-2025-05-14",
+                    "redact-thinking-2026-02-12",
+                    "thinking-token-count-2026-05-13",
+                    "context-management-2025-06-27",
+                    "structured-outputs-2025-12-15"
+                  ]
+                ]
+              },
+              {
+                "selector": {
+                  "cache": "ttl1h",
+                  "thinking": "disabled",
+                  "context_management": false,
+                  "effort": false,
+                  "message_effort": false,
+                  "output_format": false,
+                  "deferred_tools": true,
+                  "safeguards": false,
+                  "tools": true
+                },
+                "beta_sets": [
+                  [
+                    "claude-code-20250219",
+                    "oauth-2025-04-20",
+                    "interleaved-thinking-2025-05-14",
+                    "redact-thinking-2026-02-12",
+                    "thinking-token-count-2026-05-13",
+                    "context-management-2025-06-27",
+                    "advanced-tool-use-2025-11-20",
+                    "extended-cache-ttl-2025-04-11"
+                  ]
+                ]
+              },
+              {
+                "selector": {
+                  "cache": "ttl1h",
+                  "thinking": "enabled/updates",
+                  "context_management": true,
+                  "effort": false,
+                  "message_effort": false,
+                  "output_format": false,
+                  "deferred_tools": true,
+                  "safeguards": false,
+                  "tools": true
+                },
+                "beta_sets": [
+                  [
+                    "claude-code-20250219",
+                    "oauth-2025-04-20",
+                    "interleaved-thinking-2025-05-14",
+                    "thinking-token-count-2026-05-13",
+                    "context-management-2025-06-27",
+                    "advanced-tool-use-2025-11-20",
+                    "thinking-display-updates-2026-08-18",
+                    "extended-cache-ttl-2025-04-11"
+                  ]
+                ]
+              }
+            ]
+          },
+          {
+            "endpoint": "messages",
+            "entrypoint": "cli",
+            "models": [
+              "claude-sonnet-4-6"
+            ],
+            "variants": [
+              {
+                "selector": {
+                  "cache": "default",
+                  "thinking": "adaptive/updates",
+                  "context_management": true,
+                  "effort": true,
+                  "message_effort": false,
+                  "output_format": false,
+                  "deferred_tools": true,
+                  "safeguards": false,
+                  "tools": true
+                },
+                "beta_sets": [
+                  [
+                    "claude-code-20250219",
+                    "oauth-2025-04-20",
+                    "interleaved-thinking-2025-05-14",
+                    "thinking-token-count-2026-05-13",
+                    "context-management-2025-06-27",
+                    "advanced-tool-use-2025-11-20",
+                    "effort-2025-11-24",
+                    "dangerous-tool-use-2026-09-03",
+                    "thinking-display-updates-2026-08-18"
+                  ]
+                ]
+              },
+              {
+                "selector": {
+                  "cache": "default",
+                  "thinking": "disabled",
+                  "context_management": false,
+                  "effort": true,
+                  "message_effort": false,
+                  "output_format": false,
+                  "deferred_tools": true,
+                  "safeguards": false,
+                  "tools": true
+                },
+                "beta_sets": [
+                  [
+                    "claude-code-20250219",
+                    "oauth-2025-04-20",
+                    "interleaved-thinking-2025-05-14",
+                    "redact-thinking-2026-02-12",
+                    "thinking-token-count-2026-05-13",
+                    "context-management-2025-06-27",
+                    "advanced-tool-use-2025-11-20",
+                    "effort-2025-11-24",
+                    "dangerous-tool-use-2026-09-03"
+                  ]
+                ]
+              },
+              {
+                "selector": {
+                  "cache": "none",
+                  "thinking": "disabled",
+                  "context_management": false,
+                  "effort": true,
+                  "message_effort": false,
+                  "output_format": true,
+                  "deferred_tools": false,
+                  "safeguards": false,
+                  "tools": false
+                },
+                "beta_sets": [
+                  [
+                    "claude-code-20250219",
+                    "oauth-2025-04-20",
+                    "interleaved-thinking-2025-05-14",
+                    "redact-thinking-2026-02-12",
+                    "thinking-token-count-2026-05-13",
+                    "context-management-2025-06-27",
+                    "effort-2025-11-24",
+                    "structured-outputs-2025-12-15"
+                  ],
+                  [
+                    "claude-code-20250219",
+                    "oauth-2025-04-20",
+                    "interleaved-thinking-2025-05-14",
+                    "redact-thinking-2026-02-12",
+                    "thinking-token-count-2026-05-13",
+                    "context-management-2025-06-27",
+                    "effort-2025-11-24",
+                    "structured-outputs-2025-12-15",
+                    "dangerous-tool-use-2026-09-03"
+                  ]
+                ]
+              },
+              {
+                "selector": {
+                  "cache": "ttl1h",
+                  "thinking": "adaptive/updates",
+                  "context_management": true,
+                  "effort": true,
+                  "message_effort": false,
+                  "output_format": false,
+                  "deferred_tools": true,
+                  "safeguards": false,
+                  "tools": true
+                },
+                "beta_sets": [
+                  [
+                    "claude-code-20250219",
+                    "oauth-2025-04-20",
+                    "interleaved-thinking-2025-05-14",
+                    "thinking-token-count-2026-05-13",
+                    "context-management-2025-06-27",
+                    "advanced-tool-use-2025-11-20",
+                    "effort-2025-11-24",
+                    "dangerous-tool-use-2026-09-03",
+                    "thinking-display-updates-2026-08-18",
+                    "afk-mode-2026-01-31",
+                    "extended-cache-ttl-2025-04-11"
+                  ]
+                ]
+              },
+              {
+                "selector": {
+                  "cache": "ttl1h",
+                  "thinking": "adaptive/updates",
+                  "context_management": true,
+                  "effort": true,
+                  "message_effort": false,
+                  "output_format": false,
+                  "deferred_tools": true,
+                  "safeguards": true,
+                  "tools": true
+                },
+                "beta_sets": [
+                  [
+                    "claude-code-20250219",
+                    "oauth-2025-04-20",
+                    "interleaved-thinking-2025-05-14",
+                    "thinking-token-count-2026-05-13",
+                    "context-management-2025-06-27",
+                    "advanced-tool-use-2025-11-20",
+                    "effort-2025-11-24",
+                    "dangerous-tool-use-2026-09-03",
+                    "thinking-display-updates-2026-08-18",
+                    "afk-mode-2026-01-31",
+                    "extended-cache-ttl-2025-04-11"
+                  ]
+                ]
+              },
+              {
+                "selector": {
+                  "cache": "ttl1h",
+                  "thinking": "disabled",
+                  "context_management": false,
+                  "effort": true,
+                  "message_effort": false,
+                  "output_format": false,
+                  "deferred_tools": true,
+                  "safeguards": false,
+                  "tools": true
+                },
+                "beta_sets": [
+                  [
+                    "claude-code-20250219",
+                    "oauth-2025-04-20",
+                    "interleaved-thinking-2025-05-14",
+                    "redact-thinking-2026-02-12",
+                    "thinking-token-count-2026-05-13",
+                    "context-management-2025-06-27",
+                    "advanced-tool-use-2025-11-20",
+                    "effort-2025-11-24",
+                    "dangerous-tool-use-2026-09-03",
+                    "afk-mode-2026-01-31",
+                    "extended-cache-ttl-2025-04-11"
+                  ]
+                ]
+              },
+              {
+                "selector": {
+                  "cache": "ttl1h",
+                  "thinking": "disabled",
+                  "context_management": false,
+                  "effort": true,
+                  "message_effort": false,
+                  "output_format": false,
+                  "deferred_tools": true,
+                  "safeguards": true,
+                  "tools": true
+                },
+                "beta_sets": [
+                  [
+                    "claude-code-20250219",
+                    "oauth-2025-04-20",
+                    "interleaved-thinking-2025-05-14",
+                    "redact-thinking-2026-02-12",
+                    "thinking-token-count-2026-05-13",
+                    "context-management-2025-06-27",
+                    "advanced-tool-use-2025-11-20",
+                    "effort-2025-11-24",
+                    "dangerous-tool-use-2026-09-03",
+                    "afk-mode-2026-01-31",
+                    "extended-cache-ttl-2025-04-11"
+                  ]
+                ]
+              }
+            ]
+          },
+          {
+            "endpoint": "messages",
+            "entrypoint": "sdk",
+            "models": [
+              "claude-fable-5-1",
+              "claude-opus-5-5",
+              "claude-sonnet-5-5"
+            ],
+            "variants": [
+              {
+                "selector": {
+                  "cache": "ttl1h",
+                  "thinking": "adaptive/omitted",
+                  "context_management": true,
+                  "effort": true,
+                  "message_effort": true,
+                  "output_format": false,
+                  "deferred_tools": true,
+                  "safeguards": false,
+                  "tools": true
+                },
+                "beta_sets": [
+                  [
+                    "claude-code-20250219",
+                    "oauth-2025-04-20",
+                    "interleaved-thinking-2025-05-14",
+                    "thinking-token-count-2026-05-13",
+                    "context-management-2025-06-27",
+                    "per-turn-control-2026-07-01",
+                    "mid-conversation-tool-changes-2026-07-01",
+                    "advanced-tool-use-2025-11-20",
+                    "effort-2025-11-24",
+                    "extended-cache-ttl-2025-04-11"
+                  ]
+                ]
+              }
+            ]
+          },
+          {
+            "endpoint": "messages",
+            "entrypoint": "sdk",
+            "models": [
+              "claude-haiku-4-5"
+            ],
+            "variants": [
+              {
+                "selector": {
+                  "cache": "none",
+                  "thinking": "disabled",
+                  "context_management": false,
+                  "effort": false,
+                  "message_effort": false,
+                  "output_format": true,
+                  "deferred_tools": false,
+                  "safeguards": false,
+                  "tools": false
+                },
+                "beta_sets": [
+                  [
+                    "oauth-2025-04-20",
+                    "interleaved-thinking-2025-05-14",
+                    "thinking-token-count-2026-05-13",
+                    "context-management-2025-06-27",
+                    "structured-outputs-2025-12-15"
+                  ]
+                ]
+              },
+              {
+                "selector": {
+                  "cache": "ttl1h",
+                  "thinking": "enabled/omitted",
+                  "context_management": true,
+                  "effort": false,
+                  "message_effort": false,
+                  "output_format": false,
+                  "deferred_tools": true,
+                  "safeguards": false,
+                  "tools": true
+                },
+                "beta_sets": [
+                  [
+                    "oauth-2025-04-20",
+                    "interleaved-thinking-2025-05-14",
+                    "thinking-token-count-2026-05-13",
+                    "context-management-2025-06-27",
+                    "claude-code-20250219",
+                    "advanced-tool-use-2025-11-20",
+                    "extended-cache-ttl-2025-04-11"
+                  ]
+                ]
+              }
+            ]
+          },
+          {
+            "endpoint": "messages",
+            "entrypoint": "sdk",
+            "models": [
+              "claude-haiku-5-5"
+            ],
+            "variants": [
+              {
+                "selector": {
+                  "cache": "ttl1h",
+                  "thinking": "adaptive/omitted",
+                  "context_management": true,
+                  "effort": true,
+                  "message_effort": true,
+                  "output_format": false,
+                  "deferred_tools": true,
+                  "safeguards": false,
+                  "tools": true
+                },
+                "beta_sets": [
+                  [
+                    "oauth-2025-04-20",
+                    "interleaved-thinking-2025-05-14",
+                    "thinking-token-count-2026-05-13",
+                    "context-management-2025-06-27",
+                    "claude-code-20250219",
+                    "per-turn-control-2026-07-01",
+                    "mid-conversation-tool-changes-2026-07-01",
+                    "advanced-tool-use-2025-11-20",
+                    "effort-2025-11-24",
+                    "extended-cache-ttl-2025-04-11"
+                  ]
+                ]
+              }
+            ]
+          },
+          {
+            "endpoint": "messages",
+            "entrypoint": "sdk",
+            "models": [
+              "claude-opus-4-6",
+              "claude-opus-4-7"
+            ],
+            "variants": [
+              {
+                "selector": {
+                  "cache": "ttl1h",
+                  "thinking": "adaptive/omitted",
+                  "context_management": true,
+                  "effort": true,
+                  "message_effort": false,
+                  "output_format": false,
+                  "deferred_tools": true,
+                  "safeguards": false,
+                  "tools": true
+                },
+                "beta_sets": [
+                  [
+                    "claude-code-20250219",
+                    "oauth-2025-04-20",
+                    "interleaved-thinking-2025-05-14",
+                    "thinking-token-count-2026-05-13",
+                    "context-management-2025-06-27",
+                    "advanced-tool-use-2025-11-20",
+                    "effort-2025-11-24",
+                    "extended-cache-ttl-2025-04-11"
+                  ]
+                ]
+              }
+            ]
+          },
+          {
+            "endpoint": "messages",
+            "entrypoint": "sdk",
+            "models": [
+              "claude-sonnet-4-5"
+            ],
+            "variants": [
+              {
+                "selector": {
+                  "cache": "ttl1h",
+                  "thinking": "enabled/omitted",
+                  "context_management": true,
+                  "effort": false,
+                  "message_effort": false,
+                  "output_format": false,
+                  "deferred_tools": true,
+                  "safeguards": false,
+                  "tools": true
+                },
+                "beta_sets": [
+                  [
+                    "claude-code-20250219",
+                    "oauth-2025-04-20",
+                    "interleaved-thinking-2025-05-14",
+                    "thinking-token-count-2026-05-13",
+                    "context-management-2025-06-27",
+                    "advanced-tool-use-2025-11-20",
+                    "extended-cache-ttl-2025-04-11"
+                  ]
+                ]
+              }
+            ]
+          },
+          {
+            "endpoint": "messages",
+            "entrypoint": "sdk",
+            "models": [
+              "claude-sonnet-4-6"
+            ],
+            "variants": [
+              {
+                "selector": {
+                  "cache": "none",
+                  "thinking": "disabled",
+                  "context_management": false,
+                  "effort": true,
+                  "message_effort": false,
+                  "output_format": true,
+                  "deferred_tools": false,
+                  "safeguards": false,
+                  "tools": false
+                },
+                "beta_sets": [
+                  [
+                    "claude-code-20250219",
+                    "oauth-2025-04-20",
+                    "interleaved-thinking-2025-05-14",
+                    "thinking-token-count-2026-05-13",
+                    "context-management-2025-06-27",
+                    "effort-2025-11-24",
+                    "structured-outputs-2025-12-15"
+                  ]
+                ]
+              },
+              {
+                "selector": {
+                  "cache": "ttl1h",
+                  "thinking": "adaptive/omitted",
+                  "context_management": true,
+                  "effort": true,
+                  "message_effort": false,
+                  "output_format": false,
+                  "deferred_tools": true,
+                  "safeguards": false,
+                  "tools": true
+                },
+                "beta_sets": [
+                  [
+                    "claude-code-20250219",
+                    "oauth-2025-04-20",
+                    "interleaved-thinking-2025-05-14",
+                    "thinking-token-count-2026-05-13",
+                    "context-management-2025-06-27",
+                    "advanced-tool-use-2025-11-20",
+                    "effort-2025-11-24",
+                    "extended-cache-ttl-2025-04-11"
+                  ]
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "version": "2.1.318",
+        "rows": [
+          {
+            "endpoint": "count_tokens",
+            "entrypoint": "cli",
+            "models": [
+              "claude-fable-5-1",
+              "claude-opus-4-6",
+              "claude-opus-4-7",
+              "claude-opus-5-5",
+              "claude-sonnet-4-5",
+              "claude-sonnet-4-6",
+              "claude-sonnet-5-5"
+            ],
+            "variants": [
+              {
+                "selector": {
+                  "cache": "none",
+                  "thinking": "absent",
+                  "context_management": false,
+                  "effort": false,
+                  "message_effort": false,
+                  "output_format": false,
+                  "deferred_tools": false,
+                  "safeguards": false,
+                  "tools": false
+                },
+                "beta_sets": [
+                  [
+                    "claude-code-20250219",
+                    "oauth-2025-04-20",
+                    "interleaved-thinking-2025-05-14",
+                    "context-management-2025-06-27",
+                    "token-counting-2024-11-01"
+                  ]
+                ]
+              },
+              {
+                "selector": {
+                  "cache": "none",
+                  "thinking": "absent",
+                  "context_management": false,
+                  "effort": false,
+                  "message_effort": false,
+                  "output_format": false,
+                  "deferred_tools": false,
+                  "safeguards": false,
+                  "tools": true
+                },
+                "beta_sets": [
+                  [
+                    "claude-code-20250219",
+                    "oauth-2025-04-20",
+                    "interleaved-thinking-2025-05-14",
+                    "context-management-2025-06-27",
+                    "token-counting-2024-11-01"
+                  ]
+                ]
+              }
+            ]
+          },
+          {
+            "endpoint": "count_tokens",
+            "entrypoint": "cli",
+            "models": [
+              "claude-haiku-4-5",
+              "claude-haiku-5-5"
+            ],
+            "variants": [
+              {
+                "selector": {
+                  "cache": "none",
+                  "thinking": "absent",
+                  "context_management": false,
+                  "effort": false,
+                  "message_effort": false,
+                  "output_format": false,
+                  "deferred_tools": false,
+                  "safeguards": false,
+                  "tools": false
+                },
+                "beta_sets": [
+                  [
+                    "oauth-2025-04-20",
+                    "interleaved-thinking-2025-05-14",
+                    "context-management-2025-06-27",
+                    "token-counting-2024-11-01"
+                  ]
+                ]
+              },
+              {
+                "selector": {
+                  "cache": "none",
+                  "thinking": "absent",
+                  "context_management": false,
+                  "effort": false,
+                  "message_effort": false,
+                  "output_format": false,
+                  "deferred_tools": false,
+                  "safeguards": false,
+                  "tools": true
+                },
+                "beta_sets": [
+                  [
+                    "oauth-2025-04-20",
+                    "interleaved-thinking-2025-05-14",
+                    "context-management-2025-06-27",
+                    "token-counting-2024-11-01"
+                  ]
+                ]
+              }
+            ]
+          },
+          {
+            "endpoint": "messages",
+            "entrypoint": "cli",
+            "models": [
+              "claude-fable-5-1",
+              "claude-opus-5-5",
+              "claude-sonnet-5-5"
+            ],
+            "variants": [
+              {
+                "selector": {
+                  "cache": "default",
+                  "thinking": "adaptive/updates",
+                  "context_management": true,
+                  "effort": true,
+                  "message_effort": true,
+                  "output_format": false,
+                  "deferred_tools": true,
+                  "safeguards": false,
+                  "tools": true
+                },
+                "beta_sets": [
+                  [
+                    "claude-code-20250219",
+                    "oauth-2025-04-20",
+                    "interleaved-thinking-2025-05-14",
+                    "context-management-2025-06-27",
+                    "per-turn-control-2026-07-01",
+                    "mid-conversation-tool-changes-2026-07-01",
+                    "thinking-token-count-2026-05-13",
+                    "advanced-tool-use-2025-11-20",
+                    "effort-2025-11-24",
+                    "fallback-credit-2026-06-01",
+                    "dangerous-tool-use-2026-09-03",
+                    "thinking-display-updates-2026-08-18"
+                  ]
+                ]
+              },
+              {
+                "selector": {
+                  "cache": "ttl1h",
+                  "thinking": "adaptive/updates",
+                  "context_management": true,
+                  "effort": true,
+                  "message_effort": true,
+                  "output_format": false,
+                  "deferred_tools": true,
+                  "safeguards": false,
+                  "tools": true
+                },
+                "beta_sets": [
+                  [
+                    "claude-code-20250219",
+                    "oauth-2025-04-20",
+                    "interleaved-thinking-2025-05-14",
+                    "context-management-2025-06-27",
+                    "per-turn-control-2026-07-01",
+                    "mid-conversation-tool-changes-2026-07-01",
+                    "thinking-token-count-2026-05-13",
+                    "advanced-tool-use-2025-11-20",
+                    "effort-2025-11-24",
+                    "dangerous-tool-use-2026-09-03",
+                    "thinking-display-updates-2026-08-18",
+                    "afk-mode-2026-01-31",
+                    "extended-cache-ttl-2025-04-11"
+                  ]
+                ]
+              },
+              {
+                "selector": {
+                  "cache": "ttl1h",
+                  "thinking": "adaptive/updates",
+                  "context_management": true,
+                  "effort": true,
+                  "message_effort": true,
+                  "output_format": false,
+                  "deferred_tools": true,
+                  "safeguards": true,
+                  "tools": true
+                },
+                "beta_sets": [
+                  [
+                    "claude-code-20250219",
+                    "oauth-2025-04-20",
+                    "interleaved-thinking-2025-05-14",
+                    "context-management-2025-06-27",
+                    "per-turn-control-2026-07-01",
+                    "mid-conversation-tool-changes-2026-07-01",
+                    "thinking-token-count-2026-05-13",
+                    "advanced-tool-use-2025-11-20",
+                    "effort-2025-11-24",
+                    "dangerous-tool-use-2026-09-03",
+                    "thinking-display-updates-2026-08-18",
+                    "afk-mode-2026-01-31",
+                    "extended-cache-ttl-2025-04-11"
+                  ]
+                ]
+              }
+            ]
+          },
+          {
+            "endpoint": "messages",
+            "entrypoint": "cli",
+            "models": [
+              "claude-haiku-4-5"
+            ],
+            "variants": [
+              {
+                "selector": {
+                  "cache": "default",
+                  "thinking": "disabled",
+                  "context_management": false,
+                  "effort": false,
+                  "message_effort": false,
+                  "output_format": false,
+                  "deferred_tools": true,
+                  "safeguards": false,
+                  "tools": true
+                },
+                "beta_sets": [
+                  [
+                    "oauth-2025-04-20",
+                    "interleaved-thinking-2025-05-14",
+                    "redact-thinking-2026-02-12",
+                    "context-management-2025-06-27",
+                    "thinking-token-count-2026-05-13",
+                    "advanced-tool-use-2025-11-20"
+                  ]
+                ]
+              },
+              {
+                "selector": {
+                  "cache": "default",
+                  "thinking": "enabled/updates",
+                  "context_management": true,
+                  "effort": false,
+                  "message_effort": false,
+                  "output_format": false,
+                  "deferred_tools": true,
+                  "safeguards": false,
+                  "tools": true
+                },
+                "beta_sets": [
+                  [
+                    "oauth-2025-04-20",
+                    "interleaved-thinking-2025-05-14",
+                    "context-management-2025-06-27",
+                    "thinking-token-count-2026-05-13",
+                    "advanced-tool-use-2025-11-20",
+                    "thinking-display-updates-2026-08-18"
+                  ]
+                ]
+              },
+              {
+                "selector": {
+                  "cache": "ttl1h",
+                  "thinking": "disabled",
+                  "context_management": false,
+                  "effort": false,
+                  "message_effort": false,
+                  "output_format": false,
+                  "deferred_tools": true,
+                  "safeguards": false,
+                  "tools": true
+                },
+                "beta_sets": [
+                  [
+                    "oauth-2025-04-20",
+                    "interleaved-thinking-2025-05-14",
+                    "redact-thinking-2026-02-12",
+                    "context-management-2025-06-27",
+                    "claude-code-20250219",
+                    "thinking-token-count-2026-05-13",
+                    "advanced-tool-use-2025-11-20",
+                    "extended-cache-ttl-2025-04-11"
+                  ]
+                ]
+              },
+              {
+                "selector": {
+                  "cache": "ttl1h",
+                  "thinking": "enabled/updates",
+                  "context_management": true,
+                  "effort": false,
+                  "message_effort": false,
+                  "output_format": false,
+                  "deferred_tools": true,
+                  "safeguards": false,
+                  "tools": true
+                },
+                "beta_sets": [
+                  [
+                    "oauth-2025-04-20",
+                    "interleaved-thinking-2025-05-14",
+                    "context-management-2025-06-27",
+                    "claude-code-20250219",
+                    "thinking-token-count-2026-05-13",
+                    "advanced-tool-use-2025-11-20",
+                    "thinking-display-updates-2026-08-18",
+                    "extended-cache-ttl-2025-04-11"
+                  ]
+                ]
+              }
+            ]
+          },
+          {
+            "endpoint": "messages",
+            "entrypoint": "cli",
+            "models": [
+              "claude-haiku-5-5"
+            ],
+            "variants": [
+              {
+                "selector": {
+                  "cache": "default",
+                  "thinking": "adaptive/updates",
+                  "context_management": true,
+                  "effort": true,
+                  "message_effort": true,
+                  "output_format": false,
+                  "deferred_tools": true,
+                  "safeguards": false,
+                  "tools": true
+                },
+                "beta_sets": [
+                  [
+                    "oauth-2025-04-20",
+                    "interleaved-thinking-2025-05-14",
+                    "context-management-2025-06-27",
+                    "per-turn-control-2026-07-01",
+                    "mid-conversation-tool-changes-2026-07-01",
+                    "thinking-token-count-2026-05-13",
+                    "advanced-tool-use-2025-11-20",
+                    "effort-2025-11-24",
+                    "dangerous-tool-use-2026-09-03",
+                    "thinking-display-updates-2026-08-18"
+                  ]
+                ]
+              },
+              {
+                "selector": {
+                  "cache": "ttl1h",
+                  "thinking": "adaptive/updates",
+                  "context_management": true,
+                  "effort": true,
+                  "message_effort": true,
+                  "output_format": false,
+                  "deferred_tools": true,
+                  "safeguards": false,
+                  "tools": true
+                },
+                "beta_sets": [
+                  [
+                    "oauth-2025-04-20",
+                    "interleaved-thinking-2025-05-14",
+                    "context-management-2025-06-27",
+                    "claude-code-20250219",
+                    "per-turn-control-2026-07-01",
+                    "mid-conversation-tool-changes-2026-07-01",
+                    "thinking-token-count-2026-05-13",
+                    "advanced-tool-use-2025-11-20",
+                    "effort-2025-11-24",
+                    "dangerous-tool-use-2026-09-03",
+                    "thinking-display-updates-2026-08-18",
+                    "afk-mode-2026-01-31",
+                    "extended-cache-ttl-2025-04-11"
+                  ]
+                ]
+              },
+              {
+                "selector": {
+                  "cache": "ttl1h",
+                  "thinking": "adaptive/updates",
+                  "context_management": true,
+                  "effort": true,
+                  "message_effort": true,
+                  "output_format": false,
+                  "deferred_tools": true,
+                  "safeguards": true,
+                  "tools": true
+                },
+                "beta_sets": [
+                  [
+                    "oauth-2025-04-20",
+                    "interleaved-thinking-2025-05-14",
+                    "context-management-2025-06-27",
+                    "claude-code-20250219",
+                    "per-turn-control-2026-07-01",
+                    "mid-conversation-tool-changes-2026-07-01",
+                    "thinking-token-count-2026-05-13",
+                    "advanced-tool-use-2025-11-20",
+                    "effort-2025-11-24",
+                    "dangerous-tool-use-2026-09-03",
+                    "thinking-display-updates-2026-08-18",
+                    "afk-mode-2026-01-31",
+                    "extended-cache-ttl-2025-04-11"
+                  ]
+                ]
+              }
             ]
           },
           {
@@ -313,22 +2598,171 @@
               "claude-opus-4-7",
               "claude-sonnet-4-6"
             ],
-            "default_betas": [
-              "claude-code-20250219",
-              "oauth-2025-04-20",
-              "interleaved-thinking-2025-05-14",
-              "thinking-token-count-2026-05-13",
-              "context-management-2025-06-27",
-              "advanced-tool-use-2025-11-20",
-              "effort-2025-11-24",
-              "dangerous-tool-use-2026-09-03",
-              "thinking-display-updates-2026-08-18",
-              "afk-mode-2026-01-31",
-              "extended-cache-ttl-2025-04-11"
-            ],
-            "requires": [
-              "thinking_display_updates",
-              "context_management"
+            "variants": [
+              {
+                "selector": {
+                  "cache": "default",
+                  "thinking": "adaptive/updates",
+                  "context_management": true,
+                  "effort": true,
+                  "message_effort": false,
+                  "output_format": false,
+                  "deferred_tools": true,
+                  "safeguards": false,
+                  "tools": true
+                },
+                "beta_sets": [
+                  [
+                    "claude-code-20250219",
+                    "oauth-2025-04-20",
+                    "interleaved-thinking-2025-05-14",
+                    "context-management-2025-06-27",
+                    "thinking-token-count-2026-05-13",
+                    "advanced-tool-use-2025-11-20",
+                    "effort-2025-11-24",
+                    "dangerous-tool-use-2026-09-03",
+                    "thinking-display-updates-2026-08-18"
+                  ]
+                ]
+              },
+              {
+                "selector": {
+                  "cache": "default",
+                  "thinking": "disabled",
+                  "context_management": false,
+                  "effort": true,
+                  "message_effort": false,
+                  "output_format": false,
+                  "deferred_tools": true,
+                  "safeguards": false,
+                  "tools": true
+                },
+                "beta_sets": [
+                  [
+                    "claude-code-20250219",
+                    "oauth-2025-04-20",
+                    "interleaved-thinking-2025-05-14",
+                    "redact-thinking-2026-02-12",
+                    "context-management-2025-06-27",
+                    "thinking-token-count-2026-05-13",
+                    "advanced-tool-use-2025-11-20",
+                    "effort-2025-11-24",
+                    "dangerous-tool-use-2026-09-03"
+                  ]
+                ]
+              },
+              {
+                "selector": {
+                  "cache": "ttl1h",
+                  "thinking": "adaptive/updates",
+                  "context_management": true,
+                  "effort": true,
+                  "message_effort": false,
+                  "output_format": false,
+                  "deferred_tools": true,
+                  "safeguards": false,
+                  "tools": true
+                },
+                "beta_sets": [
+                  [
+                    "claude-code-20250219",
+                    "oauth-2025-04-20",
+                    "interleaved-thinking-2025-05-14",
+                    "context-management-2025-06-27",
+                    "thinking-token-count-2026-05-13",
+                    "advanced-tool-use-2025-11-20",
+                    "effort-2025-11-24",
+                    "dangerous-tool-use-2026-09-03",
+                    "thinking-display-updates-2026-08-18",
+                    "afk-mode-2026-01-31",
+                    "extended-cache-ttl-2025-04-11"
+                  ]
+                ]
+              },
+              {
+                "selector": {
+                  "cache": "ttl1h",
+                  "thinking": "adaptive/updates",
+                  "context_management": true,
+                  "effort": true,
+                  "message_effort": false,
+                  "output_format": false,
+                  "deferred_tools": true,
+                  "safeguards": true,
+                  "tools": true
+                },
+                "beta_sets": [
+                  [
+                    "claude-code-20250219",
+                    "oauth-2025-04-20",
+                    "interleaved-thinking-2025-05-14",
+                    "context-management-2025-06-27",
+                    "thinking-token-count-2026-05-13",
+                    "advanced-tool-use-2025-11-20",
+                    "effort-2025-11-24",
+                    "dangerous-tool-use-2026-09-03",
+                    "thinking-display-updates-2026-08-18",
+                    "afk-mode-2026-01-31",
+                    "extended-cache-ttl-2025-04-11"
+                  ]
+                ]
+              },
+              {
+                "selector": {
+                  "cache": "ttl1h",
+                  "thinking": "disabled",
+                  "context_management": false,
+                  "effort": true,
+                  "message_effort": false,
+                  "output_format": false,
+                  "deferred_tools": true,
+                  "safeguards": false,
+                  "tools": true
+                },
+                "beta_sets": [
+                  [
+                    "claude-code-20250219",
+                    "oauth-2025-04-20",
+                    "interleaved-thinking-2025-05-14",
+                    "redact-thinking-2026-02-12",
+                    "context-management-2025-06-27",
+                    "thinking-token-count-2026-05-13",
+                    "advanced-tool-use-2025-11-20",
+                    "effort-2025-11-24",
+                    "dangerous-tool-use-2026-09-03",
+                    "afk-mode-2026-01-31",
+                    "extended-cache-ttl-2025-04-11"
+                  ]
+                ]
+              },
+              {
+                "selector": {
+                  "cache": "ttl1h",
+                  "thinking": "disabled",
+                  "context_management": false,
+                  "effort": true,
+                  "message_effort": false,
+                  "output_format": false,
+                  "deferred_tools": true,
+                  "safeguards": true,
+                  "tools": true
+                },
+                "beta_sets": [
+                  [
+                    "claude-code-20250219",
+                    "oauth-2025-04-20",
+                    "interleaved-thinking-2025-05-14",
+                    "redact-thinking-2026-02-12",
+                    "context-management-2025-06-27",
+                    "thinking-token-count-2026-05-13",
+                    "advanced-tool-use-2025-11-20",
+                    "effort-2025-11-24",
+                    "dangerous-tool-use-2026-09-03",
+                    "afk-mode-2026-01-31",
+                    "extended-cache-ttl-2025-04-11"
+                  ]
+                ]
+              }
             ]
           },
           {
@@ -337,62 +2771,360 @@
             "models": [
               "claude-sonnet-4-5"
             ],
-            "default_betas": [
-              "claude-code-20250219",
-              "oauth-2025-04-20",
-              "interleaved-thinking-2025-05-14",
-              "thinking-token-count-2026-05-13",
-              "context-management-2025-06-27",
-              "advanced-tool-use-2025-11-20",
-              "thinking-display-updates-2026-08-18",
-              "extended-cache-ttl-2025-04-11"
-            ],
-            "requires": [
-              "thinking_display_updates",
-              "context_management"
+            "variants": [
+              {
+                "selector": {
+                  "cache": "default",
+                  "thinking": "disabled",
+                  "context_management": false,
+                  "effort": false,
+                  "message_effort": false,
+                  "output_format": false,
+                  "deferred_tools": true,
+                  "safeguards": false,
+                  "tools": true
+                },
+                "beta_sets": [
+                  [
+                    "claude-code-20250219",
+                    "oauth-2025-04-20",
+                    "interleaved-thinking-2025-05-14",
+                    "redact-thinking-2026-02-12",
+                    "context-management-2025-06-27",
+                    "thinking-token-count-2026-05-13",
+                    "advanced-tool-use-2025-11-20"
+                  ]
+                ]
+              },
+              {
+                "selector": {
+                  "cache": "default",
+                  "thinking": "enabled/updates",
+                  "context_management": true,
+                  "effort": false,
+                  "message_effort": false,
+                  "output_format": false,
+                  "deferred_tools": true,
+                  "safeguards": false,
+                  "tools": true
+                },
+                "beta_sets": [
+                  [
+                    "claude-code-20250219",
+                    "oauth-2025-04-20",
+                    "interleaved-thinking-2025-05-14",
+                    "context-management-2025-06-27",
+                    "thinking-token-count-2026-05-13",
+                    "advanced-tool-use-2025-11-20",
+                    "thinking-display-updates-2026-08-18"
+                  ]
+                ]
+              },
+              {
+                "selector": {
+                  "cache": "ttl1h",
+                  "thinking": "disabled",
+                  "context_management": false,
+                  "effort": false,
+                  "message_effort": false,
+                  "output_format": false,
+                  "deferred_tools": true,
+                  "safeguards": false,
+                  "tools": true
+                },
+                "beta_sets": [
+                  [
+                    "claude-code-20250219",
+                    "oauth-2025-04-20",
+                    "interleaved-thinking-2025-05-14",
+                    "redact-thinking-2026-02-12",
+                    "context-management-2025-06-27",
+                    "thinking-token-count-2026-05-13",
+                    "advanced-tool-use-2025-11-20",
+                    "extended-cache-ttl-2025-04-11"
+                  ]
+                ]
+              },
+              {
+                "selector": {
+                  "cache": "ttl1h",
+                  "thinking": "enabled/updates",
+                  "context_management": true,
+                  "effort": false,
+                  "message_effort": false,
+                  "output_format": false,
+                  "deferred_tools": true,
+                  "safeguards": false,
+                  "tools": true
+                },
+                "beta_sets": [
+                  [
+                    "claude-code-20250219",
+                    "oauth-2025-04-20",
+                    "interleaved-thinking-2025-05-14",
+                    "context-management-2025-06-27",
+                    "thinking-token-count-2026-05-13",
+                    "advanced-tool-use-2025-11-20",
+                    "thinking-display-updates-2026-08-18",
+                    "extended-cache-ttl-2025-04-11"
+                  ]
+                ]
+              }
             ]
           },
           {
             "endpoint": "messages",
             "entrypoint": "sdk",
             "models": [
-              "claude-opus-4-7",
-              "claude-sonnet-4-6"
-            ],
-            "default_betas": [
-              "claude-code-20250219",
-              "oauth-2025-04-20",
-              "interleaved-thinking-2025-05-14",
-              "thinking-token-count-2026-05-13",
-              "context-management-2025-06-27",
-              "advanced-tool-use-2025-11-20",
-              "effort-2025-11-24",
-              "extended-cache-ttl-2025-04-11"
-            ],
-            "requires": [
-              "context_management"
-            ]
-          },
-          {
-            "endpoint": "messages",
-            "entrypoint": "sdk",
-            "models": [
+              "claude-fable-5-1",
+              "claude-opus-5-5",
               "claude-sonnet-5-5"
             ],
-            "default_betas": [
-              "claude-code-20250219",
-              "oauth-2025-04-20",
-              "interleaved-thinking-2025-05-14",
-              "thinking-token-count-2026-05-13",
-              "context-management-2025-06-27",
-              "per-turn-control-2026-07-01",
-              "mid-conversation-tool-changes-2026-07-01",
-              "advanced-tool-use-2025-11-20",
-              "effort-2025-11-24",
-              "extended-cache-ttl-2025-04-11"
+            "variants": [
+              {
+                "selector": {
+                  "cache": "ttl1h",
+                  "thinking": "adaptive/omitted",
+                  "context_management": true,
+                  "effort": true,
+                  "message_effort": true,
+                  "output_format": false,
+                  "deferred_tools": true,
+                  "safeguards": false,
+                  "tools": true
+                },
+                "beta_sets": [
+                  [
+                    "claude-code-20250219",
+                    "oauth-2025-04-20",
+                    "interleaved-thinking-2025-05-14",
+                    "context-management-2025-06-27",
+                    "per-turn-control-2026-07-01",
+                    "mid-conversation-tool-changes-2026-07-01",
+                    "thinking-token-count-2026-05-13",
+                    "advanced-tool-use-2025-11-20",
+                    "effort-2025-11-24",
+                    "extended-cache-ttl-2025-04-11"
+                  ]
+                ]
+              }
+            ]
+          },
+          {
+            "endpoint": "messages",
+            "entrypoint": "sdk",
+            "models": [
+              "claude-haiku-4-5"
             ],
-            "requires": [
-              "context_management"
+            "variants": [
+              {
+                "selector": {
+                  "cache": "none",
+                  "thinking": "disabled",
+                  "context_management": false,
+                  "effort": false,
+                  "message_effort": false,
+                  "output_format": true,
+                  "deferred_tools": false,
+                  "safeguards": false,
+                  "tools": false
+                },
+                "beta_sets": [
+                  [
+                    "oauth-2025-04-20",
+                    "interleaved-thinking-2025-05-14",
+                    "context-management-2025-06-27",
+                    "thinking-token-count-2026-05-13",
+                    "structured-outputs-2025-12-15"
+                  ]
+                ]
+              },
+              {
+                "selector": {
+                  "cache": "ttl1h",
+                  "thinking": "enabled/omitted",
+                  "context_management": true,
+                  "effort": false,
+                  "message_effort": false,
+                  "output_format": false,
+                  "deferred_tools": true,
+                  "safeguards": false,
+                  "tools": true
+                },
+                "beta_sets": [
+                  [
+                    "oauth-2025-04-20",
+                    "interleaved-thinking-2025-05-14",
+                    "context-management-2025-06-27",
+                    "claude-code-20250219",
+                    "thinking-token-count-2026-05-13",
+                    "advanced-tool-use-2025-11-20",
+                    "extended-cache-ttl-2025-04-11"
+                  ]
+                ]
+              }
+            ]
+          },
+          {
+            "endpoint": "messages",
+            "entrypoint": "sdk",
+            "models": [
+              "claude-haiku-5-5"
+            ],
+            "variants": [
+              {
+                "selector": {
+                  "cache": "ttl1h",
+                  "thinking": "adaptive/omitted",
+                  "context_management": true,
+                  "effort": true,
+                  "message_effort": true,
+                  "output_format": false,
+                  "deferred_tools": true,
+                  "safeguards": false,
+                  "tools": true
+                },
+                "beta_sets": [
+                  [
+                    "oauth-2025-04-20",
+                    "interleaved-thinking-2025-05-14",
+                    "context-management-2025-06-27",
+                    "claude-code-20250219",
+                    "per-turn-control-2026-07-01",
+                    "mid-conversation-tool-changes-2026-07-01",
+                    "thinking-token-count-2026-05-13",
+                    "advanced-tool-use-2025-11-20",
+                    "effort-2025-11-24",
+                    "extended-cache-ttl-2025-04-11"
+                  ]
+                ]
+              }
+            ]
+          },
+          {
+            "endpoint": "messages",
+            "entrypoint": "sdk",
+            "models": [
+              "claude-opus-4-6",
+              "claude-opus-4-7"
+            ],
+            "variants": [
+              {
+                "selector": {
+                  "cache": "ttl1h",
+                  "thinking": "adaptive/omitted",
+                  "context_management": true,
+                  "effort": true,
+                  "message_effort": false,
+                  "output_format": false,
+                  "deferred_tools": true,
+                  "safeguards": false,
+                  "tools": true
+                },
+                "beta_sets": [
+                  [
+                    "claude-code-20250219",
+                    "oauth-2025-04-20",
+                    "interleaved-thinking-2025-05-14",
+                    "context-management-2025-06-27",
+                    "thinking-token-count-2026-05-13",
+                    "advanced-tool-use-2025-11-20",
+                    "effort-2025-11-24",
+                    "extended-cache-ttl-2025-04-11"
+                  ]
+                ]
+              }
+            ]
+          },
+          {
+            "endpoint": "messages",
+            "entrypoint": "sdk",
+            "models": [
+              "claude-sonnet-4-5"
+            ],
+            "variants": [
+              {
+                "selector": {
+                  "cache": "ttl1h",
+                  "thinking": "enabled/omitted",
+                  "context_management": true,
+                  "effort": false,
+                  "message_effort": false,
+                  "output_format": false,
+                  "deferred_tools": true,
+                  "safeguards": false,
+                  "tools": true
+                },
+                "beta_sets": [
+                  [
+                    "claude-code-20250219",
+                    "oauth-2025-04-20",
+                    "interleaved-thinking-2025-05-14",
+                    "context-management-2025-06-27",
+                    "thinking-token-count-2026-05-13",
+                    "advanced-tool-use-2025-11-20",
+                    "extended-cache-ttl-2025-04-11"
+                  ]
+                ]
+              }
+            ]
+          },
+          {
+            "endpoint": "messages",
+            "entrypoint": "sdk",
+            "models": [
+              "claude-sonnet-4-6"
+            ],
+            "variants": [
+              {
+                "selector": {
+                  "cache": "none",
+                  "thinking": "disabled",
+                  "context_management": false,
+                  "effort": true,
+                  "message_effort": false,
+                  "output_format": true,
+                  "deferred_tools": false,
+                  "safeguards": false,
+                  "tools": false
+                },
+                "beta_sets": [
+                  [
+                    "claude-code-20250219",
+                    "oauth-2025-04-20",
+                    "interleaved-thinking-2025-05-14",
+                    "context-management-2025-06-27",
+                    "thinking-token-count-2026-05-13",
+                    "effort-2025-11-24",
+                    "structured-outputs-2025-12-15"
+                  ]
+                ]
+              },
+              {
+                "selector": {
+                  "cache": "ttl1h",
+                  "thinking": "adaptive/omitted",
+                  "context_management": true,
+                  "effort": true,
+                  "message_effort": false,
+                  "output_format": false,
+                  "deferred_tools": true,
+                  "safeguards": false,
+                  "tools": true
+                },
+                "beta_sets": [
+                  [
+                    "claude-code-20250219",
+                    "oauth-2025-04-20",
+                    "interleaved-thinking-2025-05-14",
+                    "context-management-2025-06-27",
+                    "thinking-token-count-2026-05-13",
+                    "advanced-tool-use-2025-11-20",
+                    "effort-2025-11-24",
+                    "extended-cache-ttl-2025-04-11"
+                  ]
+                ]
+              }
             ]
           }
         ]

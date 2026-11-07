@@ -20,7 +20,8 @@ import (
 // It is loaded once at startup from a JSON file and every outbound Claude OAuth request
 // takes all of its software fields from the same profile, so a CLI version is never paired
 // with another release's SDK/runtime values. Betas stay in code (#147); schema_version 2
-// adds the captured version/model/beta table (#153), which is loaded but not enforced yet.
+// added the captured version/model/beta table and schema_version 3 replaced it with exact
+// per-request variants (#153). Both load, neither is enforced yet.
 type ClientProfile struct {
 	SchemaVersion                int                 `json:"schema_version"`
 	Revision                     string              `json:"revision"`
@@ -40,7 +41,8 @@ type ClientProfile struct {
 
 	// compat is built by ParseClientProfile and never mutated, so value copies of the
 	// profile can share it; it is reached only through copy-returning lookups.
-	compat *compatibilityTable
+	compat   *compatibilityTable
+	variants *variantTable
 }
 
 // ClientProfileSource records where the values came from; it never contains credentials.
@@ -53,14 +55,16 @@ type ClientProfileSource struct {
 	ReviewedBy     string `json:"reviewed_by"`
 }
 
-// Schema 1 is the #144 identity alone; schema 2 adds the compatibility table.
+// Schema 1 is the #144 identity alone; schema 2 adds the compatibility table; schema 3
+// holds exact per-request variants instead (schema 2 stays loadable until enforcement).
 const (
-	clientProfileSchemaVersionLegacy = 1
-	clientProfileSchemaVersion       = 2
+	clientProfileSchemaVersionLegacy   = 1
+	clientProfileSchemaVersion         = 2
+	clientProfileSchemaVersionVariants = 3
 )
 
 // MaxClientProfileBytes bounds the profile file on disk and in release archives.
-const MaxClientProfileBytes = 64 << 10
+const MaxClientProfileBytes = 256 << 10
 
 var (
 	anthropicVersionRe = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}$`)
@@ -133,7 +137,7 @@ func LoadClientProfileFile(path string) (ClientProfile, error) {
 }
 
 // ParseClientProfile decodes exactly one JSON object with no unknown or duplicate keys.
-// A schema 1 file loads without a compatibility table; schema 2 requires one.
+// A schema 1 file loads without a compatibility table; schema 2 and 3 require one.
 func ParseClientProfile(raw []byte) (ClientProfile, error) {
 	if len(raw) > MaxClientProfileBytes {
 		return ClientProfile{}, fmt.Errorf("profile is larger than %d bytes", MaxClientProfileBytes)
@@ -145,7 +149,7 @@ func ParseClientProfile(raw []byte) (ClientProfile, error) {
 	dec.DisallowUnknownFields()
 	var doc struct {
 		ClientProfile
-		Compatibility *compatibilityDoc `json:"compatibility"`
+		Compatibility json.RawMessage `json:"compatibility"`
 	}
 	if err := dec.Decode(&doc); err != nil {
 		return ClientProfile{}, fmt.Errorf("decode: %w", err)
@@ -154,17 +158,32 @@ func ParseClientProfile(raw []byte) (ClientProfile, error) {
 		return ClientProfile{}, errors.New("decode: trailing data after the profile object")
 	}
 	p := doc.ClientProfile
+	hasTable := doc.Compatibility != nil && string(doc.Compatibility) != "null"
 	switch {
-	case p.SchemaVersion == clientProfileSchemaVersionLegacy && doc.Compatibility != nil:
-		return ClientProfile{}, errors.New("compatibility requires schema_version 2")
-	case p.SchemaVersion == clientProfileSchemaVersion && doc.Compatibility == nil:
-		return ClientProfile{}, errors.New("schema_version 2 requires compatibility")
-	case doc.Compatibility != nil:
-		t, err := buildCompatibilityTable(doc.Compatibility)
+	case p.SchemaVersion == clientProfileSchemaVersionLegacy && hasTable:
+		return ClientProfile{}, errors.New("compatibility requires schema_version 2 or 3")
+	case p.SchemaVersion != clientProfileSchemaVersionLegacy && !hasTable:
+		return ClientProfile{}, fmt.Errorf("schema_version %d requires compatibility", p.SchemaVersion)
+	case p.SchemaVersion == clientProfileSchemaVersion:
+		var cd compatibilityDoc
+		if err := decodeStrict(doc.Compatibility, &cd); err != nil {
+			return ClientProfile{}, err
+		}
+		t, err := buildCompatibilityTable(&cd)
 		if err != nil {
 			return ClientProfile{}, err
 		}
 		p.compat = t
+	case p.SchemaVersion == clientProfileSchemaVersionVariants:
+		var vd variantDoc
+		if err := decodeStrict(doc.Compatibility, &vd); err != nil {
+			return ClientProfile{}, err
+		}
+		t, err := buildVariantTable(&vd)
+		if err != nil {
+			return ClientProfile{}, err
+		}
+		p.variants = t
 	}
 	if err := p.Validate(); err != nil {
 		return ClientProfile{}, err
@@ -176,15 +195,19 @@ func ParseClientProfile(raw []byte) (ClientProfile, error) {
 func (p ClientProfile) Validate() error {
 	switch p.SchemaVersion {
 	case clientProfileSchemaVersionLegacy:
-		if p.compat != nil {
-			return errors.New("compatibility requires schema_version 2")
+		if p.compat != nil || p.variants != nil {
+			return errors.New("compatibility requires schema_version 2 or 3")
 		}
 	case clientProfileSchemaVersion:
-		if p.compat == nil {
+		if p.compat == nil || p.variants != nil {
 			return errors.New("schema_version 2 requires compatibility")
 		}
+	case clientProfileSchemaVersionVariants:
+		if p.variants == nil || p.compat != nil {
+			return errors.New("schema_version 3 requires compatibility")
+		}
 	default:
-		return fmt.Errorf("schema_version must be %d or %d", clientProfileSchemaVersionLegacy, clientProfileSchemaVersion)
+		return fmt.Errorf("schema_version must be %d, %d or %d", clientProfileSchemaVersionLegacy, clientProfileSchemaVersion, clientProfileSchemaVersionVariants)
 	}
 	fields := []struct{ name, value string }{
 		{"revision", p.Revision}, {"cli_version", p.CLIVersion}, {"user_agent", p.UserAgent},
@@ -212,6 +235,11 @@ func (p ClientProfile) Validate() error {
 			return errors.New("compatibility has no rows for cli_version")
 		}
 	}
+	if p.variants != nil {
+		if _, ok := p.variants.versions[p.CLIVersion]; !ok {
+			return errors.New("compatibility has no rows for cli_version")
+		}
+	}
 	if p.UserAgent != "claude-cli/"+p.CLIVersion+" (external, cli)" {
 		return errors.New("user_agent must be claude-cli/<cli_version> (external, cli)")
 	}
@@ -223,6 +251,16 @@ func (p ClientProfile) Validate() error {
 	}
 	if p.Source.EvidenceSHA256 != "" && !sha256HexRe.MatchString(p.Source.EvidenceSHA256) {
 		return errors.New("source.evidence_sha256 must be a lowercase sha256 hex digest")
+	}
+	return nil
+}
+
+// decodeStrict decodes one JSON value with no unknown fields.
+func decodeStrict(raw []byte, v any) error {
+	dec := json.NewDecoder(bytes.NewReader(raw))
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(v); err != nil {
+		return fmt.Errorf("decode compatibility: %w", err)
 	}
 	return nil
 }

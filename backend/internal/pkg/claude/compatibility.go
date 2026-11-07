@@ -9,7 +9,8 @@ import (
 	"github.com/tidwall/gjson"
 )
 
-// The compatibility table (#153, profile schema_version 2) records which betas each
+// The legacy compatibility table (#153, profile schema_version 2; schema 3 is in
+// compatibility_variants.go) records which betas each
 // captured Claude Code version sends, per endpoint, entrypoint and exact model. It is
 // loaded and validated with the profile but nothing enforces it yet: requests are
 // forwarded exactly as before until native enforcement ships.
@@ -212,15 +213,18 @@ func addCompatibilityRow(t *compatibilityTable, v compatibilityVersionDoc, r com
 	return nil
 }
 
-// HasCompatibility reports whether the profile carries a compatibility table (schema 2).
-func (p ClientProfile) HasCompatibility() bool { return p.compat != nil }
+// HasCompatibility reports whether the profile carries a compatibility table (schema 2 or 3).
+func (p ClientProfile) HasCompatibility() bool { return p.compat != nil || p.variants != nil }
 
 // CompatibilityRowCount is the number of expanded (version, endpoint, entrypoint, model) rows.
 func (p ClientProfile) CompatibilityRowCount() int {
-	if p.compat == nil {
-		return 0
+	switch {
+	case p.compat != nil:
+		return len(p.compat.rows)
+	case p.variants != nil:
+		return len(p.variants.rows)
 	}
-	return len(p.compat.rows)
+	return 0
 }
 
 // CompatibilityRow returns a copy of the row for an exact version, endpoint, entrypoint and
