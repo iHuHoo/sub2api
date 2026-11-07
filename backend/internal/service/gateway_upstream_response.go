@@ -476,11 +476,7 @@ func (s *GatewayService) handleErrorResponse(ctx context.Context, resp *http.Res
 	}
 
 	// 根据状态码返回适当的自定义错误响应（不透传上游详细信息）
-	var errType, errMsg string
-	var statusCode int
-
-	switch resp.StatusCode {
-	case 400:
+	if resp.StatusCode == http.StatusBadRequest {
 		c.Data(http.StatusBadRequest, "application/json", body)
 		summary := upstreamMsg
 		if summary == "" {
@@ -490,31 +486,8 @@ func (s *GatewayService) handleErrorResponse(ctx context.Context, resp *http.Res
 			return nil, fmt.Errorf("upstream error: %d", resp.StatusCode)
 		}
 		return nil, fmt.Errorf("upstream error: %d message=%s", resp.StatusCode, summary)
-	case 401:
-		statusCode = http.StatusBadGateway
-		errType = "upstream_error"
-		errMsg = "Upstream authentication failed, please contact administrator"
-	case 403:
-		statusCode = http.StatusBadGateway
-		errType = "upstream_error"
-		errMsg = "Upstream access forbidden, please contact administrator"
-	case 429:
-		statusCode = http.StatusTooManyRequests
-		errType = "rate_limit_error"
-		errMsg = "Upstream rate limit exceeded, please retry later"
-	case 529:
-		statusCode = http.StatusServiceUnavailable
-		errType = "overloaded_error"
-		errMsg = "Upstream service overloaded, please retry later"
-	case 500, 502, 503, 504:
-		statusCode = http.StatusBadGateway
-		errType = "upstream_error"
-		errMsg = "Upstream service temporarily unavailable"
-	default:
-		statusCode = http.StatusBadGateway
-		errType = "upstream_error"
-		errMsg = "Upstream request failed"
 	}
+	statusCode, errType, errMsg := AnthropicClientError(resp.StatusCode)
 
 	// 返回自定义错误响应
 	c.JSON(statusCode, gin.H{
@@ -529,6 +502,28 @@ func (s *GatewayService) handleErrorResponse(ctx context.Context, resp *http.Res
 		return nil, fmt.Errorf("upstream error: %d", resp.StatusCode)
 	}
 	return nil, fmt.Errorf("upstream error: %d message=%s", resp.StatusCode, upstreamMsg)
+}
+
+// AnthropicClientError maps an upstream error status other than 400 (which is passed through)
+// to the status, Anthropic error type and fixed message the client receives. Credential and
+// account problems stay 502 so a client never mistakes them for its own key being rejected.
+func AnthropicClientError(upstreamStatus int) (int, string, string) {
+	switch upstreamStatus {
+	case http.StatusUnauthorized:
+		return http.StatusBadGateway, "upstream_error", "Upstream authentication failed, please contact administrator"
+	case http.StatusForbidden:
+		return http.StatusBadGateway, "upstream_error", "Upstream access forbidden, please contact administrator"
+	case http.StatusRequestEntityTooLarge:
+		return http.StatusRequestEntityTooLarge, "request_too_large", "Request is too large for the upstream API; shorten the conversation or remove large attachments"
+	case http.StatusTooManyRequests:
+		return http.StatusTooManyRequests, "rate_limit_error", "Upstream rate limit exceeded, please retry later"
+	case 529:
+		return http.StatusServiceUnavailable, "overloaded_error", "Upstream service overloaded, please retry later"
+	case http.StatusInternalServerError, http.StatusBadGateway, http.StatusServiceUnavailable, http.StatusGatewayTimeout:
+		return http.StatusBadGateway, "upstream_error", "Upstream service temporarily unavailable"
+	default:
+		return http.StatusBadGateway, "upstream_error", fmt.Sprintf("Upstream request failed (upstream status %d)", upstreamStatus)
+	}
 }
 
 // handleRetryExhaustedSideEffects 在重试耗尽后标记账号状态；requestedModel 是实际发往上游的模型，

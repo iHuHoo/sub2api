@@ -254,14 +254,14 @@ func (s *GatewayService) ForwardCountTokens(ctx context.Context, c *gin.Context,
 			writeAnthropicLongContextCreditsError(c)
 			return fmt.Errorf("upstream error: %d %s", resp.StatusCode, anthropicLongContextCreditsCode)
 		}
-		errMsg := "Upstream request failed"
-		switch resp.StatusCode {
-		case 429:
-			errMsg = "Rate limit exceeded"
-		case 529:
-			errMsg = "Service overloaded"
+		// Same client contract as messages: an upstream 400 is the request's own error and is
+		// passed through; everything else gets the shared status/type/message mapping.
+		if resp.StatusCode == http.StatusBadRequest {
+			c.Data(http.StatusBadRequest, "application/json", respBody)
+		} else {
+			status, errType, errMsg := AnthropicClientError(resp.StatusCode)
+			s.countTokensError(c, status, errType, errMsg)
 		}
-		s.countTokensError(c, resp.StatusCode, "upstream_error", errMsg)
 		if upstreamMsg == "" {
 			return fmt.Errorf("upstream error: %d", resp.StatusCode)
 		}
@@ -375,14 +375,14 @@ func (s *GatewayService) forwardCountTokensAnthropicAPIKeyPassthrough(ctx contex
 			writeAnthropicLongContextCreditsError(c)
 			return fmt.Errorf("upstream error: %d %s", resp.StatusCode, anthropicLongContextCreditsCode)
 		}
-		errMsg := "Upstream request failed"
-		switch resp.StatusCode {
-		case 429:
-			errMsg = "Rate limit exceeded"
-		case 529:
-			errMsg = "Service overloaded"
+		// Same client contract as messages: an upstream 400 is the request's own error and is
+		// passed through; everything else gets the shared status/type/message mapping.
+		if resp.StatusCode == http.StatusBadRequest {
+			c.Data(http.StatusBadRequest, "application/json", respBody)
+		} else {
+			status, errType, errMsg := AnthropicClientError(resp.StatusCode)
+			s.countTokensError(c, status, errType, errMsg)
 		}
-		s.countTokensError(c, resp.StatusCode, "upstream_error", errMsg)
 		if upstreamMsg == "" {
 			return fmt.Errorf("upstream error: %d", resp.StatusCode)
 		}

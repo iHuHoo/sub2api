@@ -8,8 +8,10 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
+	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/model"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
@@ -58,7 +60,7 @@ func TestGatewayHandleErrorResponse_NoRuleKeepsDefault(t *testing.T) {
 	errField, ok := payload["error"].(map[string]any)
 	require.True(t, ok)
 	assert.Equal(t, "upstream_error", errField["type"])
-	assert.Equal(t, "Upstream request failed", errField["message"])
+	assert.Equal(t, "Upstream request failed (upstream status 422)", errField["message"])
 }
 
 func TestOpenAIHandleErrorResponse_NoRuleKeepsDefault(t *testing.T) {
@@ -364,5 +366,56 @@ func newNonFailoverPassthroughRule(statusCode int, keyword string, respCode int,
 		ResponseCode:    &respCode,
 		PassthroughBody: false,
 		CustomMessage:   &customMessage,
+	}
+}
+
+// The client-facing contract for Anthropic upstream errors (messages and count_tokens): account
+// and credential failures never surface as the client's own 401/403, a too-large request keeps
+// its meaning, and the generic fallback names the upstream status.
+func TestAnthropicClientError(t *testing.T) {
+	for upstream, want := range map[int]struct {
+		status       int
+		errType, msg string
+	}{
+		401: {502, "upstream_error", "Upstream authentication failed, please contact administrator"},
+		403: {502, "upstream_error", "Upstream access forbidden, please contact administrator"},
+		413: {413, "request_too_large", "Request is too large for the upstream API; shorten the conversation or remove large attachments"},
+		429: {429, "rate_limit_error", "Upstream rate limit exceeded, please retry later"},
+		529: {503, "overloaded_error", "Upstream service overloaded, please retry later"},
+		503: {502, "upstream_error", "Upstream service temporarily unavailable"},
+		404: {502, "upstream_error", "Upstream request failed (upstream status 404)"},
+	} {
+		status, errType, msg := AnthropicClientError(upstream)
+		assert.Equal(t, want.status, status, upstream)
+		assert.Equal(t, want.errType, errType, upstream)
+		assert.Equal(t, want.msg, msg, upstream)
+	}
+}
+
+// count_tokens follows the same contract (shown on the API-key passthrough path; the native
+// path shares the identical branch): an upstream 401 is not the client's 401, and an
+// upstream 400 reaches the client with its own message.
+func TestForwardCountTokensClientErrors(t *testing.T) {
+	for _, tc := range []struct {
+		upstream, want int
+		body, wantMsg  string
+	}{
+		{401, 502, `{"type":"error","error":{"type":"authentication_error","message":"invalid x-api-key"}}`, "Upstream authentication failed, please contact administrator"},
+		{400, 400, `{"type":"error","error":{"type":"invalid_request_error","message":"messages: at least one message is required"}}`, "messages: at least one message is required"},
+	} {
+		rec := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(rec)
+		c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages/count_tokens", nil)
+		body := []byte(`{"model":"claude-sonnet-4-6","messages":[{"role":"user","content":"hi"}]}`)
+		upstream := &anthropicHTTPUpstreamRecorder{resp: &http.Response{StatusCode: tc.upstream,
+			Header: http.Header{"Content-Type": []string{"application/json"}}, Body: io.NopCloser(strings.NewReader(tc.body))}}
+		svc := &GatewayService{cfg: &config.Config{Gateway: config.GatewayConfig{MaxLineSize: defaultMaxLineSize}}, httpUpstream: upstream}
+		account := &Account{ID: 7, Platform: PlatformAnthropic, Type: AccountTypeAPIKey, Concurrency: 1,
+			Credentials: map[string]any{"api_key": "sk-x", "base_url": "https://api.anthropic.com"},
+			Extra:       map[string]any{"anthropic_passthrough": true}, Status: StatusActive, Schedulable: true}
+		err := svc.ForwardCountTokens(context.Background(), c, account, &ParsedRequest{Body: NewRequestBodyRef(body), Model: "claude-sonnet-4-6"})
+		require.Error(t, err)
+		assert.Equal(t, tc.want, rec.Code, tc.upstream)
+		assert.Contains(t, rec.Body.String(), tc.wantMsg, tc.upstream)
 	}
 }
