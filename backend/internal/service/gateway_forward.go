@@ -113,7 +113,7 @@ func (s *GatewayService) Forward(ctx context.Context, c *gin.Context, account *A
 	// Fast mode bills usage credits on every subscription, and subscription OAuth accounts
 	// are treated as having none (#147): stop it here instead of sending it upstream.
 	if isNoCreditOAuthAccount(account) && parsed.Speed == "fast" {
-		err := errors.New(noCreditFastModeText)
+		err := NewLocalRejectError(LocalRejectNoCreditFastMode, errors.New(noCreditFastModeText))
 		c.JSON(http.StatusBadRequest, gin.H{"type": "error", "error": gin.H{"type": "invalid_request_error", "message": err.Error()}})
 		return nil, err
 	}
@@ -478,6 +478,7 @@ func (s *GatewayService) Forward(ctx context.Context, c *gin.Context, account *A
 					retryReq, retryWireBody, buildErr := s.buildUpstreamRequest(retryCtx, c, account, filteredBody, token, tokenType, reqModel, reqStream, shouldMimicClaudeCode)
 					releaseRetryCtx()
 					if buildErr == nil {
+						noteLongContextUpstreamError(c, resp.StatusCode, respBody) // the attempt being retried
 						if err := admitLongContext(retryWireBody, retryReq.Header); err != nil {
 							return nil, err
 						}
@@ -524,6 +525,7 @@ func (s *GatewayService) Forward(ctx context.Context, c *gin.Context, account *A
 									retryReq2, retryWireBody2, buildErr2 := s.buildUpstreamRequest(retryCtx2, c, account, filteredBody2, token, tokenType, reqModel, reqStream, shouldMimicClaudeCode)
 									releaseRetryCtx2()
 									if buildErr2 == nil {
+										noteLongContextUpstreamError(c, retryResp.StatusCode, retryRespBody) // the attempt being retried
 										if err := admitLongContext(retryWireBody2, retryReq2.Header); err != nil {
 											return nil, err
 										}
@@ -543,6 +545,7 @@ func (s *GatewayService) Forward(ctx context.Context, c *gin.Context, account *A
 										if retryResp2 != nil && retryResp2.Body != nil {
 											_ = retryResp2.Body.Close()
 										}
+										endLongContextAttemptWithoutResponse(c) // the restored response belongs to an earlier attempt
 										appendOpsUpstreamError(c, OpsUpstreamErrorEvent{
 											ProxyID:            opsUpstreamProxyID(account),
 											ProxyName:          opsUpstreamProxyName(account),
@@ -573,6 +576,7 @@ func (s *GatewayService) Forward(ctx context.Context, c *gin.Context, account *A
 							_ = retryResp.Body.Close()
 						}
 						logger.LegacyPrintf("service.gateway", "Account %d: signature error retry failed: %v", account.ID, retryErr)
+						endLongContextAttemptWithoutResponse(c) // the restored response belongs to an earlier attempt
 					} else {
 						logger.LegacyPrintf("service.gateway", "Account %d: signature error retry build request failed: %v", account.ID, buildErr)
 					}
@@ -610,6 +614,7 @@ func (s *GatewayService) Forward(ctx context.Context, c *gin.Context, account *A
 						budgetRetryReq, budgetWireBody, buildErr := s.buildUpstreamRequest(budgetRetryCtx, c, account, rectifiedBody, token, tokenType, reqModel, reqStream, shouldMimicClaudeCode)
 						releaseBudgetRetryCtx()
 						if buildErr == nil {
+							noteLongContextUpstreamError(c, resp.StatusCode, respBody) // the attempt being retried
 							if err := admitLongContext(budgetWireBody, budgetRetryReq.Header); err != nil {
 								return nil, err
 							}
@@ -629,6 +634,7 @@ func (s *GatewayService) Forward(ctx context.Context, c *gin.Context, account *A
 							if budgetRetryResp != nil && budgetRetryResp.Body != nil {
 								_ = budgetRetryResp.Body.Close()
 							}
+							endLongContextAttemptWithoutResponse(c) // the restored response belongs to an earlier attempt
 							logger.LegacyPrintf("service.gateway", "Account %d: budget rectifier retry failed: %v", account.ID, retryErr)
 						} else {
 							logger.LegacyPrintf("service.gateway", "Account %d: budget rectifier retry build failed: %v", account.ID, buildErr)
@@ -659,6 +665,7 @@ func (s *GatewayService) Forward(ctx context.Context, c *gin.Context, account *A
 
 				respBody, _ := s.readUpstreamErrorBody(resp)
 				_ = resp.Body.Close()
+				noteLongContextUpstreamError(c, resp.StatusCode, respBody) // the attempt being retried
 				appendOpsUpstreamError(c, OpsUpstreamErrorEvent{
 					ProxyID:            opsUpstreamProxyID(account),
 					ProxyName:          opsUpstreamProxyName(account),

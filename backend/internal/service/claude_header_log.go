@@ -53,6 +53,8 @@ type claudeOutboundLogInfo struct {
 	operation string
 	opID      string
 	attempts  *atomic.Int32
+	// strippedBetas holds the no-credit constants removed from this attempt's header (#147).
+	strippedBetas []string
 }
 
 const (
@@ -90,6 +92,19 @@ func markClaudeOutbound(c *gin.Context, req *http.Request, account *Account, ope
 		info.opID = uuid.NewString()
 	}
 	return req.WithContext(context.WithValue(req.Context(), claudeOutboundLogKey{}, info))
+}
+
+// noteStrippedBetas attaches the no-credit removals to a tagged request's outbound log. Each
+// build creates its own log info, so removals never carry over to another attempt or account.
+// Untagged requests (header logging off) keep no record.
+func noteStrippedBetas(req *http.Request, removed []string) *http.Request {
+	if req == nil || len(removed) == 0 {
+		return req
+	}
+	if info, _ := req.Context().Value(claudeOutboundLogKey{}).(*claudeOutboundLogInfo); info != nil {
+		info.strippedBetas = removed
+	}
+	return req
 }
 
 // claudeHeaderLogUpstream logs prepared outbound headers of tagged requests, then sends.
@@ -131,6 +146,9 @@ func logClaudeOutbound(req *http.Request, accountID int64) {
 		zap.String("profile_revision", claude.ActiveClientProfile().Revision),
 		zap.String("method", req.Method), zap.String("host", req.URL.Host), zap.String("path", req.URL.Path),
 		zap.Strings("headers", lines), zap.Bool("headers_truncated", truncated),
+	}
+	if len(info.strippedBetas) > 0 {
+		fields = append(fields, zap.Strings("stripped_betas", info.strippedBetas))
 	}
 	if info.opID != "" {
 		fields = append(fields, zap.String("operation_id", info.opID))

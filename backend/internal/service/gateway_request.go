@@ -573,9 +573,46 @@ func isClaude55SignedThinkingModel(model string) bool {
 	return claude.IsOpus55(model) || claude.IsSonnet55(model) || claude.IsHaiku55(model)
 }
 
+// Fixed reasons of requests the gateway answers itself with a 400 before any upstream call.
+const (
+	LocalRejectClaude55Invalid  = "claude55_invalid"
+	LocalRejectNoCreditFastMode = "no_credit_fast_mode"
+)
+
+// LocalRejectError marks a client error the gateway answered itself before any upstream
+// call; the message is unchanged, the reason is a fixed code for logs.
+type LocalRejectError struct {
+	Reason string
+	err    error
+}
+
+// NewLocalRejectError wraps err as a local rejection with a fixed reason.
+func NewLocalRejectError(reason string, err error) error {
+	return &LocalRejectError{Reason: reason, err: err}
+}
+
+func (e *LocalRejectError) Error() string { return e.err.Error() }
+func (e *LocalRejectError) Unwrap() error { return e.err }
+
+// LocalRejectReason returns the fixed reason when err is a local rejection.
+func LocalRejectReason(err error) (string, bool) {
+	var lr *LocalRejectError
+	if errors.As(err, &lr) {
+		return lr.Reason, true
+	}
+	return "", false
+}
+
 // validateClaude55Request rejects settings that the upstream cannot honor.
 // Call before OAuth mimicry can remove tool_choice or alter thinking defaults.
 func validateClaude55Request(body []byte, model string) error {
+	if err := checkClaude55Request(body, model); err != nil {
+		return NewLocalRejectError(LocalRejectClaude55Invalid, err)
+	}
+	return nil
+}
+
+func checkClaude55Request(body []byte, model string) error {
 	if !isClaude55SignedThinkingModel(model) {
 		return nil
 	}

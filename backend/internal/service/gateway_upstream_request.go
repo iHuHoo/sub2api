@@ -235,7 +235,7 @@ func (s *GatewayService) buildUpstreamRequest(ctx context.Context, c *gin.Contex
 	// 放在所有 header 逻辑之后，确保配置值对同名头拥有最终决定权。
 	account.ApplyHeaderOverrides(req.Header)
 	filterSonnet55ToolsetBetaHeader(req.Header, body, modelID)
-	stripNoCreditOAuthBetaHeader(account, req.Header)
+	strippedBetas := stripNoCreditOAuthBetaHeader(account, req.Header)
 
 	// === DEBUG: 打印上游转发请求（headers + body 摘要），与 CLIENT_ORIGINAL 对比 ===
 	s.debugLogGatewaySnapshot("UPSTREAM_FORWARD", req.Header, body, map[string]string{
@@ -256,7 +256,7 @@ func (s *GatewayService) buildUpstreamRequest(ctx context.Context, c *gin.Contex
 		logClaudeMimicDebug(req, body, account, tokenType, mimicClaudeCode)
 	}
 
-	return markClaudeOutbound(c, req, account, "messages"), body, nil
+	return noteStrippedBetas(markClaudeOutbound(c, req, account, "messages"), strippedBetas), body, nil
 }
 
 func getAnthropicGatewayBaseURL(account *Account) string {
@@ -499,20 +499,28 @@ func isNoCreditOAuthAccount(account *Account) bool {
 	return account != nil && account.Platform == PlatformAnthropic && account.IsOAuth()
 }
 
-// stripNoCreditOAuthBetaHeader removes credit-gated betas from the final outgoing header.
-func stripNoCreditOAuthBetaHeader(account *Account, headers http.Header) {
+// stripNoCreditOAuthBetaHeader removes credit-gated betas from the final outgoing header and
+// returns the gateway-owned constants it actually removed, for the outbound attempt log.
+func stripNoCreditOAuthBetaHeader(account *Account, headers http.Header) []string {
 	if !isNoCreditOAuthAccount(account) {
-		return
+		return nil
 	}
 	header := getHeaderRaw(headers, "anthropic-beta")
 	filtered := stripBetaTokensWithSet(header, noCreditOAuthBetaSet)
 	if filtered == header {
-		return
+		return nil
+	}
+	var removed []string
+	for _, b := range []string{claude.BetaFastMode, claude.BetaContext1M} {
+		if containsBetaToken(header, b) {
+			removed = append(removed, b)
+		}
 	}
 	deleteHeaderAllForms(headers, "anthropic-beta")
 	if filtered != "" {
 		setHeaderRaw(headers, "anthropic-beta", filtered)
 	}
+	return removed
 }
 
 func filterSonnet55ToolsetBetaHeader(headers http.Header, body []byte, modelID string) {

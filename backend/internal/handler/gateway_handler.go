@@ -559,7 +559,7 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 				} else if account.ProxyID != nil {
 					forwardFailedFields = append(forwardFailedFields, zap.Int64p("proxy_id", account.ProxyID))
 				}
-				reqLog.Error("gateway.forward_failed", forwardFailedFields...)
+				logForwardError(reqLog, "gateway.forward_failed", err, forwardFailedFields...)
 				return
 			}
 
@@ -1099,7 +1099,7 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 				} else if account.ProxyID != nil {
 					forwardFailedFields = append(forwardFailedFields, zap.Int64p("proxy_id", account.ProxyID))
 				}
-				reqLog.Error("gateway.forward_failed", forwardFailedFields...)
+				logForwardError(reqLog, "gateway.forward_failed", err, forwardFailedFields...)
 				// Forward 与错误一起返回的部分结果：流中断前上游已计量的 usage 照常入账，
 				// 避免上游已产生消耗的请求完全漏记（#5148）。failover 错误恒定 result=nil，
 				// 不会走到这里重复计费。
@@ -2245,7 +2245,7 @@ func (h *GatewayHandler) CountTokens(c *gin.Context) {
 
 	// 转发请求（不记录使用量）
 	if err := h.gatewayService.ForwardCountTokens(c.Request.Context(), c, account, parsedReq); err != nil {
-		reqLog.Error("gateway.count_tokens_forward_failed", zap.Int64("account_id", account.ID), zap.Error(err))
+		logForwardError(reqLog, "gateway.count_tokens_forward_failed", err, zap.Int64("account_id", account.ID), zap.Error(err))
 		// 错误响应已在 ForwardCountTokens 中处理
 		// 上游未服务该会话，立即释放选号时注册的会话槽（客户端可能已断开，用独立 ctx）
 		h.gatewayService.ReleaseAccountSession(context.Background(), account, sessionHash)

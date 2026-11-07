@@ -50,6 +50,9 @@ func TestValidateClaude55Request_Haiku55(t *testing.T) {
 			require.Error(t, err)
 			require.True(t, strings.Contains(err.Error(), tc.wantErr),
 				"error %q should contain %q", err.Error(), tc.wantErr)
+			reason, local := LocalRejectReason(err)
+			require.True(t, local, "Claude 5.5 validation errors are local rejections")
+			require.Equal(t, LocalRejectClaude55Invalid, reason)
 		})
 	}
 }

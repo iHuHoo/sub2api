@@ -38,6 +38,7 @@ type longContextUpstream struct {
 	countURLs   []string
 	countSeq    []string         // per-call input_tokens, overrides countBody
 	inferResps  []*http.Response // per-call inference responses before the default success
+	inferErrs   []error          // per-call transport errors, checked before inferResps
 }
 
 func (u *longContextUpstream) Do(req *http.Request, proxyURL string, accountID int64, concurrency int) (*http.Response, error) {
@@ -72,7 +73,10 @@ func (u *longContextUpstream) DoWithTLS(req *http.Request, _ string, _ int64, _ 
 	}
 	u.inferCalls++
 	u.inferBetas = append(u.inferBetas, getHeaderRaw(req.Header, "anthropic-beta"))
-	if i := u.inferCalls - 1; i < len(u.inferResps) {
+	if i := u.inferCalls - 1; i < len(u.inferErrs) && u.inferErrs[i] != nil {
+		return nil, u.inferErrs[i]
+	}
+	if i := u.inferCalls - 1; i < len(u.inferResps) && u.inferResps[i] != nil {
 		return u.inferResps[i], nil
 	}
 	if gjson.GetBytes(body, "stream").Bool() {
@@ -688,4 +692,124 @@ func observationBytes(line map[string]any) int64 {
 		return int64(v)
 	}
 	return -1
+}
+
+// An internal retry keeps the replaced attempt's outcome: the failed first attempt is written
+// as superseded_by_retry with its upstream status, the successful retry carries the usage,
+// and the final record is written once (#153 logging G0).
+func TestLogLongContextOutcomeKeepsRetriedAttempt(t *testing.T) {
+	sink, restore := captureStructuredLog(t)
+	defer restore()
+	upstream := &longContextUpstream{countStatus: http.StatusOK, inferResps: []*http.Response{{
+		StatusCode: http.StatusBadRequest, Header: http.Header{"Content-Type": {"application/json"}},
+		Body: io.NopCloser(strings.NewReader(`{"type":"error","error":{"type":"invalid_request_error","message":"thinking.budget_tokens: Input should be greater than or equal to 1024"}}`)),
+	}}}
+	svc := newLongContextService(upstream, "", nil)
+	c, _ := longContextContext("/v1/messages", "")
+	body := `{"model":"claude-sonnet-4-5","max_tokens":1024,"thinking":{"type":"enabled","budget_tokens":2048},"messages":[{"role":"user","content":"hi"}]}`
+	res, err := forwardMessages(t, svc, c, newAnthropicOAuthAccountForPartialUsageTest(), body)
+	require.NoError(t, err)
+	require.Equal(t, 2, upstream.inferCalls, "the budget rectifier retried once")
+	res.Usage = ClaudeUsage{InputTokens: 12}
+	LogLongContextOutcome(c, res, nil)
+	LogLongContextOutcome(c, res, nil) // already logged: nothing more
+
+	var lines []map[string]any
+	sink.mu.Lock()
+	for _, ev := range sink.events {
+		if ev.Message == "long_context.observe" {
+			lines = append(lines, ev.Fields)
+		}
+	}
+	sink.mu.Unlock()
+	require.Len(t, lines, 2)
+	require.EqualValues(t, 1, lines[0]["attempt"])
+	require.Equal(t, "superseded_by_retry", lines[0]["outcome"])
+	require.EqualValues(t, 400, lines[0]["upstream_status"])
+	require.NotContains(t, lines[0], "input_tokens", "no usage is invented for the failed attempt")
+	require.EqualValues(t, 2, lines[1]["attempt"])
+	require.Equal(t, "inference", lines[1]["outcome"])
+	require.EqualValues(t, 12, lines[1]["input_tokens"])
+	require.NotContains(t, lines[1], "upstream_status")
+}
+
+func longContextObserveLines(sink *inMemoryLogSink) []map[string]any {
+	sink.mu.Lock()
+	defer sink.mu.Unlock()
+	var lines []map[string]any
+	for _, ev := range sink.events {
+		if ev.Message == "long_context.observe" {
+			lines = append(lines, ev.Fields)
+		}
+	}
+	return lines
+}
+
+func jsonError(status int, message string) *http.Response {
+	return &http.Response{StatusCode: status, Header: http.Header{"Content-Type": {"application/json"}},
+		Body: io.NopCloser(strings.NewReader(`{"type":"error","error":{"type":"invalid_request_error","message":"` + message + `"}}`))}
+}
+
+// A generic retry (non-400) records the replaced attempt's status before retrying (R1).
+func TestLogLongContextOutcomeGenericRetryKeepsStatus(t *testing.T) {
+	sink, restore := captureStructuredLog(t)
+	defer restore()
+	upstream := &longContextUpstream{countStatus: http.StatusOK, inferResps: []*http.Response{jsonError(http.StatusForbidden, "forbidden")}}
+	svc := newLongContextService(upstream, "", nil)
+	c, _ := longContextContext("/v1/messages", "")
+	res, err := forwardMessages(t, svc, c, newAnthropicOAuthAccountForPartialUsageTest(), `{"model":"claude-sonnet-4-5","max_tokens":1024,"messages":[{"role":"user","content":"hi"}]}`)
+	require.NoError(t, err)
+	require.Equal(t, 2, upstream.inferCalls, "403 is retried on the same account")
+	LogLongContextOutcome(c, res, nil)
+
+	lines := longContextObserveLines(sink)
+	require.Len(t, lines, 2)
+	require.Equal(t, "superseded_by_retry", lines[0]["outcome"])
+	require.EqualValues(t, 403, lines[0]["upstream_status"])
+	require.Equal(t, "inference", lines[1]["outcome"])
+	require.EqualValues(t, 2, lines[1]["attempt"])
+}
+
+// A rewritten-body retry whose transport fails is written as retry_transport_error, with no
+// status; the earlier response restored for the client stays on its own line only (R2).
+func TestLogLongContextOutcomeRetryTransportFailure(t *testing.T) {
+	transport := errors.New("dial tcp: connection reset")
+	thinking := `{"model":"claude-sonnet-4-5","max_tokens":1024,"thinking":{"type":"enabled","budget_tokens":2048},` +
+		`"messages":[{"role":"user","content":"hi"},{"role":"assistant","content":[{"type":"thinking","thinking":"t","signature":"bad"},{"type":"tool_use","id":"t1","name":"x","input":{}}]},` +
+		`{"role":"user","content":[{"type":"tool_result","tool_use_id":"t1","content":"ok"}]}]}`
+	for _, tc := range []struct {
+		name      string
+		resps     []*http.Response
+		errs      []error
+		wantFirst []int // upstream_status of the HTTP attempts, in order
+	}{
+		{"budget", []*http.Response{jsonError(400, "thinking.budget_tokens: Input should be greater than or equal to 1024")}, []error{nil, transport}, []int{400}},
+		{"signature", []*http.Response{jsonError(400, "Invalid signature in thinking block")}, []error{nil, transport}, []int{400}},
+		{"signature tools", []*http.Response{jsonError(400, "Invalid signature in thinking block"), jsonError(400, "Invalid signature in thinking block for tool_use")},
+			[]error{nil, nil, transport}, []int{400, 400}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			sink, restore := captureStructuredLog(t)
+			defer restore()
+			upstream := &longContextUpstream{countStatus: http.StatusOK, inferResps: tc.resps, inferErrs: tc.errs}
+			svc := newLongContextService(upstream, "", nil)
+			c, _ := longContextContext("/v1/messages", "")
+			res, err := forwardMessages(t, svc, c, newAnthropicOAuthAccountForPartialUsageTest(), thinking)
+			require.Error(t, err, "the client still gets the earlier HTTP error")
+			require.Equal(t, len(tc.errs), upstream.inferCalls)
+			LogLongContextOutcome(c, res, err)
+
+			lines := longContextObserveLines(sink)
+			require.Len(t, lines, len(tc.wantFirst)+1, "no duplicate final line")
+			for i, status := range tc.wantFirst {
+				require.Equal(t, "superseded_by_retry", lines[i]["outcome"], i)
+				require.EqualValues(t, status, lines[i]["upstream_status"], i)
+				require.EqualValues(t, i+1, lines[i]["attempt"])
+			}
+			last := lines[len(lines)-1]
+			require.Equal(t, "retry_transport_error", last["outcome"])
+			require.NotContains(t, last, "upstream_status", "the failed retry received no HTTP response")
+			require.NotContains(t, last, "input_tokens")
+		})
+	}
 }
