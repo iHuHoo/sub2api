@@ -26,13 +26,78 @@ The `cc_version` suffix is computed from the first user text that is not a clien
 
 Betas are not taken from the profile; their composition stays in code. Captured 2.1.318 betas differ from the gateway's per model and are tracked in #147.
 
-## Compatibility table (schema_version 2, not enforced yet)
+## Compatibility table (#153, not enforced yet)
 
-Since #153 the shipped file is `schema_version: 2` and adds `compatibility`: for each captured Claude Code version, the betas it sends in wire order, per endpoint (`messages`, `count_tokens`), entrypoint (`cli` interactive, `sdk` for `-p`) and exact model. The shipped table lists only what was captured offline: 2.1.309 and 2.1.318, the nine `cli` messages models, and three models (`claude-sonnet-4-6`, `claude-opus-4-7`, `claude-sonnet-5-5`) for `sdk` messages and `cli` count_tokens. Anything else has no row. There are no wildcards or nearest-version lookups; dated aliases must be listed explicitly under `aliases`.
+Besides the identity, the profile carries a table of what each captured Claude Code version really sends. It is validated at startup (unknown or duplicate keys, malformed rows, no rows for `cli_version`, files over 256 KB all stop the server). **No request is checked against it yet**: requests are forwarded exactly as before, and the startup log says `compatibility_enforced=false`.
 
-The table is validated at startup (unknown keys, duplicate rows or betas, unknown body contracts or `requires` conditions, bad versions or model ids, dangling aliases, no rows for `cli_version`, files over 64 KB all stop the server), but **no request is checked against it yet**: requests are forwarded exactly as before, and the startup log says `compatibility_enforced=false`. Enforcement (rewrite older clients, filter newer ones, reject unknown combinations) is a later step of #153.
+### Schema versions
 
-A `schema_version: 1` file, such as the #144 release file or an operator's copy at a custom path, still loads unchanged, without a table, and logs a warning at startup. To get the table, replace it with the shipped schema 2 file. A schema 1 file must not contain `compatibility`, and a schema 2 file must.
+| `schema_version` | Content | Status |
+|---|---|---|
+| 1 | identity only | loads; logs a warning |
+| 2 | identity + one beta list per version/endpoint/entrypoint/model | loads, inactive (legacy) |
+| 3 | identity + exact captured request variants | shipped, inactive |
+
+When enforcement ships it will require a complete schema 3 file; a schema 1 or 2 file will then fail at startup with migration guidance.
+
+### Schema 3 table
+
+```json
+"compatibility": {
+  "versions": [{
+    "version": "2.1.318",
+    "rows": [{
+      "endpoint": "messages",
+      "entrypoint": "cli",
+      "models": ["claude-opus-4-7"],
+      "variants": [{
+        "selector": {"cache": "ttl1h", "thinking": "adaptive/updates", "context_management": true,
+                     "effort": true, "output_format": false, "deferred_tools": true,
+                     "safeguards": true, "tools": true},
+        "beta_sets": [["claude-code-20250219", "oauth-2025-04-20", "..."]]
+      }]
+    }]
+  }]
+}
+```
+
+- A row is one exact version, endpoint (`messages` | `count_tokens`), entrypoint (`cli` | `sdk`) and model. There is no nearest-version, model-family or alias fallback.
+- A variant is one structural request case. All eight selector fields are required; none is a wildcard.
+  - `cache`: `ttl1h` when any cache_control has `ttl: "1h"`, `default` when cache_control appears without it, otherwise `none`.
+  - `thinking`: `type/display` (`adaptive/updates`, `enabled/omitted`, …), a bare type when there is no display, or `absent`.
+  - The rest are booleans: `context_management`, top-level `output_config.effort` / `output_config.format`, at least one tool with `defer_loading: true`, `safeguards`, and a non-empty `tools` array.
+- `beta_sets` lists every exact beta list captured for that case, in wire order. One case can have more than one list: 2.1.309 sends its title request with and without `dangerous-tool-use`.
+- The target version is `cli_version`. Upgrading Claude Code means capturing the new version and adding its rows. A `cli_version` without rows is rejected at startup.
+
+### Migrating a custom schema 2 file
+
+1. Set `schema_version` to 3.
+2. Replace each row's `default_betas` / `optional_betas` / `requires` with `variants`. Copy only lists you captured from the real client, never a union or a subset of them.
+3. Remove `body_contract`.
+4. `aliases` must be absent or empty. List each dated model id in the `models` of the rows where it was actually captured.
+
+### Shipped content
+
+- Versions 2.1.280, 2.1.309 and 2.1.318: 41 rows, 104 variants.
+- They come from offline captures of ordinary sessions, compact, thinking-off, title-generation and 1M runs. The captures used synthetic credentials with networking disabled, and only sanitized metadata is kept in the repository.
+- 2.1.280 rows exist as sources only:
+  - Its `count_tokens` requests map onto 2.1.318.
+  - Its `messages` requests carry `prompt-caching-scope-2026-01-05`, which 2.1.318 never sends, so they are incompatible.
+- Dated model ids (`claude-sonnet-4-5-20250929`, `claude-haiku-4-5-20251001`) are captured but not shipped, because dated ids are not offered to customers by default. An operator who needs one adds it as an exact model in the rows where it was captured.
+
+### What the table does not cover (unsupported once enforced)
+
+Requests outside the captured grammar would be rejected locally with `unsupported_client_combination`:
+- documents/PDF;
+- images placed directly in a user message (images inside tool results are covered);
+- `redacted_thinking` blocks;
+- `tool_choice`, `stop_sequences`, `top_p`, `top_k`;
+- server tools (a tool with `type`);
+- cache_control on tools, or a TTL other than 1h;
+- other `context_management` edits;
+- effort levels outside the model's catalog.
+
+2.1.318 interactive mode never sent a title-generation request offline. A 2.1.309 interactive title request therefore has no target, and once enforced those users would get no automatic session title. SDK title requests for sonnet-4-6 and haiku-4-5 are covered.
 
 ## Changing the profile
 

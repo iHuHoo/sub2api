@@ -34,7 +34,7 @@ func loadClaudeClientProfile(path string) error {
 		slog.Warn("ignoring legacy Claude CLI version override; the client profile owns the version", "env", legacyClaudeCLIVersionEnv)
 	}
 	if !p.HasCompatibility() {
-		slog.Warn("claude client profile has no compatibility table (schema_version 1); it loads unchanged, and the version/model/beta table needs the schema_version 2 file", "path", path)
+		slog.Warn("claude client profile has no compatibility table (schema_version 1); it loads unchanged, and the version/model/beta table needs the schema_version 3 file", "path", path)
 	}
 	// compatibility_enforced stays false until native enforcement exists (#153): the table is
 	// validated at startup but no request is checked against it.

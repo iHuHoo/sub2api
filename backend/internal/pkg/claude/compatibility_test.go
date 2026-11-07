@@ -49,7 +49,7 @@ func fixtureHeader(fx compatibilityFixture, name string) (string, bool) {
 // Every shipped row is a sanitized capture, and every capture is a row with the same betas
 // in the same wire order: nothing extrapolated, nothing missing.
 func TestShippedCompatibilityMatchesCaptures(t *testing.T) {
-	p := ActiveClientProfile()
+	p := schema2Profile(t)
 	require.True(t, p.HasCompatibility())
 	fixtures := loadCompatibilityFixtures(t)
 	require.Equal(t, len(fixtures), p.CompatibilityRowCount(), "one row per captured request shape")
@@ -83,7 +83,7 @@ func TestShippedCompatibilityMatchesCaptures(t *testing.T) {
 
 // Lookups are exact: no nearest version, model family or other entrypoint.
 func TestCompatibilityLookupIsExact(t *testing.T) {
-	p := ActiveClientProfile()
+	p := schema2Profile(t)
 	_, ok := p.CompatibilityRow("2.1.318", CompatibilityEndpointMessages, CompatibilityEntrypointCLI, "claude-sonnet-4-6")
 	require.True(t, ok)
 	for _, miss := range [][4]string{
@@ -106,7 +106,7 @@ func TestCompatibilityLookupIsExact(t *testing.T) {
 // Callers cannot change the table: not through a returned row, a profile copy, or the
 // bytes the profile was parsed from.
 func TestCompatibilityTableIsImmutable(t *testing.T) {
-	raw, err := os.ReadFile(profileFile)
+	raw, err := os.ReadFile(schema2File)
 	require.NoError(t, err)
 	p, err := ParseClientProfile(raw)
 	require.NoError(t, err)
@@ -153,11 +153,11 @@ func TestLegacySchema1ProfileLoadsWithoutCompatibility(t *testing.T) {
 	defer func() { require.NoError(t, SetActiveClientProfile(mustShippedProfile(t))) }()
 	require.False(t, ActiveClientProfile().HasCompatibility())
 
-	shipped := shippedProfileMap(t)
+	shipped := schema2ProfileMap(t)
 	legacyWithTable := clone(t, shipped)
 	legacyWithTable["schema_version"] = 1
 	_, err := ParseClientProfile(marshal(t, legacyWithTable))
-	require.ErrorContains(t, err, "compatibility requires schema_version 2")
+	require.ErrorContains(t, err, "compatibility requires schema_version 2 or 3")
 
 	schema2NoTable := clone(t, shipped)
 	delete(schema2NoTable, "compatibility")
@@ -166,6 +166,25 @@ func TestLegacySchema1ProfileLoadsWithoutCompatibility(t *testing.T) {
 
 	require.ErrorContains(t, SetActiveClientProfile(ClientProfile{SchemaVersion: 2}), "requires compatibility",
 		"a hand-built schema 2 profile without a parsed table is never installed")
+}
+
+// The schema 2 tests run against the last shipped schema 2 file, which stays loadable.
+const schema2File = "testdata/profile-schema2.json"
+
+func schema2Profile(t *testing.T) ClientProfile {
+	t.Helper()
+	p, err := LoadClientProfileFile(schema2File)
+	require.NoError(t, err)
+	return p
+}
+
+func schema2ProfileMap(t *testing.T) map[string]any {
+	t.Helper()
+	raw, err := os.ReadFile(schema2File)
+	require.NoError(t, err)
+	var m map[string]any
+	require.NoError(t, json.Unmarshal(raw, &m))
+	return m
 }
 
 func mustShippedProfile(t *testing.T) ClientProfile {
@@ -249,7 +268,7 @@ func TestParseCompatibilityRejectsBadTables(t *testing.T) {
 			compat(m)["aliases"] = []any{a, a}
 		}, "duplicate alias"},
 	} {
-		m := shippedProfileMap(t)
+		m := schema2ProfileMap(t)
 		tc.edit(m)
 		_, err := ParseClientProfile(marshal(t, m))
 		require.ErrorContains(t, err, tc.want, name)
@@ -262,7 +281,7 @@ func TestParseCompatibilityRejectsBadTables(t *testing.T) {
 
 // An explicit alias resolves to its model's row; nothing else does.
 func TestCompatibilityAliasResolvesExplicitlyOnly(t *testing.T) {
-	m := shippedProfileMap(t)
+	m := schema2ProfileMap(t)
 	compat, _ := m["compatibility"].(map[string]any)
 	compat["aliases"] = []any{map[string]any{"alias": "claude-opus-4-7-20990101", "model": "claude-opus-4-7"}}
 	p, err := ParseClientProfile(marshal(t, m))
