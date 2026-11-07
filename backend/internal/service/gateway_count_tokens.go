@@ -3,6 +3,7 @@ package service
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -254,14 +255,7 @@ func (s *GatewayService) ForwardCountTokens(ctx context.Context, c *gin.Context,
 			writeAnthropicLongContextCreditsError(c)
 			return fmt.Errorf("upstream error: %d %s", resp.StatusCode, anthropicLongContextCreditsCode)
 		}
-		errMsg := "Upstream request failed"
-		switch resp.StatusCode {
-		case 429:
-			errMsg = "Rate limit exceeded"
-		case 529:
-			errMsg = "Service overloaded"
-		}
-		s.countTokensError(c, resp.StatusCode, "upstream_error", errMsg)
+		s.countTokensUpstreamError(c, resp.StatusCode, sanitizeUpstreamErrorMessage(countTokensClientMessage(respBody)))
 		if upstreamMsg == "" {
 			return fmt.Errorf("upstream error: %d", resp.StatusCode)
 		}
@@ -375,14 +369,7 @@ func (s *GatewayService) forwardCountTokensAnthropicAPIKeyPassthrough(ctx contex
 			writeAnthropicLongContextCreditsError(c)
 			return fmt.Errorf("upstream error: %d %s", resp.StatusCode, anthropicLongContextCreditsCode)
 		}
-		errMsg := "Upstream request failed"
-		switch resp.StatusCode {
-		case 429:
-			errMsg = "Rate limit exceeded"
-		case 529:
-			errMsg = "Service overloaded"
-		}
-		s.countTokensError(c, resp.StatusCode, "upstream_error", errMsg)
+		s.countTokensUpstreamError(c, resp.StatusCode, sanitizeUpstreamErrorMessage(countTokensClientMessage(respBody)))
 		if upstreamMsg == "" {
 			return fmt.Errorf("upstream error: %d", resp.StatusCode)
 		}
@@ -654,6 +641,64 @@ func sanitizeCountTokensRequestBody(body []byte) []byte {
 }
 
 // countTokensError 返回 count_tokens 错误响应
+// countTokensBadRequestFallback answers an upstream 400 whose body carries no usable message.
+const countTokensBadRequestFallback = "Upstream rejected the request"
+
+// countTokensMaxClientMessageBytes bounds the upstream message echoed to the client.
+const countTokensMaxClientMessageBytes = 1024
+
+// countTokensClientMessage extracts the message an upstream count_tokens error may show the
+// client. Only a string field of a valid JSON body qualifies (error.message, then detail, then
+// message, as in extractUpstreamErrorMessage); an object, array or other non-string value is
+// never serialized for the client, and a JSON string inside error.message counts only when it
+// is valid JSON with a string error.message itself. Anything else yields "" (the fixed text).
+func countTokensClientMessage(body []byte) string {
+	if !json.Valid(body) {
+		return ""
+	}
+	for _, path := range []string{"error.message", "detail", "message"} {
+		r := gjson.GetBytes(body, path)
+		if !r.Exists() || r.Type == gjson.Null {
+			continue
+		}
+		if r.Type != gjson.String {
+			return ""
+		}
+		m := strings.TrimSpace(r.Str)
+		if m == "" {
+			continue
+		}
+		if path == "error.message" && strings.HasPrefix(m, "{") {
+			if !json.Valid([]byte(m)) {
+				return ""
+			}
+			if inner := gjson.Get(m, "error.message"); inner.Type == gjson.String && strings.TrimSpace(inner.Str) != "" {
+				return strings.TrimSpace(inner.Str)
+			}
+			return ""
+		}
+		return m
+	}
+	return ""
+}
+
+// countTokensUpstreamError answers an upstream count_tokens error. A 400 is the request's own
+// error: it keeps status 400 with the upstream message (from countTokensClientMessage,
+// sanitized by the caller) bounded here, in the standard envelope; the raw body and other upstream fields never reach
+// the client. Every other status uses the shared client mapping.
+func (s *GatewayService) countTokensUpstreamError(c *gin.Context, upstreamStatus int, sanitizedMsg string) {
+	if upstreamStatus == http.StatusBadRequest {
+		msg := truncateString(strings.TrimSpace(sanitizedMsg), countTokensMaxClientMessageBytes)
+		if msg == "" {
+			msg = countTokensBadRequestFallback
+		}
+		s.countTokensError(c, http.StatusBadRequest, "invalid_request_error", msg)
+		return
+	}
+	status, errType, errMsg := AnthropicClientError(upstreamStatus)
+	s.countTokensError(c, status, errType, errMsg)
+}
+
 func (s *GatewayService) countTokensError(c *gin.Context, status int, errType, message string) {
 	c.JSON(status, gin.H{
 		"type": "error",

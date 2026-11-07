@@ -719,7 +719,16 @@ func TestGatewayService_AnthropicAPIKeyPassthrough_CountTokens404PassthroughNotE
 				require.Equal(t, "not_found_error", errObj["type"])
 			} else {
 				require.Error(t, err)
-				require.Equal(t, tt.statusCode, rec.Code)
+				// The messages contract: 400 is passed through, the rest uses the shared mapping.
+				want := tt.statusCode
+				if want != http.StatusBadRequest {
+					want, _, _ = AnthropicClientError(tt.statusCode)
+				}
+				require.Equal(t, want, rec.Code)
+				if tt.statusCode == http.StatusBadRequest {
+					// The upstream message reaches the client in the gateway's own envelope.
+					require.Contains(t, rec.Body.String(), gjson.Get(tt.respBody, "error.message").String())
+				}
 			}
 		})
 	}
